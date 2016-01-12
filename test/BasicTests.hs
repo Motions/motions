@@ -15,6 +15,7 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.PureChainRepresentation
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
+import Bio.Motions.Callback.Parser.TH
 import qualified Bio.Motions.Representation.Dump as D
 
 import Control.Monad
@@ -23,6 +24,45 @@ import Data.Proxy
 import qualified Data.Vector.Unboxed as U
 import Linear
 
+import GHC.TypeLits
+
+
+
+[callback|CALLBACK "sum42-beads"
+    EVERY 1
+    NODES 1
+    WHERE BELONGS(X 0, BEAD 0) OR BELONGS(X 0, BEAD 1)
+    COMPUTE SUM 42
+|]
+
+[callback|CALLBACK "prod2-all"
+    EVERY 1
+    NODES 1
+    WHERE 1 == 1
+    COMPUTE PRODUCT 2
+|]
+
+[callback|CALLBACK "list42-binders"
+    EVERY 1
+    NODES 1
+    WHERE BELONGS(X 0, BINDER 0) OR BELONGS(X 0, BINDER 1)
+    COMPUTE LIST 42
+|]
+
+[callback|CALLBACK "prod-binders-beads"
+    EVERY 1
+    NODES 2
+    WHERE (BELONGS(X 0, BINDER 0) OR BELONGS(X 0, BINDER 1))
+          AND (BELONGS(X 1, BEAD 0) OR BELONGS(X 1, BEAD 1))
+    COMPUTE SUM 1
+|]
+
+[callback|CALLBACK "list-11"
+    EVERY 1
+    NODES 2
+    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 1, BEAD 1)
+    COMPUTE LIST DIST(X 0, X 1)
+|]
 
 testRepr :: SpecWith ()
 testRepr = do
@@ -76,6 +116,28 @@ testRepr = do
             score :: StandardScore <- updateCallback repr 1002 $ Move (V3 0 1 2) (V3 1 0 0)
             score `shouldBe` 1000
 
+        context "when computing the template haskell callbacks" $ do
+            it "has the correct sum42-beads" $ do
+                res :: THCallback "sum42-beads" <- runCallback repr
+                res `shouldBe` THCallback (42 * beads)
+
+            it "has the correct prod2-all" $ do
+                res :: THCallback "prod2-all" <- runCallback repr
+                res `shouldBe` THCallback (2 ^ (beads + binders))
+
+            it "has the correct list42-binders" $ do
+                res :: THCallback "list42-binders" <- runCallback repr
+                res `shouldBe` THCallback (replicate binders 42)
+
+            it "has the correct prod-binders-beads" $ do
+                res :: THCallback "prod-binders-beads" <- runCallback repr
+                res `shouldBe` THCallback (binders * beads)
+
+            it "has the correct list-11" $ do
+                res :: THCallback "list-11" <- runCallback repr
+                res `shouldBe` THCallback [sqrt 2, 1]
+
+
     repr' <- fst <$> performMove (Move (V3 5 6 6) (V3 0 0 (-1))) repr
     dump' <- makeDump repr'
 
@@ -115,7 +177,7 @@ testRepr = do
                                       , BinderInfo (V3 5 5 5) bi1
                                       ]
             binders `shouldMatchList` D.binders dump''
-        it "reports the beads to be unchanged" $ do
+        it "reports the beads to be unchanged" $
             D.chains dump'' `shouldBe` D.chains dump'
 
   where
