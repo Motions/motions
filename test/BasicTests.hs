@@ -12,7 +12,7 @@
 import Test.Hspec
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
-import Bio.Motions.Representation.PureChainRepresentation
+import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, intersectsChain)
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import qualified Bio.Motions.Representation.Dump as D
@@ -117,6 +117,11 @@ testRepr = do
             binders `shouldMatchList` D.binders dump''
         it "reports the beads to be unchanged" $ do
             D.chains dump'' `shouldBe` D.chains dump'
+    context "when checking for intersections" $ do
+        it "reports actual intersections to exist" $
+            intersectsChain repr'' (V3 7 8 7) (V3 7 7 8) `shouldBe` True
+        it "doesn't report about non-existing intersections" $
+            intersectsChain repr'' (V3 7 8 7) (V3 7 8 8) `shouldBe` False
 
   where
     beads = sum $ map length $ D.chains dump
@@ -135,6 +140,9 @@ testRepr = do
               ]
             , [ BeadInfo (V3 0 0 2) be0 ev0 3 1 0
               , BeadInfo (V3 5 4 5) be1 ev1 4 1 1
+              ]
+            , [ BeadInfo (V3 7 7 7) be0 ev0 5 2 0
+              , BeadInfo (V3 7 8 8) be0 ev0 6 2 1
               ]
             ]
         , D.beadKinds = [ev0, ev1]

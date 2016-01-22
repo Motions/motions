@@ -1,6 +1,6 @@
 {- |
-Module      : Bio.Motions.Representation.PureChainRepresentation
-Description : Contains a pure and ineffective chain-based 'Representation'.
+Module      : Bio.Motions.Representation.Chain.Internal
+Description : Contains the internal definitions for the 'Pure Chain Representation'.
 License     : MIT
 Stability   : experimental
 Portability : unportable
@@ -12,7 +12,7 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-module Bio.Motions.Representation.PureChainRepresentation(PureChainRepresentation) where
+module Bio.Motions.Representation.Chain.Internal where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
@@ -136,8 +136,21 @@ localNeighbours info repr = zip positions $ tail positions
                            ]
     positions = view position <$> neighbours
 
+-- |Checks if there is a chain between two given points. Assumes that the quadrance
+--  of the distance between these points equals to 1 or 2, i. e. they are neighbours
+--  on the 3-dimensional grid.
 intersectsChain :: PureChainRepresentation -> Vec3 -> Vec3 -> Bool
-intersectsChain = undefined
+intersectsChain PureChainRepresentation{..} v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
+    d /= 1 && case (`M.lookup` space) <$> crossPoss of
+                [Just (Bead b1), Just (Bead b2)] -> chainNeighbours b1 b2
+                _                                -> False
+  where
+    d = qd v1 v2
+    crossPoss | x1 == x2 = [V3 x1 y1 z2, V3 x1 y2 z1]
+              | y1 == y2 = [V3 x1 y1 z2, V3 x2 y1 z1]
+              | z1 == z2 = [V3 x1 y2 z1, V3 x2 y1 z1]
+    chainNeighbours b1 b2 = beadChain b1 == beadChain b2
+                         && abs (beadIndexOnChain b1 - beadIndexOnChain b2) == 1
 
 illegalBeadMove :: PureChainRepresentation -> Move -> BeadInfo -> Bool
 illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs

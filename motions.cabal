@@ -17,13 +17,14 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Bio.Motions.Representation.Class,
-                       Bio.Motions.Representation.PureChainRepresentation,
+                       Bio.Motions.Representation.Chain.Pure,
+                       Bio.Motions.Representation.Chain.Internal,
                        Bio.Motions.Representation.Dump,
                        Bio.Motions.Callback.Class,
                        Bio.Motions.Callback.StandardScore,
                        Bio.Motions.Types
                        Bio.Motions.Engine
-  -- other-modules:
+  -- other-modules:       
   -- other-extensions:
   build-depends:       base >=4.8 && <4.9,
                        vector >=0.11 && <0.12,
