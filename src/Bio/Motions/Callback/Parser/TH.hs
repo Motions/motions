@@ -145,7 +145,7 @@ createCallback ParsedCallback{..} = do
         CallbackProduct expr -> (id, id, expr)
         CallbackList expr -> (listE . (:[]), appT listT, expr)
 
--- |A callback quasiquoter, accepting any suitable callback with arity strictly less than 'maxb'.
+-- |A callback quasiquoter, accepting any suitable callback with arity strictly less than 'maxn'.
 quoteCallback :: MaxNConstraint LiftsA LiftsN maxn => Proxy# maxn -> String -> Q [Dec]
 quoteCallback p str =
     case P.parse (parseCallback p) "TH" str of

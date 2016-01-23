@@ -152,16 +152,18 @@ data ParsedCallbackWrapper c cn where
 -- parameterized by such a 'Nat'. Only 'Nat's less than 'limit' are considered (if the provided 'Int'
 -- is either negative or not less than 'limit', the function returns 'Nothing').
 --
--- It is possible to specify a 'Constraint' constructor @'c' :: 'Nat' -> 'Constraint'@,
--- which, as a precondition, has to be satisfied by all numbers less than 'limit', but in turn the
--- corresponding dictionary witnessing this 'Constraint' will be provided to the continuation
--- provided.
+-- Since the computation to be performed (passed as a continuation) may require some constraint
+-- on 'm' to hold, 'tryNatsBelow' is parameterized by an additional 'Constraint' constructor
+-- @'c' :: 'Nat' -> 'Constraint'@.
+--
+-- Because the correct 'm' is not known statically, 'tryNatsBelow' requires @'c' 'm'@ to hold
+-- for every 'm' less than 'limit'.
 tryNatsBelow :: forall c limit r. (TryNatsBelow c limit)
     => Proxy# '(limit, c)
     -> Int
     -- ^A runtime natural number.
     -> (forall (m :: Nat). c m => Proxy# m -> r)
-    -- ^The function to be called when the correct @'m' :: 'Nat'@ equal to the 'Int' provided
+    -- ^The continuation to be called when the correct @'m' :: 'Nat'@ equal to the 'Int' provided
     -- is found.
     -> Maybe r
     -- ^Its return value iff the 'Int' provided is non-negative and less than 'limit',
@@ -183,7 +185,7 @@ class TryNatsBelow' c (limit :: Nat) (acc :: Nat) where
                     -> (forall (m :: Nat). c m => Proxy# m -> x)
                     -> Maybe x
 
--- | Converson should start with the accumulator equal to 'Zero'
+-- | Conversion should start with the accumulator equal to 'Zero'
 type TryNatsBelow c limit = TryNatsBelow' c limit 'Zero
 
 -- |@n < 'Zero'@ -- absurd.
