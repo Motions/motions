@@ -9,6 +9,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+module BasicSpec where
+
 import Test.Hspec
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
@@ -64,7 +66,7 @@ import GHC.TypeLits
     COMPUTE LIST DIST(X 0, X 1)
 |]
 
-testRepr :: SpecWith ()
+testRepr :: Spec
 testRepr = do
     repr :: PureChainRepresentation <- loadDump dump
 
@@ -205,5 +207,5 @@ testRepr = do
     [be0, be1] = BeadType <$> [0, 1]
     [ev0, ev1] = EnergyVector . U.fromList <$> [[1, 0], [0, 1000]]
 
-main :: IO ()
-main = hspec $ context "the pure chain representation" testRepr
+spec :: Spec
+spec = context "the pure chain representation" testRepr
