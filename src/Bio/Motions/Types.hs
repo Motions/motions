@@ -38,6 +38,7 @@ type Vec3 = V3 Int
 data BinderInfo = BinderInfo
     { binderPosition :: !Vec3   -- ^ The position of the binder
     , binderType :: !BinderType -- ^ The type of the binder
+    , binderIndex :: !Int -- ^ A unique identifier of this binder
     }
     deriving (Eq, Show)
 
