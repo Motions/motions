@@ -47,7 +47,11 @@ import Bio.Motions.Types
 data CallbackFrequency = EveryNFrames Int | EveryNAcceptedFrames Int
 
 -- |Represents the type of an atom
-data AtomType = AtomTypeBinder BinderType | AtomTypeBead BeadType
+data AtomType = AtomTypeBinder BinderType
+              -- ^ A binder
+              | AtomTypeBeadBindingTo BinderType
+              -- ^ A bead with non-zero value for the given 'BinderType'
+              -- in its 'EnergyVector'.
 
 -- |The return value of a callback
 data CallbackResult c n a where
@@ -358,7 +362,6 @@ class ParseConstant a where
 instance ParseConstant Int where
     constant = fromIntegral <$> integer
 
-deriving instance ParseConstant BeadType
 deriving instance ParseConstant BinderType
 
 -- |Floating-point or integral constants.
@@ -377,8 +380,10 @@ instance ToNode n => ParseConstant (Node n) where
 
 -- |Atom class constants.
 instance ParseConstant AtomType where
-    constant =   (reserved "BEAD"   >> AtomTypeBead   <$> constant)
-             <|> (reserved "BINDER" >> AtomTypeBinder <$> constant)
+    constant =   (reserved "BEAD_BINDING_TO"
+                    >> AtomTypeBeadBindingTo <$> constant)
+             <|> (reserved "BINDER"
+                    >> AtomTypeBinder        <$> constant)
 
 -- |The language definition.
 dslDef :: P.LanguageDef st

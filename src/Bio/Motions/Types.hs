@@ -27,10 +27,6 @@ newtype EnergyVector = EnergyVector { getEnergyVector :: U.Vector Int }
 newtype BinderType = BinderType { getBinderType :: Int }
     deriving (Eq, Show)
 
--- |Represents a bead type
-newtype BeadType = BeadType { getBeadType :: Int }
-    deriving (Eq, Show)
-
 -- |A 3D vector of Ints
 type Vec3 = V3 Int
 
@@ -38,13 +34,13 @@ type Vec3 = V3 Int
 data BinderInfo = BinderInfo
     { binderPosition :: !Vec3   -- ^ The position of the binder
     , binderType :: !BinderType -- ^ The type of the binder
+    , binderIndex :: !Int -- ^ A unique identifier of this binder
     }
     deriving (Eq, Show)
 
 -- |Represents the information about a particular bead
 data BeadInfo = BeadInfo
     { beadPosition :: !Vec3 -- ^ The position of the bead
-    , beadType :: !BeadType -- ^ The type of the bead
     , beadEV :: !EnergyVector -- ^ The energy vector of the bead
     , beadAtomIndex :: !Int -- ^ The global index of this bead
     , beadChain :: !Int -- ^ The index of the chain this bead belongs to

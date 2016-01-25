@@ -11,6 +11,7 @@ Portability : unportable
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE Rank2Types #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Bio.Motions.Representation.Chain.Internal where
 
@@ -19,6 +20,7 @@ import Bio.Motions.Representation.Class
 import qualified Bio.Motions.Representation.Dump as D
 import Control.Lens
 import Control.Monad
+import Control.Monad.Primitive
 import Control.Monad.Random
 import Data.List
 import Data.Maybe
@@ -26,15 +28,16 @@ import Data.MonoTraversable
 import qualified Data.Sequences as DS
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as VM
 import qualified Data.Vector.Unboxed as U
 import Linear
 
 type Space = M.Map Vec3 Atom
 
-data PureChainRepresentation = PureChainRepresentation
+data ChainRepresentation vec = ChainRepresentation
     { space :: !Space
-    , binders :: !(V.Vector BinderInfo)
-    , beads :: !(V.Vector BeadInfo)
+    , binders :: !(vec BinderInfo)
+    , beads :: !(vec BeadInfo)
     -- ^ Beads from all chains
     , chainIndices :: !(U.Vector Int)
     -- ^ Indices of first atoms of successive chains in the 'beads' vector,
@@ -44,21 +47,59 @@ data PureChainRepresentation = PureChainRepresentation
     , beadKinds :: !(V.Vector EnergyVector)
     }
 
+type PureChainRepresentation = ChainRepresentation V.Vector
+type MutableChainRepresentation s = ChainRepresentation (V.MVector s)
+
+-- |Transforms one 'ChainRepresentation' into another. See 'unsafeFreeze', 'unsafeThaw'.
+changeVector :: Monad m => (forall a. v a -> m (w a)) -> ChainRepresentation v -> m (ChainRepresentation w)
+changeVector f repr = do
+    binders' <- f $ binders repr
+    beads' <- f $ beads repr
+    pure $ repr
+        { binders = binders'
+        , beads = beads'
+        }
+
+-- |Unsafely converts a mutable representation into an immutable one.
+--
+-- Restrictions analogous to those of 'V.unsafeFreeze' apply.
+unsafeFreeze :: PrimMonad m => MutableChainRepresentation (PrimState m) -> m PureChainRepresentation
+unsafeFreeze = changeVector V.unsafeFreeze
+
+-- |Unsafely converts an inmutable representation into a mutable one.
+--
+-- Restrictions analogous to those of 'V.unsafeThaw' apply.
+unsafeThaw :: PrimMonad m => PureChainRepresentation -> m (MutableChainRepresentation (PrimState m))
+unsafeThaw = changeVector V.unsafeThaw
+
 instance Applicative m => ReadRepresentation m PureChainRepresentation where
-    getBinders PureChainRepresentation{..} f = f binders
+    getBinders ChainRepresentation{..} f = f binders
     {-# INLINE getBinders #-}
 
-    getNumberOfChains PureChainRepresentation{..} = pure $ U.length chainIndices - 1
+    getNumberOfChains ChainRepresentation{..} = pure $ U.length chainIndices - 1
     {-# INLINE getNumberOfChains #-}
 
     getChain repr ix f = f $ getChain' repr ix
     {-# INLINE getChain #-}
 
-    getAtomAt pos PureChainRepresentation{..} = pure $ M.lookup pos space
+    getAtomAt pos ChainRepresentation{..} = pure $ M.lookup pos space
+    {-# INLINE getAtomAt #-}
+
+instance (PrimMonad m, PrimState m ~ s) => ReadRepresentation m (MutableChainRepresentation s) where
+    getBinders repr f = unsafeFreeze repr >>= \repr' -> getBinders repr' f
+    {-# INLINE getBinders #-}
+
+    getNumberOfChains ChainRepresentation{..} = pure $ U.length chainIndices - 1
+    {-# INLINE getNumberOfChains #-}
+
+    getChain repr ix f = unsafeFreeze repr >>= \repr' -> getChain repr' ix f
+    {-# INLINE getChain #-}
+
+    getAtomAt pos ChainRepresentation{..} = pure $ M.lookup pos space
     {-# INLINE getAtomAt #-}
 
 instance Applicative m => Representation m PureChainRepresentation where
-    loadDump dump = pure PureChainRepresentation
+    loadDump dump = pure ChainRepresentation
         { binders = V.fromList $ D.binders dump
         , beads = V.fromList $ concat $ D.chains dump
         , chainIndices = U.fromList $ scanl' (+) 0 $ map length $ D.chains dump
@@ -76,7 +117,7 @@ instance Applicative m => Representation m PureChainRepresentation where
         , beadKinds = V.toList $ beadKinds repr
         }
 
-    generateMove repr@PureChainRepresentation{..} = do
+    generateMove repr@ChainRepresentation{..} = do
         moveBinder <- getRandom
         if moveBinder then
             pick binders Nothing
@@ -99,11 +140,10 @@ instance Applicative m => Representation m PureChainRepresentation where
             pure m
 
     performMove (MoveFromTo from to) repr
-        | Binder binderInfo <- atom = pure $
-            let Just idx = V.elemIndex binderInfo $ binders repr
-            in  (repr { space = space'
-                      , binders = binders repr V.// [(idx, binderInfo & position .~ to)]
-                      }, [])
+        | Binder binderInfo <- atom = pure
+            (repr { space = space'
+                  , binders = binders repr V.// [(binderIndex binderInfo, binderInfo & position .~ to)]
+                  }, [])
         | Bead beadInfo <- atom = pure
             (repr { space = space'
                   , beads = beads repr V.// [(beadAtomIndex beadInfo, beadInfo & position .~ to)]
@@ -112,6 +152,26 @@ instance Applicative m => Representation m PureChainRepresentation where
         atom = space repr M.! from
         atom' = atom & position .~ to
         space' = M.insert to atom' $ M.delete from $ space repr
+
+instance (PrimMonad m, PrimState m ~ s) => Representation m (MutableChainRepresentation s) where
+    loadDump dump = loadDump dump >>= unsafeThaw
+
+    makeDump repr = unsafeFreeze repr >>= makeDump
+
+    generateMove repr = unsafeFreeze repr >>= generateMove
+
+    performMove (MoveFromTo from to) repr@ChainRepresentation{..}
+        | Binder BinderInfo{..} <- atom = do
+            VM.modify binders (position .~ to) binderIndex
+            pure result
+        | Bead BeadInfo{..} <- atom = do
+            VM.modify beads (position .~ to) beadAtomIndex
+            pure result
+      where
+        atom = space M.! from
+        atom' = atom & position .~ to
+        space' = M.insert to atom' $ M.delete from space
+        result = (repr { space = space' }, [])
 
 -- |Picks a random element from a 'DS.IsSequence', assuming that its indices form
 -- a continuous range from 0 to @'olength' s - 1@.
@@ -139,8 +199,8 @@ localNeighbours info repr = zip positions $ tail positions
 -- |Checks if a segment connecting the two given points would intersect with a chain.
 -- Assumes that these points are neighbours on the 3-dimensional grid, i. e. the quadrance
 -- of the distance between these points equals 1 or 2.
-intersectsChain :: PureChainRepresentation -> Vec3 -> Vec3 -> Bool
-intersectsChain PureChainRepresentation{..} v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
+intersectsChain :: Space -> Vec3 -> Vec3 -> Bool
+intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
     d /= 1 && case (`M.lookup` space) <$> crossPoss of
                 [Just (Bead b1), Just (Bead b2)] -> chainNeighbours b1 b2
                 _                                -> False
@@ -156,11 +216,11 @@ illegalBeadMove :: PureChainRepresentation -> Move -> BeadInfo -> Bool
 illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs
   where
     pairs = localNeighbours (bead & position +~ moveDiff) repr
-    notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain repr b1 b2
+    notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
 
 -- |Returns the chain with the specified index.
 getChain' :: PureChainRepresentation -> Int -> V.Vector BeadInfo
-getChain' PureChainRepresentation{..} ix = V.slice b (e - b) beads
+getChain' ChainRepresentation{..} ix = V.slice b (e - b) beads
   where
     [b, e] = U.unsafeIndex chainIndices <$> [ix, ix + 1]
