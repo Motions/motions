@@ -19,15 +19,18 @@ type Energy = Int
 -- EnergyVectors must have at least one element. The first element always represents
 -- the energy of binding with lamins.
 newtype EnergyVector = EnergyVector { getEnergyVector :: U.Vector Int }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 -- |Represents a binder type
 newtype BinderType = BinderType { getBinderType :: Int }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 -- |Represents a bead type
 newtype BeadType = BeadType { getBeadType :: Int }
     deriving (Eq, Show)
+
+-- |Represents a chain identifier
+type ChainId = Int
 
 -- |A 3D vector of Ints
 type Vec3 = V3 Int
