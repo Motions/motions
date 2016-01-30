@@ -21,11 +21,11 @@ type Energy = Int
 
 -- |Represents the binding energy of a bead when connected to a binder of some type
 newtype EnergyVector = EnergyVector { getEnergyVector :: U.Vector Int }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 -- |Represents a binder type
 newtype BinderType = BinderType { getBinderType :: Int }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord)
 
 -- |Represents a bead type
 newtype BeadType = BeadType { getBeadType :: Int }
