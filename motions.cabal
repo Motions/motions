@@ -24,8 +24,12 @@ library
                        Bio.Motions.Callback.StandardScore,
                        Bio.Motions.Callback.Parser.Parser,
                        Bio.Motions.Callback.Parser.TH,
-                       Bio.Motions.Types
-                       Bio.Motions.BED
+                       Bio.Motions.Types,
+                       Bio.Motions.Common,
+                       Bio.Motions.PDB.Meta,
+                       Bio.Motions.PDB.Write,
+                       Bio.Motions.PDB.Internal,
+                       Bio.Motions.BED,
                        Bio.Motions.Engine
   -- other-modules:
   -- other-extensions:
@@ -41,7 +45,9 @@ library
                        parsec >=3.1 && <3.2,
                        template-haskell >=2.10 && <2.11,
                        ghc-prim >=0.4 && <0.5,
-                       constraints >=0.6 && <0.7
+                       constraints >=0.6 && <0.7,
+                       hPDB >= 1.2 && < 1.21,
+                       bytestring >= 0.10 && < 0.11
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -58,3 +64,6 @@ test-suite spec
                        parsec >=3.1 && <3.2
     default-language:  Haskell2010
     hs-source-dirs:    test
+    other-modules:     BasicSpec,
+                       BEDSpec,
+                       PDBSpec
