@@ -36,6 +36,7 @@ import Control.Lens
 import Control.Monad.State.Strict
 import Data.Foldable
 import Data.Traversable
+import Data.Maybe
 import Data.MonoTraversable
 import Data.Monoid
 import Linear
@@ -44,12 +45,17 @@ import Data.Proxy
 import qualified GHC.TypeLits as TL
 import GHC.Prim
 
--- |Represents the return value type of a callback.
-type family THCallbackResult (name :: TL.Symbol) :: *
+class IsTHCallback (name :: TL.Symbol) where
+    -- |Represents the return value type of a callback.
+    type THCallbackResult name :: *
 
--- |Represents the callback arity, i.e. the number of
--- node arguments.
-type family THCallbackArity (name :: TL.Symbol) :: Nat
+    -- |Represents the callback arity, i.e. the number of
+    -- node arguments.
+    type THCallbackArity name :: Nat
+
+    -- |Runs the callback for an appropriate 'Vec' of atoms
+    runTHCallback :: (Monad m, ReadRepresentation m repr)
+        => repr -> Vec (THCallbackArity name) Atom -> m (THCallback name)
 
 type role THCallback nominal
 -- |A wrapper around the callback return type, which will be provided an instance
@@ -59,6 +65,7 @@ newtype THCallback (name :: TL.Symbol) = THCallback { getTHCallback :: THCallbac
 deriving instance Eq (THCallbackResult name) => Eq (THCallback name)
 deriving instance Ord (THCallbackResult name) => Ord (THCallback name)
 deriving instance Num (THCallbackResult name) => Num (THCallback name)
+deriving instance Fractional (THCallbackResult name) => Fractional (THCallback name)
 deriving instance Enum (THCallbackResult name) => Enum (THCallback name)
 deriving instance Real (THCallbackResult name) => Real (THCallback name)
 deriving instance Integral (THCallbackResult name) => Integral (THCallback name)
@@ -95,18 +102,15 @@ createCallback :: forall n a. (ForEachKNodes n, LiftProxy a, LiftProxy n)
     => ParsedCallback LiftsA n a -> Q [Dec]
 createCallback ParsedCallback{..} = do
     common <- [d|
-        type instance THCallbackArity $(name) = $(liftProxy (proxy# :: Proxy# n))
-        type instance THCallbackResult $(name) = $(constrT $ liftProxy (proxy# :: Proxy# a))
+        instance IsTHCallback $(name) where
+            type THCallbackArity $(name) = $(liftProxy (proxy# :: Proxy# n))
+            type THCallbackResult $(name) = $(constrT $ liftProxy (proxy# :: Proxy# a))
 
-        instance Monad m => Callback m 'Post (THCallback $(name)) where
-            runCallback repr = forEachKNodes repr run
-              where
-                run :: Vec (THCallbackArity $(name)) Atom -> m (THCallback $(name))
-                run args =  pure $
-                    if $(unTypeQ $ ev callbackCondition) then
-                        THCallback $(constrE $ unTypeQ $ ev expr)
-                    else
-                        mempty
+            runTHCallback repr args = pure $
+                if $(unTypeQ $ ev callbackCondition) then
+                    THCallback $(constrE $ unTypeQ $ ev expr)
+                else
+                    mempty
         |]
 
     monoid <- case callbackResult of
@@ -116,13 +120,26 @@ createCallback ParsedCallback{..} = do
                 {-# INLINE mempty #-}
                 mappend = (+)
                 {-# INLINE mappend #-}
-            |]
+
+            instance Monad m => Callback m 'Post (THCallback $(name)) where
+                runCallback = forEachKNodes <*> runTHCallback
+                updateCallback repr prev (MoveFromTo from to) = do
+                    atom <- fromMaybe (error "No atom found. The representation is broken") <$> getAtomAt to repr
+                    let prevAtom = atom & position .~ from
+                    fmap (prev +) $ forEachKNodesContaining atom repr $ \vec ->
+                        let prevVec = replaceAll atom prevAtom vec
+                            go = runTHCallback repr in
+                        (-) <$> go vec <*> go prevVec
+                |]
         CallbackProduct _ -> [d|
             instance Monoid (THCallback $(name)) where
                 mempty = 1
                 {-# INLINE mempty #-}
                 mappend = (*)
                 {-# INLINE mappend #-}
+
+            instance Monad m => Callback m 'Post (THCallback $(name)) where
+                runCallback = forEachKNodes <*> runTHCallback
             |]
         CallbackList _ -> [d|
             instance Monoid (THCallback $(name)) where
@@ -130,6 +147,9 @@ createCallback ParsedCallback{..} = do
                 {-# INLINE mempty #-}
                 (THCallback x) `mappend` (THCallback y) = THCallback $ x ++ y
                 {-# INLINE mappend #-}
+
+            instance Monad m => Callback m 'Post (THCallback $(name)) where
+                runCallback = forEachKNodes <*> runTHCallback
             |]
 
     pure $ common ++ monoid
@@ -161,7 +181,9 @@ callback = QuasiQuoter
 -- |A fixed-width vector
 data Vec (n :: Nat) a where
     Nil :: Vec Zero a
-    Cons :: a -> Vec n a -> Vec (Succ n) a
+    (:::) :: a -> Vec n a -> Vec (Succ n) a
+
+infixr 5 :::
 
 -- |Evaluation context
 data EvalCtx n = EvalCtx
@@ -176,8 +198,8 @@ type family ToNat (n :: TL.Nat) :: Nat where
 
 -- |Type-safe !! on 'Vec'tors.
 access :: Node n -> Vec n a -> a
-access FirstNode (Cons h _) = h
-access (NextNode n) (Cons _ t) = access n t
+access FirstNode (h ::: _) = h
+access (NextNode n) (_ ::: t) = access n t
 {-# INLINE access #-}
 
 -- |A transformer of 'Expr' into typed expressions.
@@ -256,16 +278,32 @@ class ForEachKNodes (n :: Nat) where
     forEachKNodes :: (Monoid r, ReadRepresentation m repr, Monad m)
         => repr -> (Vec n Atom -> m r) -> m r
 
+    forEachKNodesContaining :: (Monoid r, ReadRepresentation m repr, Monad m)
+        => Atom -> repr -> (Vec (Succ n) Atom -> m r) -> m r
+
 -- |The base case.
 instance ForEachKNodes Zero where
     forEachKNodes _ fun = fun Nil
     {-# INLINE forEachKNodes #-}
 
+    forEachKNodesContaining atom _ fun = fun $ atom ::: Nil
+    {-# INLINE forEachKNodesContaining #-}
+
 -- |The recursive case.
 instance ForEachKNodes n => ForEachKNodes (Succ n) where
     forEachKNodes repr fun = forEachKNodes repr $ \xs ->
-        forEachNode repr $ \x -> fun $ Cons x xs
+        forEachNode repr $ \x -> fun $ x ::: xs
     {-# INLINE forEachKNodes #-}
+
+    forEachKNodesContaining atom repr fun = mappend <$> inHead <*> inTail
+      where
+        inHead = forEachKNodes repr $ fun . (atom :::)
+        inTail = forEachNode repr $ \x ->
+            if x == atom then
+                pure mempty
+            else
+                forEachKNodesContaining atom repr $ fun . (x :::)
+    {-# INLINE forEachKNodesContaining #-}
 
 -- |Performs a monadic action over all nodes (i.e. beads and atoms)
 -- and gathers the results monoidally.
@@ -280,3 +318,10 @@ forEachNode repr f = do
     go :: (MonoTraversable c, Element c ~ a) => (a -> Atom) -> c -> m r
     go conv = flip ofoldlM mempty $ \s x -> mappend s <$> f (conv x)
 {-# INLINE forEachNode #-}
+
+replaceAll :: Eq a => a -> a -> Vec n a -> Vec n a
+replaceAll from to Nil = Nil
+replaceAll from to (x ::: xs)
+    | from == x = to ::: rest
+    | otherwise = x ::: rest
+    where rest = replaceAll from to xs
