@@ -68,6 +68,13 @@ import GHC.TypeLits
     COMPUTE LIST DIST(X 0, X 1)
 |]
 
+[callback|CALLBACK "sum-11"
+    EVERY 1
+    NODES 2
+    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 1, BEAD_BINDING_TO 1)
+    COMPUTE SUM DIST(X 0, X 1)
+|]
+
 testIntersectsChain :: Spec
 testIntersectsChain = do
     it "reports actual intersections to exist" $
@@ -93,11 +100,11 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
     context "when computing callbacks"
         testCallbacks
 
-    beforeWith (\repr -> fst <$> performMove (Move (V3 5 6 6) (V3 0 0 (-1))) repr) $
+    beforeWith (\repr -> fst <$> performMove beadMove repr) $
         context "after making a bead move" $ do
             testAfterBeadMove
 
-            beforeWith (\repr -> fst <$> performMove (Move (V3 0 1 2) (V3 1 0 0)) repr) $
+            beforeWith (\repr -> fst <$> performMove binderMove repr) $
                 context "after making a bead move"
                     testAfterBinderMove
   where
@@ -126,6 +133,10 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
         }
     [bi0, bi1] = BinderType <$> [0, 1]
     [ev0, ev1] = EnergyVector . U.fromList <$> [[1, 0], [0, 1000]]
+
+    beadMove = Move (V3 5 6 6) (V3 0 0 (-1))
+
+    binderMove = Move (V3 0 1 2) (V3 1 0 0)
 
     updatedChain = [ BeadInfo (V3 0 1 1) ev0 0 0 0
                    , BeadInfo (V3 5 6 5) ev1 1 0 1
@@ -217,6 +228,10 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
                 res :: THCallback "list-11" <- runCallback repr
                 res `shouldBe` THCallback [sqrt 2, 1]
 
+            it "has the correct sum-11" $ \repr -> do
+                res :: THCallback "sum-11" <- runCallback repr
+                res `shouldBe` THCallback (1 + sqrt 2)
+
     testAfterBeadMove :: SpecWith repr
     testAfterBeadMove = do
         it "reports the old location to be empty" $ \repr -> do
@@ -241,6 +256,11 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
             it "reports the binders to be unchanged" $ \dump' ->
                 D.binders dump' `shouldMatchList` D.binders dump
+
+        context "when updating callbacks" $ do
+            it "has the correct sum-11" $ \repr -> do
+                res :: THCallback "sum-11" <- updateCallback repr (THCallback (1 + sqrt 2)) beadMove
+                res `shouldSatisfy` ((< 1e-6) . abs . (2 -) . getTHCallback)
 
     testAfterBinderMove :: SpecWith repr
     testAfterBinderMove = do
