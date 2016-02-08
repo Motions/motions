@@ -65,6 +65,29 @@ import GHC.TypeLits
     COMPUTE LIST DIST(X 0, X 1)
 |]
 
+[callback|CALLBACK "sum-11"
+    EVERY 1
+    NODES 2
+    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 1, BEAD_BINDING_TO 1)
+    COMPUTE SUM DIST(X 0, X 1)
+|]
+
+[callback|CALLBACK "pairs-dist<2"
+    EVERY 1
+    NODES 2
+    WHERE DIST(X 0, X 1) * DIST(X 0, X 1) < 2
+    COMPUTE SUM 1
+|]
+
+[callback|CALLBACK "complex-function"
+    EVERY 1
+    NODES 5
+    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 4, BEAD_BINDING_TO 0) AND DIST(X 1, X 3) <= 1.5
+    COMPUTE SUM DIST(X 0, X 1) + DIST(X 1, X 4) * DIST(X 3, X 2) - DIST(X 4, X 0)
+|]
+
+x `shouldAlmostBe` y = abs (x - y) `shouldSatisfy` (< 1e-7)
+
 testIntersectsChain :: Spec
 testIntersectsChain = do
     it "reports actual intersections to exist" $
@@ -90,11 +113,11 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
     context "when computing callbacks"
         testCallbacks
 
-    beforeWith (\repr -> fst <$> performMove (Move (V3 5 6 6) (V3 0 0 (-1))) repr) $
+    beforeWith (\repr -> fst <$> performMove beadMove repr) $
         context "after making a bead move" $ do
             testAfterBeadMove
 
-            beforeWith (\repr -> fst <$> performMove (Move (V3 0 1 2) (V3 1 0 0)) repr) $
+            beforeWith (\repr -> fst <$> performMove binderMove repr) $
                 context "after making a binder move"
                     testAfterBinderMove
   where
@@ -122,6 +145,12 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
         }
     [bi0, bi1] = BinderType <$> [0, 1]
     [ev0, ev1] = EnergyVector . U.fromList <$> [[1, 0], [0, 1000]]
+
+    complexFunctionResult = 45117.35291086203
+
+    beadMove = Move (V3 5 6 6) (V3 0 0 (-1))
+
+    binderMove = Move (V3 0 1 2) (V3 1 0 0)
 
     updatedChain = [ BeadInfo (V3 0 1 1) ev0 0 0 0
                    , BeadInfo (V3 5 6 5) ev1 1 0 1
@@ -210,6 +239,18 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
                 res :: THCallback "list-11" <- runCallback repr
                 res `shouldBe` THCallback [sqrt 2, 1]
 
+            it "has the correct sum-11" $ \repr -> do
+                res :: THCallback "sum-11" <- runCallback repr
+                res `shouldBe` THCallback (1 + sqrt 2)
+
+            it "has the correct pairs-dist<2" $ \repr -> do
+                res :: THCallback "pairs-dist<2" <- runCallback repr
+                res `shouldBe` THCallback 22
+
+            it "has the correct complex-function" $ \repr -> do
+                res :: THCallback "complex-function" <- runCallback repr
+                res `shouldBe` complexFunctionResult
+
     testAfterBeadMove :: SpecWith repr
     testAfterBeadMove = do
         it "reports the old location to be empty" $ \repr -> do
@@ -234,6 +275,22 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
             it "reports the binders to be unchanged" $ \dump' ->
                 dumpBinders dump' `shouldMatchList` dumpBinders dump
+
+        context "when updating callbacks" $ do
+            it "has the correct sum-11" $ \repr -> do
+                res :: THCallback "sum-11" <- updateCallback repr (THCallback (1 + sqrt 2)) beadMove
+                corrRes <- runCallback repr
+                res `shouldAlmostBe` corrRes
+
+            it "has the correct pairs-dist<2" $ \repr -> do
+                res :: THCallback "pairs-dist<2" <- updateCallback repr (THCallback 22) beadMove
+                corrRes <- runCallback repr
+                res `shouldBe` corrRes
+
+            it "has the correct complex-function" $ \repr -> do
+                res <- updateCallback repr complexFunctionResult beadMove
+                corrRes <- runCallback repr
+                res `shouldAlmostBe` corrRes
 
     testAfterBinderMove :: SpecWith repr
     testAfterBinderMove = do
