@@ -13,6 +13,7 @@ Portability : unportable
 module Bio.Motions.Callback.StandardScore(StandardScore) where
 
 import Bio.Motions.Types
+import Bio.Motions.Common
 import Bio.Motions.Callback.Class
 import Bio.Motions.Representation.Class
 import Control.Lens
