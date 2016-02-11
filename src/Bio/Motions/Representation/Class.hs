@@ -11,7 +11,7 @@ Portability : unportable
 module Bio.Motions.Representation.Class where
 
 import Bio.Motions.Types
-import qualified Bio.Motions.Representation.Dump as Dump
+import Bio.Motions.Representation.Dump
 
 import Control.Applicative
 import Control.Monad.Random
@@ -23,11 +23,11 @@ import Data.MonoTraversable
 -- 'm' denotes a 'Monad' (or 'Applicative') in which the
 -- simulation takes place
 class ReadRepresentation m repr => Representation m repr where
-    -- |Loads the state from a 'Dump.Dump'
-    loadDump :: Dump.Dump -> m repr
+    -- |Loads the state from a 'Dump'
+    loadDump :: Dump -> m repr
 
-    -- |Saves the current state in a 'Dump.Dump'
-    makeDump :: repr -> m Dump.Dump
+    -- |Saves the current state in a 'Dump'
+    makeDump :: repr -> m Dump
 
     -- |Generates a random valid 'Move' or 'empty'.
     generateMove :: (MonadRandom m, Alternative m) => repr -> m Move
