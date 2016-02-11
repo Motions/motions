@@ -45,8 +45,8 @@ data BeadInfo = BeadInfo
     }
     deriving (Eq, Show)
 
--- |Represents a move of an atom
-data Move = Move
+-- |Represents a move of an atom.
+data Move s = Move
     { moveFrom :: !Vec3 -- ^ The previous position of the atom
     , moveDiff :: !Vec3 -- ^ The displacement
     }
