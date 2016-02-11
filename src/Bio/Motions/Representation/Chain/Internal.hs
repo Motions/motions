@@ -140,8 +140,8 @@ localNeighbours info repr = zip positions $ tail positions
 -- |Checks if a segment connecting the two given points would intersect with a chain.
 -- Assumes that these points are neighbours on the 3-dimensional grid, i. e. the quadrance
 -- of the distance between these points equals 1 or 2.
-intersectsChain :: PureChainRepresentation -> Vec3 -> Vec3 -> Bool
-intersectsChain PureChainRepresentation{..} v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
+intersectsChain :: Space -> Vec3 -> Vec3 -> Bool
+intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
     d /= 1 && case (`M.lookup` space) <$> crossPoss of
                 [Just (Bead b1), Just (Bead b2)] -> chainNeighbours b1 b2
                 _                                -> False
@@ -157,7 +157,7 @@ illegalBeadMove :: PureChainRepresentation -> Move -> BeadInfo -> Bool
 illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs
   where
     pairs = localNeighbours (bead & position +~ moveDiff) repr
-    notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain repr b1 b2
+    notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
 
 -- |Returns the chain with the specified index.

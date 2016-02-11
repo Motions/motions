@@ -14,7 +14,7 @@ module BasicSpec where
 import Test.Hspec
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
-import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, intersectsChain)
+import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, intersectsChain, space)
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.Parser.TH
@@ -183,9 +183,9 @@ testRepr = do
             D.chains dump'' `shouldBe` D.chains dump'
     context "when checking for intersections" $ do
         it "reports actual intersections to exist" $
-            intersectsChain repr'' (V3 7 8 7) (V3 7 7 8) `shouldBe` True
+            intersectsChain (space repr'') (V3 7 8 7) (V3 7 7 8) `shouldBe` True
         it "doesn't report about non-existing intersections" $
-            intersectsChain repr'' (V3 7 8 7) (V3 7 8 8) `shouldBe` False
+            intersectsChain (space repr'') (V3 7 8 7) (V3 7 8 8) `shouldBe` False
 
   where
     beads = sum $ map length $ D.chains dump
