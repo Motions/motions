@@ -32,6 +32,7 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Parser.Parser
 import Bio.Motions.Representation.Class
 import Bio.Motions.Types
+import Bio.Motions.Common
 import Control.Lens
 import Control.Monad.State.Strict
 import Data.Foldable
