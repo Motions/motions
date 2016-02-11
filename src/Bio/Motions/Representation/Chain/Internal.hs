@@ -41,7 +41,6 @@ data PureChainRepresentation = PureChainRepresentation
     -- with an additional @'V.length' 'beads'@ at the end -- see 'getChain''.
     , radius :: !Int
     -- ^ Radius of the bounding sphere
-    , beadKinds :: !(V.Vector EnergyVector)
     }
 
 instance Applicative m => ReadRepresentation m PureChainRepresentation where
@@ -66,14 +65,12 @@ instance Applicative m => Representation m PureChainRepresentation where
                       [(binderPosition b, Binder b) | b <- D.binders dump]
                    ++ [(beadPosition   b, Bead   b) | b <- concat (D.chains dump)]
         , radius = D.radius dump
-        , beadKinds = V.fromList $ D.beadKinds dump
         }
 
     makeDump repr = pure D.Dump
         { binders = V.toList $ binders repr
         , chains = V.toList . getChain' repr <$> [0..U.length (chainIndices repr) - 2]
         , radius = radius repr
-        , beadKinds = V.toList $ beadKinds repr
         }
 
     generateMove repr@PureChainRepresentation{..} = do

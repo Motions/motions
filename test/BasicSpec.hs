@@ -28,12 +28,10 @@ import Linear
 
 import GHC.TypeLits
 
-
-
 [callback|CALLBACK "sum42-beads"
     EVERY 1
     NODES 1
-    WHERE BELONGS(X 0, BEAD 0) OR BELONGS(X 0, BEAD 1)
+    WHERE BELONGS(X 0, BEAD_BINDING_TO 0) OR BELONGS(X 0, BEAD_BINDING_TO 1)
     COMPUTE SUM 42
 |]
 
@@ -55,14 +53,14 @@ import GHC.TypeLits
     EVERY 1
     NODES 2
     WHERE (BELONGS(X 0, BINDER 0) OR BELONGS(X 0, BINDER 1))
-          AND (BELONGS(X 1, BEAD 0) OR BELONGS(X 1, BEAD 1))
+          AND (BELONGS(X 1, BEAD_BINDING_TO 0) OR BELONGS(X 1, BEAD_BINDING_TO 1))
     COMPUTE SUM 1
 |]
 
 [callback|CALLBACK "list-11"
     EVERY 1
     NODES 2
-    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 1, BEAD 1)
+    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 1, BEAD_BINDING_TO 1)
     COMPUTE LIST DIST(X 0, X 1)
 |]
 
@@ -74,8 +72,6 @@ testRepr = do
         dump' <- makeDump repr
         it "yields the same radius" $
             D.radius dump' `shouldBe` D.radius dump
-        it "yields the same bead kinds" $
-            D.beadKinds dump' `shouldBe` D.beadKinds dump
         it "yields the same chains" $
             D.chains dump' `shouldBe` D.chains dump
         it "yields the same binders" $
@@ -149,12 +145,12 @@ testRepr = do
             matom `shouldBe` Nothing
         it "reports the new location to contain the bead" $ do
             matom <- getAtomAt (V3 5 6 5) repr'
-            matom `shouldBe` Just (Bead $ BeadInfo (V3 5 6 5) be1 ev1 1 0 1)
+            matom `shouldBe` Just (Bead $ BeadInfo (V3 5 6 5) ev1 1 0 1)
         it "reports the updated chain" $ do
             chain <- getChain repr' 0 $ pure . otoList
-            chain `shouldBe` [ BeadInfo (V3 0 1 1) be0 ev0 0 0 0
-                             , BeadInfo (V3 5 6 5) be1 ev1 1 0 1
-                             , BeadInfo (V3 5 5 6) be0 ev0 2 0 2
+            chain `shouldBe` [ BeadInfo (V3 0 1 1) ev0 0 0 0
+                             , BeadInfo (V3 5 6 5) ev1 1 0 1
+                             , BeadInfo (V3 5 5 6) ev0 2 0 2
                              ]
             chain `shouldBe` head (D.chains dump')
         it "reports the binders to be unchanged" $ do
@@ -198,21 +194,19 @@ testRepr = do
             , BinderInfo (V3 5 5 5) bi1
             ]
         , D.chains =
-            [ [ BeadInfo (V3 0 1 1) be0 ev0 0 0 0
-              , BeadInfo (V3 5 6 6) be1 ev1 1 0 1
-              , BeadInfo (V3 5 5 6) be0 ev0 2 0 2
+            [ [ BeadInfo (V3 0 1 1) ev0 0 0 0
+              , BeadInfo (V3 5 6 6) ev1 1 0 1
+              , BeadInfo (V3 5 5 6) ev0 2 0 2
               ]
-            , [ BeadInfo (V3 0 0 2) be0 ev0 3 1 0
-              , BeadInfo (V3 5 4 5) be1 ev1 4 1 1
+            , [ BeadInfo (V3 0 0 2) ev0 3 1 0
+              , BeadInfo (V3 5 4 5) ev1 4 1 1
               ]
-            , [ BeadInfo (V3 7 7 7) be0 ev0 5 2 0
-              , BeadInfo (V3 7 8 8) be0 ev0 6 2 1
+            , [ BeadInfo (V3 7 7 7) ev0 5 2 0
+              , BeadInfo (V3 7 8 8) ev0 6 2 1
               ]
             ]
-        , D.beadKinds = [ev0, ev1]
         }
     [bi0, bi1] = BinderType <$> [0, 1]
-    [be0, be1] = BeadType <$> [0, 1]
     [ev0, ev1] = EnergyVector . U.fromList <$> [[1, 0], [0, 1000]]
 
 spec :: Spec
