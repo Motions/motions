@@ -14,10 +14,12 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies #-}
 module Bio.Motions.Callback.Class where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
+import GHC.Prim
 
 -- |Represents the mode of a callback
 data Mode = Pre  -- ^Such a callback will be fired before a move is made
@@ -30,25 +32,30 @@ data Mode = Pre  -- ^Such a callback will be fired before a move is made
 class Callback m (mode :: Mode) cb | cb -> mode where
     -- |Computes the callback's result from scratch.
     runCallback :: ReadRepresentation m repr
-        => repr
+        => repr s
         -- ^The representation.
         -> m cb
         -- ^The computed value.
 
     -- |Computes the callback's result after a move.
     updateCallback :: ReadRepresentation m repr
-        => repr
+        => ReprMoveLink mode s s'
+        => repr s
         -- ^The representation before/after the move. See 'Mode'.
         -> cb
         -- ^The previous value.
-        -> Move
+        -> Move s'
         -- ^A move that is about to be/was made. See 'Mode'.
         -> m cb
         -- ^The new value.
 
     default updateCallback :: (ReadRepresentation m repr, mode ~ 'Post)
-        => repr -> cb -> Move -> m cb
+        => repr (Next s) -> cb -> Move s -> m cb
     updateCallback repr _ _ = runCallback repr
+
+type family ReprMoveLink (mode :: Mode) s s' :: Constraint where
+    ReprMoveLink 'Pre s s' = s ~ s'
+    ReprMoveLink 'Post s s' = s ~ Next s'
 
 -- |A convenient existential wrapper around a 'Callback' running in a 'Monad' 'm'
 --

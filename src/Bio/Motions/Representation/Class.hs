@@ -8,6 +8,7 @@ Portability : unportable
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ExistentialQuantification #-}
 module Bio.Motions.Representation.Class where
 
 import Bio.Motions.Types
@@ -17,6 +18,10 @@ import Control.Applicative
 import Control.Monad.Random
 import Data.MonoTraversable
 
+-- |A simple existential type wrapper
+data Wrap a = forall s. Wrap { unWrap :: a s }
+
+data Next a
 
 -- |Stores the simulation state and performs basic operations on it
 --
@@ -24,16 +29,16 @@ import Data.MonoTraversable
 -- simulation takes place
 class ReadRepresentation m repr => Representation m repr where
     -- |Loads the state from a 'Dump'
-    loadDump :: Dump -> m repr
+    loadDump :: Dump -> m (Wrap repr)
 
     -- |Saves the current state in a 'Dump'
-    makeDump :: repr -> m Dump
+    makeDump :: repr s -> m Dump
 
     -- |Generates a random valid 'Move' or 'empty'.
-    generateMove :: (MonadRandom m, Alternative m) => repr -> m Move
+    generateMove :: (MonadRandom m, Alternative m) => repr s -> m (Move s)
 
     -- |Applies a 'Move' to the state
-    performMove :: Move -> repr -> m (repr, [BinderChange])
+    performMove :: Move s -> repr s -> m (repr (Next s), [BinderChange])
 
 -- |A read-only interface to a 'Representation'
 class ReadRepresentation m repr where
@@ -41,7 +46,7 @@ class ReadRepresentation m repr where
     -- Note: the implementation is allowed to return only a subset of binders,
     -- provided that every binder bound to some bead is represented.
     getBinders ::
-        repr
+        repr s
         -- ^ The representation
         -> (forall c. (MonoTraversable c, Element c ~ BinderInfo) => c -> m res)
         -- ^A function that will be given a 'MonoTraversable' containing the binders' data.
@@ -50,11 +55,11 @@ class ReadRepresentation m repr where
         -- ^ The return value of the above function
 
     -- |Retrieves the number of chains
-    getNumberOfChains :: repr -> m Int
+    getNumberOfChains :: repr s -> m Int
 
     -- |Retrieves an arbitrary information about a chain
     getChain ::
-        repr
+        repr s
         -- ^ The representation
         -> Int
         -- ^The chain number. Chains are numbered 0..(n - 1) where n is the number of chains
@@ -66,4 +71,4 @@ class ReadRepresentation m repr where
         -- ^ The return value of the above function
 
     -- |Retrieves the atom at the specified spatial position
-    getAtomAt :: Vec3 -> repr -> m (Maybe Atom)
+    getAtomAt :: Vec3 -> repr s -> m (Maybe Atom)
