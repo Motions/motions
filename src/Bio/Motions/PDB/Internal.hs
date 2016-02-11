@@ -11,6 +11,7 @@ module Bio.Motions.PDB.Internal where
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Dump
+import Control.Lens
 
 import GHC.Exts
 import Linear
@@ -77,26 +78,26 @@ toPDBData FrameHeader{..} meta Dump{..} =
     chainSerials = scanl (flip $ (+) . length) 1 dumpChains
 
 toBinderData :: PDBMeta -> Int -> Int -> BinderInfo -> PDBEntry
-toBinderData PDBMeta{..} serial resSeq BinderInfo{..} =
+toBinderData PDBMeta{..} serial resSeq binder =
     PDBAtom { serial = serial
-            , name = if binderType == laminType then "L" else "O"
-            , resName = binderRes binderType
+            , name = if binder ^. binderType == laminType then "L" else "O"
+            , resName = binderRes $ binder ^. binderType
             , chainID = ' '
             , resSeq = resSeq
-            , coords = toCoordData binderPosition
+            , coords = toCoordData $ binder ^. position
             }
 
 toChainData :: PDBMeta -> Int -> [BeadInfo] -> [PDBEntry]
 toChainData meta serialOffset = zipWith3 (toBeadData meta) [serialOffset..] [1..]
 
 toBeadData :: PDBMeta -> Int -> Int -> BeadInfo -> PDBEntry
-toBeadData PDBMeta{..} serial resSeq BeadInfo{..} =
+toBeadData PDBMeta{..} serial resSeq bead =
     PDBAtom { serial = serial
             , name = "C"
-            , resName = beadRes beadEV
-            , chainID = chainId beadChain
+            , resName = beadRes $ bead ^. beadEV
+            , chainID = chainId $ bead ^. beadChain
             , resSeq = resSeq
-            , coords = toCoordData beadPosition
+            , coords = toCoordData $ bead ^. position
             }
 
 toCoordData :: Vec3 -> V3 Double
