@@ -13,6 +13,7 @@ module BasicSpec where
 
 import Test.Hspec
 import Bio.Motions.Types
+import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, intersectsChain, space)
 import Bio.Motions.Callback.Class
@@ -21,6 +22,7 @@ import Bio.Motions.Callback.Parser.TH
 import Bio.Motions.Representation.Dump
 
 import Control.Monad
+import Control.Lens
 import Data.MonoTraversable
 import Data.Proxy
 import qualified Data.Map.Strict as M
@@ -74,8 +76,8 @@ testIntersectsChain = do
         intersectsChain space (V3 7 8 7) (V3 7 8 8) `shouldBe` False
   where
     space = M.fromList
-        [ (V3 7 7 7, Bead $ BeadInfo (V3 7 7 7) ev 0 0 0)
-        , (V3 7 8 8, Bead $ BeadInfo (V3 7 8 8) ev 0 0 1)
+        [ (V3 7 7 7, BeadSig $ BeadSignature ev 0 0 0)
+        , (V3 7 8 8, BeadSig $ BeadSignature ev 0 0 1)
         ]
     ev = EnergyVector U.empty
 
@@ -163,13 +165,13 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
         context "when using getAtomAt" $ do
             it "returns binders" $ \repr ->
                 forM_ (dumpBinders dump) $ \binder -> do
-                    atom <- getAtomAt (binderPosition binder) repr
-                    atom `shouldBe` Just (Binder binder)
+                    atom <- getAtomAt (binder ^. position) repr
+                    atom `shouldBe` Just (asAtom binder)
 
             it "returns beads" $ \repr ->
                 forM_ (concat $ dumpIndexedChains dump) $ \bead -> do
-                    atom <- getAtomAt (beadPosition bead) repr
-                    atom `shouldBe` Just (Bead bead)
+                    atom <- getAtomAt (bead ^. position) repr
+                    atom `shouldBe` Just (asAtom bead)
 
             it "returns Nothing" $ \repr -> do
                 atom <- getAtomAt (V3 0 0 0) repr
@@ -218,7 +220,7 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
         it "reports the new location to contain the bead" $ \repr -> do
             matom <- getAtomAt (V3 5 6 5) repr
-            matom `shouldBe` Just (Bead $ BeadInfo (V3 5 6 5) ev1 1 0 1)
+            matom `shouldBe` Just (asAtom $ BeadInfo (V3 5 6 5) ev1 1 0 1)
 
         it "reports the updated chain" $ \repr -> do
             chain <- getChain repr 0 $ pure . otoList
@@ -243,7 +245,7 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
         it "reports the new location to contain the binder" $ \repr -> do
             matom <- getAtomAt (V3 1 1 2) repr
-            matom `shouldBe` Just (Binder $ BinderInfo (V3 1 1 2) bi0)
+            matom `shouldBe` Just (asAtom $ BinderInfo (V3 1 1 2) bi0)
 
         it "reports the updated binders" $ \repr -> do
             binders <- getBinders repr $ pure . otoList

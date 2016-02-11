@@ -40,7 +40,7 @@ instance Monoid StandardScore where
 instance Monad m => Callback m 'Pre StandardScore where
     runCallback repr = do
         numChains <- getNumberOfChains repr
-        fold <$> traverse (chainScore repr) [0..numChains-1]
+        fold <$> traverse (chainScore repr) [0..numChains - 1]
 
     updateCallback repr prev (MoveFromTo moveFrom moveTo) = do
         Just fromAtom <- getAtomAt moveFrom repr
@@ -68,4 +68,4 @@ neighbours x = ((x ^. position) ^+^) <$> ([id, negated] <*> basis)
 chainScore :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m StandardScore
 chainScore repr idx = getChain repr idx $ ofoldlM combine mempty
   where
-    combine acc beadInfo = mappend acc <$> energyToMany repr (Bead beadInfo) (neighbours beadInfo)
+    combine acc beadInfo = mappend acc <$> energyToMany repr (BeadSig <$> beadInfo) (neighbours beadInfo)

@@ -10,6 +10,7 @@ Portability : unportable
 module Bio.Motions.Representation.Dump where
 
 import Bio.Motions.Types
+import Control.Lens
 import Control.Monad
 import Control.Monad.State
 
@@ -42,16 +43,15 @@ addIndices xs = evalState (mapM go $ zip [0..] xs) 0
    go (chainIx, chain) = forM (zip [0..] chain) $ \(ixOnChain, DumpBeadInfo{..}) -> do
      atomIx <- get
      modify (+1)
-     pure BeadInfo
-        { beadPosition = dumpBeadPosition
-        , beadEV = dumpBeadEV
-        , beadAtomIndex = atomIx
-        , beadChain = chainIx
-        , beadIndexOnChain = ixOnChain
+     pure . Located dumpBeadPosition $ BeadSignature
+        { _beadEV = dumpBeadEV
+        , _beadAtomIndex = atomIx
+        , _beadChain = chainIx
+        , _beadIndexOnChain = ixOnChain
         }
 
 dropIndices :: BeadInfo -> DumpBeadInfo
-dropIndices BeadInfo{..} = DumpBeadInfo
-    { dumpBeadPosition = beadPosition
-    , dumpBeadEV = beadEV
+dropIndices b = DumpBeadInfo
+    { dumpBeadPosition = b ^. location
+    , dumpBeadEV = b ^. beadEV
     }
