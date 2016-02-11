@@ -209,7 +209,7 @@ eval ctx (EMax lhs rhs) =  [|| $$(eval ctx lhs) `max` $$(eval ctx rhs) ||]
 
 eval EvalCtx{..} (EBelongs node cls) = [||
     case (cls, access node $$(evalCtxArgs)) of
-        (AtomTypeBead x, Bead BeadInfo{..}) -> x == beadType
+        (AtomTypeBeadBindingTo x, Bead BeadInfo{..}) -> energyBetween beadEV x > 0
         (AtomTypeBinder x, Binder BinderInfo{..}) -> x == binderType
         _ -> False
     ||]
@@ -241,11 +241,8 @@ eval EvalCtx{..} (EChromoIx node) = [||
     ||]
 
 instance Lift AtomType where
-    lift (AtomTypeBead cls)   = [| AtomTypeBead cls |]
+    lift (AtomTypeBeadBindingTo cls)   = [| AtomTypeBeadBindingTo cls |]
     lift (AtomTypeBinder cls) = [| AtomTypeBinder cls |]
-
-instance Lift BeadType where
-    lift (BeadType t) = [| BeadType t |]
 
 instance Lift BinderType where
     lift (BinderType t) = [| BinderType t |]
