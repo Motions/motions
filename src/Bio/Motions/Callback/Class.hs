@@ -30,24 +30,24 @@ data Mode = Pre  -- ^Such a callback will be fired before a move is made
 class Callback m (mode :: Mode) cb | cb -> mode where
     -- |Computes the callback's result from scratch.
     runCallback :: ReadRepresentation m repr
-        => repr
+        => repr s
         -- ^The representation.
         -> m cb
         -- ^The computed value.
 
     -- |Computes the callback's result after a move.
     updateCallback :: ReadRepresentation m repr
-        => repr
+        => repr s
         -- ^The representation before/after the move. See 'Mode'.
         -> cb
         -- ^The previous value.
-        -> Move
+        -> Move s'
         -- ^A move that is about to be/was made. See 'Mode'.
         -> m cb
         -- ^The new value.
 
     default updateCallback :: (ReadRepresentation m repr, mode ~ 'Post)
-        => repr -> cb -> Move -> m cb
+        => repr s -> cb -> Move s' -> m cb
     updateCallback repr _ _ = runCallback repr
 
 -- |A convenient existential wrapper around a 'Callback' running in a 'Monad' 'm'

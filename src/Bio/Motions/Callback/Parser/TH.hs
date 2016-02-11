@@ -255,7 +255,7 @@ instance Lift (Node n) where
 -- of nodes.
 class ForEachKNodes (n :: Nat) where
     forEachKNodes :: (Monoid r, ReadRepresentation m repr, Monad m)
-        => repr -> (Vec n Atom -> m r) -> m r
+        => repr s -> (Vec n Atom -> m r) -> m r
 
 -- |The base case.
 instance ForEachKNodes Zero where
@@ -270,8 +270,8 @@ instance ForEachKNodes n => ForEachKNodes (Succ n) where
 
 -- |Performs a monadic action over all nodes (i.e. beads and atoms)
 -- and gathers the results monoidally.
-forEachNode :: forall m r repr. (Monoid r, ReadRepresentation m repr, Monad m)
-    => repr -> (Atom -> m r) -> m r
+forEachNode :: forall m r repr s. (Monoid r, ReadRepresentation m repr, Monad m)
+    => repr s -> (Atom -> m r) -> m r
 forEachNode repr f = do
     numChains <- getNumberOfChains repr
     binders <- getBinders repr $ go Binder
