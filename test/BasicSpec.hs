@@ -18,7 +18,7 @@ import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, inter
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.Parser.TH
-import qualified Bio.Motions.Representation.Dump as D
+import Bio.Motions.Representation.Dump
 
 import Control.Monad
 import Data.MonoTraversable
@@ -71,30 +71,30 @@ testRepr = do
     context "when redumping" $ do
         dump' <- makeDump repr
         it "yields the same radius" $
-            D.radius dump' `shouldBe` D.radius dump
+            dumpRadius dump' `shouldBe` dumpRadius dump
         it "yields the same chains" $
-            D.chains dump' `shouldBe` D.chains dump
+            dumpChains dump' `shouldBe` dumpChains dump
         it "yields the same binders" $
-            D.binders dump' `shouldMatchList` D.binders dump
+            dumpBinders dump' `shouldMatchList` dumpBinders dump
 
     context "when inspecting the data" $ do
         it "yields the same number of chains" $
-            getNumberOfChains repr >>= flip shouldBe (length $ D.chains dump)
+            getNumberOfChains repr >>= flip shouldBe (length $ dumpChains dump)
         it "yields the same binders" $ do
             binders <- getBinders repr (pure . otoList)
-            binders `shouldBe` D.binders dump
+            binders `shouldBe` dumpBinders dump
         it "yields the same beads" $ do
-            beads <- forM [0..length (D.chains dump) - 1] $
+            beads <- forM [0..length (dumpChains dump) - 1] $
                 \idx -> getChain repr idx (pure . otoList)
-            beads `shouldBe` D.chains dump
+            beads `shouldBe` dumpIndexedChains dump
 
         context "when using getAtomAt" $ do
             it "returns binders" $
-                forM_ (D.binders dump) $ \binder -> do
+                forM_ (dumpBinders dump) $ \binder -> do
                     atom <- getAtomAt (binderPosition binder) repr
                     atom `shouldBe` Just (Binder binder)
             it "returns beads" $
-                forM_ (concat $ D.chains dump) $ \bead -> do
+                forM_ (concat $ dumpIndexedChains dump) $ \bead -> do
                     atom <- getAtomAt (beadPosition bead) repr
                     atom `shouldBe` Just (Bead bead)
             it "returns Nothing" $ do
@@ -152,11 +152,11 @@ testRepr = do
                              , BeadInfo (V3 5 6 5) ev1 1 0 1
                              , BeadInfo (V3 5 5 6) ev0 2 0 2
                              ]
-            chain `shouldBe` head (D.chains dump')
+            chain `shouldBe` head (dumpIndexedChains dump')
         it "reports the binders to be unchanged" $ do
             binders <- getBinders repr' $ pure . otoList
-            binders `shouldMatchList` D.binders dump
-            binders `shouldMatchList` D.binders dump'
+            binders `shouldMatchList` dumpBinders dump
+            binders `shouldMatchList` dumpBinders dump'
 
     repr'' <- fst <$> performMove (Move (V3 0 1 2) (V3 1 0 0)) repr'
     dump'' <- makeDump repr''
@@ -174,9 +174,9 @@ testRepr = do
                                       , BinderInfo (V3 0 1 3) bi0
                                       , BinderInfo (V3 5 5 5) bi1
                                       ]
-            binders `shouldMatchList` D.binders dump''
+            binders `shouldMatchList` dumpBinders dump''
         it "reports the beads to be unchanged" $
-            D.chains dump'' `shouldBe` D.chains dump'
+            dumpChains dump'' `shouldBe` dumpChains dump'
     context "when checking for intersections" $ do
         it "reports actual intersections to exist" $
             intersectsChain repr'' (V3 7 8 7) (V3 7 7 8) `shouldBe` True
@@ -184,25 +184,25 @@ testRepr = do
             intersectsChain repr'' (V3 7 8 7) (V3 7 8 8) `shouldBe` False
 
   where
-    beads = sum $ map length $ D.chains dump
-    binders = length $ D.binders dump
-    dump = D.Dump
-        { D.radius = 10
-        , D.binders =
+    beads = sum . map length $ dumpIndexedChains dump
+    binders = length $ dumpBinders dump
+    dump = Dump
+        { dumpRadius = 10
+        , dumpBinders =
             [ BinderInfo (V3 0 1 2) bi0
             , BinderInfo (V3 0 1 3) bi0
             , BinderInfo (V3 5 5 5) bi1
             ]
-        , D.chains =
-            [ [ BeadInfo (V3 0 1 1) ev0 0 0 0
-              , BeadInfo (V3 5 6 6) ev1 1 0 1
-              , BeadInfo (V3 5 5 6) ev0 2 0 2
+        , dumpChains =
+            [ [ DumpBeadInfo (V3 0 1 1) ev0
+              , DumpBeadInfo (V3 5 6 6) ev1
+              , DumpBeadInfo (V3 5 5 6) ev0
               ]
-            , [ BeadInfo (V3 0 0 2) ev0 3 1 0
-              , BeadInfo (V3 5 4 5) ev1 4 1 1
+            , [ DumpBeadInfo (V3 0 0 2) ev0
+              , DumpBeadInfo (V3 5 4 5) ev1
               ]
-            , [ BeadInfo (V3 7 7 7) ev0 5 2 0
-              , BeadInfo (V3 7 8 8) ev0 6 2 1
+            , [ DumpBeadInfo (V3 7 7 7) ev0
+              , DumpBeadInfo (V3 7 8 8) ev0
               ]
             ]
         }
