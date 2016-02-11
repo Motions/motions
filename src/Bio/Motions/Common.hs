@@ -14,6 +14,15 @@ import Bio.Motions.Types
 
 import qualified Data.Vector.Unboxed as U
 
+laminType :: BinderType
+laminType = BinderType 0
+
+doesNotBind :: EnergyVector -> Bool
+doesNotBind = U.all (== 0) . getEnergyVector
+
+bindsWithLamins :: EnergyVector -> Bool
+bindsWithLamins = (/= 0) . (U.! getBinderType laminType) . getEnergyVector
+
 -- |Represents the energy between two objects, e.g. atoms
 class HaveEnergyBetween x y where
     -- |Returns the energy between the two objects

@@ -15,7 +15,9 @@ import qualified Data.Vector.Unboxed as U
 -- |An alias used for representing energy.
 type Energy = Int
 
--- |Represents the binding energy of a bead when connected to a binder of some type
+-- |Represents the binding energy of a bead when connected to a binder of some type.
+-- EnergyVectors must have at least one element. The first element always represents
+-- the energy of binding with lamins.
 newtype EnergyVector = EnergyVector { getEnergyVector :: U.Vector Int }
     deriving (Eq, Show)
 
