@@ -16,7 +16,7 @@ module Bio.Motions.Representation.Chain.Internal where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
-import qualified Bio.Motions.Representation.Dump as D
+import Bio.Motions.Representation.Dump
 import Control.Lens
 import Control.Monad
 import Control.Monad.Random
@@ -57,20 +57,21 @@ instance Applicative m => ReadRepresentation m PureChainRepresentation where
     {-# INLINE getAtomAt #-}
 
 instance Applicative m => Representation m PureChainRepresentation where
-    loadDump dump = pure PureChainRepresentation
-        { binders = V.fromList $ D.binders dump
-        , beads = V.fromList $ concat $ D.chains dump
-        , chainIndices = U.fromList $ scanl' (+) 0 $ map length $ D.chains dump
+    loadDump Dump{..} = pure PureChainRepresentation
+        { binders = V.fromList dumpBinders
+        , beads = V.fromList $ concat chains
+        , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
         , space = M.fromList $
-                      [(binderPosition b, Binder b) | b <- D.binders dump]
-                   ++ [(beadPosition   b, Bead   b) | b <- concat (D.chains dump)]
-        , radius = D.radius dump
+                      [(binderPosition b, Binder b) | b <- dumpBinders]
+                   ++ [(beadPosition   b, Bead   b) | b <- concat chains]
+        , radius = dumpRadius
         }
+      where chains = addIndices dumpChains
 
-    makeDump repr = pure D.Dump
-        { binders = V.toList $ binders repr
-        , chains = V.toList . getChain' repr <$> [0..U.length (chainIndices repr) - 2]
-        , radius = radius repr
+    makeDump repr = pure Dump
+        { dumpBinders = V.toList $ binders repr
+        , dumpChains = (dropIndices <$>) . V.toList . getChain' repr <$> [0..U.length (chainIndices repr) - 2]
+        , dumpRadius = radius repr
         }
 
     generateMove repr@PureChainRepresentation{..} = do
