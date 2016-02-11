@@ -13,6 +13,7 @@ module BasicSpec where
 
 import Test.Hspec
 import Bio.Motions.Types
+import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, intersectsChain, space)
 import Bio.Motions.Callback.Class
@@ -21,6 +22,7 @@ import Bio.Motions.Callback.Parser.TH
 import Bio.Motions.Representation.Dump
 
 import Control.Monad
+import Control.Lens
 import Data.MonoTraversable
 import Data.Proxy
 import qualified Data.Map.Strict as M
@@ -74,8 +76,8 @@ testIntersectsChain = do
         intersectsChain space (V3 7 8 7) (V3 7 8 8) `shouldBe` False
   where
     space = M.fromList
-        [ (V3 7 7 7, Bead $ BeadInfo (V3 7 7 7) ev 0 0 0)
-        , (V3 7 8 8, Bead $ BeadInfo (V3 7 8 8) ev 0 0 1)
+        [ (V3 7 7 7, BeadSig $ BeadSignature ev 0 0 0)
+        , (V3 7 8 8, BeadSig $ BeadSignature ev 0 0 1)
         ]
     ev = EnergyVector U.empty
 
@@ -103,9 +105,9 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
     dump = Dump
         { dumpRadius = 10
         , dumpBinders =
-            [ BinderInfo (V3 0 1 2) bi0
-            , BinderInfo (V3 0 1 3) bi0
-            , BinderInfo (V3 5 5 5) bi1
+            [ Located (V3 0 1 2) $ BinderSignature bi0
+            , Located (V3 0 1 3) $ BinderSignature bi0
+            , Located (V3 5 5 5) $ BinderSignature bi1
             ]
         , dumpChains =
             [ [ DumpBeadInfo (V3 0 1 1) ev0
@@ -123,16 +125,16 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
     [bi0, bi1] = BinderType <$> [0, 1]
     [ev0, ev1] = EnergyVector . U.fromList <$> [[1, 0], [0, 1000]]
 
-    updatedChain = [ BeadInfo (V3 0 1 1) ev0 0 0 0
-                   , BeadInfo (V3 5 6 5) ev1 1 0 1
-                   , BeadInfo (V3 5 5 6) ev0 2 0 2
+    updatedChain = [ Located (V3 0 1 1) $ BeadSignature ev0 0 0 0
+                   , Located (V3 5 6 5) $ BeadSignature ev1 1 0 1
+                   , Located (V3 5 5 6) $ BeadSignature ev0 2 0 2
                    ]
 
     updatedChains = updatedChain : tail (dumpIndexedChains dump)
 
-    updatedBinders = [ BinderInfo (V3 1 1 2) bi0
-                     , BinderInfo (V3 0 1 3) bi0
-                     , BinderInfo (V3 5 5 5) bi1
+    updatedBinders = [ Located (V3 1 1 2) $ BinderSignature bi0
+                     , Located (V3 0 1 3) $ BinderSignature bi0
+                     , Located (V3 5 5 5) $ BinderSignature bi1
                      ]
 
     testRedump :: SpecWith Dump
@@ -163,13 +165,13 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
         context "when using getAtomAt" $ do
             it "returns binders" $ \repr ->
                 forM_ (dumpBinders dump) $ \binder -> do
-                    atom <- getAtomAt (binderPosition binder) repr
-                    atom `shouldBe` Just (Binder binder)
+                    atom <- getAtomAt (binder ^. position) repr
+                    atom `shouldBe` Just (asAtom binder)
 
             it "returns beads" $ \repr ->
                 forM_ (concat $ dumpIndexedChains dump) $ \bead -> do
-                    atom <- getAtomAt (beadPosition bead) repr
-                    atom `shouldBe` Just (Bead bead)
+                    atom <- getAtomAt (bead ^. position) repr
+                    atom `shouldBe` Just (asAtom bead)
 
             it "returns Nothing" $ \repr -> do
                 atom <- getAtomAt (V3 0 0 0) repr
@@ -218,7 +220,7 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
         it "reports the new location to contain the bead" $ \repr -> do
             matom <- getAtomAt (V3 5 6 5) repr
-            matom `shouldBe` Just (Bead $ BeadInfo (V3 5 6 5) ev1 1 0 1)
+            matom `shouldBe` Just (Located (V3 5 6 5) $ BeadSig $ BeadSignature ev1 1 0 1)
 
         it "reports the updated chain" $ \repr -> do
             chain <- getChain repr 0 $ pure . otoList
@@ -243,7 +245,7 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
         it "reports the new location to contain the binder" $ \repr -> do
             matom <- getAtomAt (V3 1 1 2) repr
-            matom `shouldBe` Just (Binder $ BinderInfo (V3 1 1 2) bi0)
+            matom `shouldBe` Just (Located (V3 1 1 2) $ BinderSig $ BinderSignature bi0)
 
         it "reports the updated binders" $ \repr -> do
             binders <- getBinders repr $ pure . otoList

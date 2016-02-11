@@ -11,6 +11,7 @@ Portability : unportable
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Bio.Motions.Representation.Chain.Internal where
 
@@ -30,7 +31,7 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Linear
 
-type Space = M.Map Vec3 Atom
+type Space = M.Map Vec3 AtomSignature
 
 data PureChainRepresentation = PureChainRepresentation
     { space :: !Space
@@ -54,7 +55,7 @@ instance Applicative m => ReadRepresentation m PureChainRepresentation where
     getChain repr ix f = f $ getChain' repr ix
     {-# INLINE getChain #-}
 
-    getAtomAt pos PureChainRepresentation{..} = pure $ M.lookup pos space
+    getAtomAt pos PureChainRepresentation{..} = pure $ Located pos <$> M.lookup pos space
     {-# INLINE getAtomAt #-}
 
 instance Applicative m => Representation m PureChainRepresentation where
@@ -62,12 +63,12 @@ instance Applicative m => Representation m PureChainRepresentation where
         { binders = V.fromList dumpBinders
         , beads = V.fromList $ concat chains
         , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
-        , space = M.fromList $
-                      [(binderPosition b, Binder b) | b <- dumpBinders]
-                   ++ [(beadPosition   b, Bead   b) | b <- concat chains]
+        , space = M.fromList $ map convert dumpBinders ++ map convert (concat chains)
         , radius = dumpRadius
         }
-      where chains = addIndices dumpChains
+      where
+        chains = addIndices dumpChains
+        convert x = (x ^. position, asAtom x ^. located)
 
     makeDump repr = pure Dump
         { dumpBinders = V.toList $ binders repr
@@ -98,19 +99,19 @@ instance Applicative m => Representation m PureChainRepresentation where
             pure m
 
     performMove (MoveFromTo from to) repr
-        | Binder binderInfo <- atom = pure $
-            let Just idx = V.elemIndex binderInfo $ binders repr
+        | BinderSig binderInfo <- atom = pure $
+            let withLoc = Located from binderInfo
+                Just idx = V.elemIndex withLoc $ binders repr
             in  (repr { space = space'
-                      , binders = binders repr V.// [(idx, binderInfo & position .~ to)]
+                      , binders = binders repr V.// [(idx, withLoc & position .~ to)]
                       }, [])
-        | Bead beadInfo <- atom = pure
+        | BeadSig (Located from -> beadInfo) <- atom = pure
             (repr { space = space'
-                  , beads = beads repr V.// [(beadAtomIndex beadInfo, beadInfo & position .~ to)]
+                  , beads = beads repr V.// [(beadInfo ^. beadAtomIndex, beadInfo & position .~ to)]
                   }, [])
       where
         atom = space repr M.! from
-        atom' = atom & position .~ to
-        space' = M.insert to atom' $ M.delete from $ space repr
+        space' = M.insert to atom $ M.delete from $ space repr
 
 -- |Picks a random element from a 'DS.IsSequence', assuming that its indices form
 -- a continuous range from 0 to @'olength' s - 1@.
@@ -127,8 +128,8 @@ legalMoves = V.fromList [v | [x, y, z] <- replicateM 3 [-1, 0, 1],
 localNeighbours :: BeadInfo -> PureChainRepresentation -> [(Vec3, Vec3)]
 localNeighbours info repr = zip positions $ tail positions
   where
-    ix = beadIndexOnChain info
-    chain = getChain' repr $ beadChain info
+    ix = info ^. beadIndexOnChain
+    chain = getChain' repr $ info ^. beadChain
     neighbours = catMaybes [ DS.index chain $ ix - 1
                            , Just info
                            , DS.index chain $ ix + 1
@@ -141,15 +142,15 @@ localNeighbours info repr = zip positions $ tail positions
 intersectsChain :: Space -> Vec3 -> Vec3 -> Bool
 intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
     d /= 1 && case (`M.lookup` space) <$> crossPoss of
-                [Just (Bead b1), Just (Bead b2)] -> chainNeighbours b1 b2
-                _                                -> False
+                [Just (BeadSig b1), Just (BeadSig b2)] -> chainNeighbours b1 b2
+                _                                      -> False
   where
     d = qd v1 v2
     crossPoss | x1 == x2 = [V3 x1 y1 z2, V3 x1 y2 z1]
               | y1 == y2 = [V3 x1 y1 z2, V3 x2 y1 z1]
               | z1 == z2 = [V3 x1 y2 z1, V3 x2 y1 z1]
-    chainNeighbours b1 b2 = beadChain b1 == beadChain b2
-                         && abs (beadIndexOnChain b1 - beadIndexOnChain b2) == 1
+    chainNeighbours b1 b2 = b1 ^. beadChain == b2 ^. beadChain
+                         && abs (b1 ^. beadIndexOnChain - b2 ^. beadIndexOnChain) == 1
 
 illegalBeadMove :: PureChainRepresentation -> Move -> BeadInfo -> Bool
 illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs
