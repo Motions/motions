@@ -32,7 +32,7 @@ import Linear
 
 type Space = M.Map Vec3 Atom
 
-data PureChainRepresentation = PureChainRepresentation
+data PureChainRepresentation s = PureChainRepresentation
     { space :: !Space
     , binders :: !(V.Vector BinderInfo)
     , beads :: !(V.Vector BeadInfo)
@@ -58,7 +58,7 @@ instance Applicative m => ReadRepresentation m PureChainRepresentation where
     {-# INLINE getAtomAt #-}
 
 instance Applicative m => Representation m PureChainRepresentation where
-    loadDump Dump{..} = pure PureChainRepresentation
+    loadDump Dump{..} = pure . Wrap $ PureChainRepresentation
         { binders = V.fromList dumpBinders
         , beads = V.fromList $ concat chains
         , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
@@ -85,8 +85,8 @@ instance Applicative m => Representation m PureChainRepresentation where
         -- |Pick a random move of some atom in a sequence
         pick :: _  -- Under some cumbersome constraints...
             => s -- ^The sequence of atoms
-            -> t (Move -> Element s -> Bool) -- ^A 'Traversable' of additional move constraints
-            -> m Move
+            -> t (Move _ -> Element s -> Bool) -- ^A 'Traversable' of additional move constraints
+            -> m (Move _)
         pick xs constraints = do
             x <- getRandomElement xs
             d <- getRandomElement legalMoves
@@ -124,7 +124,7 @@ legalMoves = V.fromList [v | [x, y, z] <- replicateM 3 [-1, 0, 1],
                              quadrance v `elem` [1, 2]]
 
 -- |The pairs of local neighbours of a bead
-localNeighbours :: BeadInfo -> PureChainRepresentation -> [(Vec3, Vec3)]
+localNeighbours :: BeadInfo -> PureChainRepresentation s -> [(Vec3, Vec3)]
 localNeighbours info repr = zip positions $ tail positions
   where
     ix = beadIndexOnChain info
@@ -151,7 +151,7 @@ intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
     chainNeighbours b1 b2 = beadChain b1 == beadChain b2
                          && abs (beadIndexOnChain b1 - beadIndexOnChain b2) == 1
 
-illegalBeadMove :: PureChainRepresentation -> Move -> BeadInfo -> Bool
+illegalBeadMove :: PureChainRepresentation s -> Move s -> BeadInfo -> Bool
 illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs
   where
     pairs = localNeighbours (bead & position +~ moveDiff) repr
@@ -159,7 +159,7 @@ illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs
     wrongQd d = d <= 0 || d > 2
 
 -- |Returns the chain with the specified index.
-getChain' :: PureChainRepresentation -> Int -> V.Vector BeadInfo
+getChain' :: PureChainRepresentation s -> Int -> V.Vector BeadInfo
 getChain' PureChainRepresentation{..} ix = V.slice b (e - b) beads
   where
     [b, e] = U.unsafeIndex chainIndices <$> [ix, ix + 1]

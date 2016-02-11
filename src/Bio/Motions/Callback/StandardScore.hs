@@ -50,14 +50,14 @@ instance Monad m => Callback m 'Pre StandardScore where
 
 -- |Returns the score between an object and the atom placed on the specified position.
 energyTo :: (Functor m, ReadRepresentation m repr, HasPosition obj, HaveEnergyBetween obj (Maybe Atom)) =>
-    repr -> obj -> Vec3 -> m StandardScore
+    repr s -> obj -> Vec3 -> m StandardScore
 energyTo repr obj pos = StandardScore . energyBetween obj <$> getAtomAt pos repr
 
 -- |Returns the total score between an object (e.g. an atom) and the atoms placed on the
 -- specified positions.
 energyToMany :: (Applicative m, ReadRepresentation m repr, HasPosition obj,
     HaveEnergyBetween obj (Maybe Atom), Traversable t) =>
-    repr -> obj -> t Vec3 -> m StandardScore
+    repr s -> obj -> t Vec3 -> m StandardScore
 energyToMany repr obj poss = fold <$> traverse (energyTo repr obj) poss
 
 -- |Returns the neighbour positions for a position or something with position (e.g. an atom).
@@ -65,7 +65,7 @@ neighbours :: HasPosition x => x -> [Vec3]
 neighbours x = ((x ^. position) ^+^) <$> ([id, negated] <*> basis)
 
 -- |Returns the total score for beads belonging to a particular chain.
-chainScore :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m StandardScore
+chainScore :: (Monad m, ReadRepresentation m repr) => repr s -> Int -> m StandardScore
 chainScore repr idx = getChain repr idx $ ofoldlM combine mempty
   where
     combine acc beadInfo = mappend acc <$> energyToMany repr (Bead beadInfo) (neighbours beadInfo)

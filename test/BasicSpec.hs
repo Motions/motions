@@ -103,9 +103,9 @@ testIntersectsChain = do
     ev = EnergyVector U.empty
 
 testRepr :: forall proxy repr. Representation IO repr => proxy repr -> Spec
-testRepr _ = before (loadDump dump :: IO repr) $ do
+testRepr _ = before (loadDump dump :: IO (Wrap repr)) $ do
     context "when redumping" $
-        beforeWith makeDump testRedump
+        beforeWith (\(Wrap repr) -> makeDump repr) testRedump
 
     context "when inspecting the data"
         testInspect
@@ -113,11 +113,11 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
     context "when computing callbacks"
         testCallbacks
 
-    beforeWith (\repr -> fst <$> performMove beadMove repr) $
+    beforeWith (\(Wrap repr) -> Wrap . fst <$> performMove beadMove repr) $
         context "after making a bead move" $ do
             testAfterBeadMove
 
-            beforeWith (\repr -> fst <$> performMove binderMove repr) $
+            beforeWith (\(Wrap repr) -> Wrap . fst <$> performMove binderMove repr) $
                 context "after making a binder move"
                     testAfterBinderMove
   where
@@ -148,8 +148,10 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
     complexFunctionResult = 45117.35291086203
 
+    beadMove :: forall s. Move s
     beadMove = Move (V3 5 6 6) (V3 0 0 (-1))
 
+    binderMove :: forall s. Move s
     binderMove = Move (V3 0 1 2) (V3 1 0 0)
 
     updatedChain = [ BeadInfo (V3 0 1 1) ev0 0 0 0
@@ -175,101 +177,102 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
         it "yields the same binders" $ \dump' ->
             dumpBinders dump' `shouldMatchList` dumpBinders dump
 
-    testInspect :: SpecWith repr
+    testInspect :: SpecWith (Wrap repr)
     testInspect = do
-        it "yields the same number of chains" $
-            getNumberOfChains >=> (`shouldBe` length (dumpChains dump))
+        it "yields the same number of chains" $ \(Wrap repr) -> do
+            numChains <- getNumberOfChains repr
+            numChains `shouldBe` length (dumpChains dump)
 
-        it "yields the same binders" $ \repr -> do
+        it "yields the same binders" $ \(Wrap repr) -> do
             binders <- getBinders repr (pure . otoList)
             binders `shouldBe` dumpBinders dump
 
-        it "yields the same beads" $ \repr -> do
+        it "yields the same beads" $ \(Wrap repr) -> do
             beads <- forM [0..length (dumpChains dump) - 1] $
                 \idx -> getChain repr idx (pure . otoList)
             beads `shouldBe` dumpIndexedChains dump
 
         context "when using getAtomAt" $ do
-            it "returns binders" $ \repr ->
+            it "returns binders" $ \(Wrap repr) ->
                 forM_ (dumpBinders dump) $ \binder -> do
                     atom <- getAtomAt (binderPosition binder) repr
                     atom `shouldBe` Just (Binder binder)
 
-            it "returns beads" $ \repr ->
+            it "returns beads" $ \(Wrap repr) ->
                 forM_ (concat $ dumpIndexedChains dump) $ \bead -> do
                     atom <- getAtomAt (beadPosition bead) repr
                     atom `shouldBe` Just (Bead bead)
 
-            it "returns Nothing" $ \repr -> do
+            it "returns Nothing" $ \(Wrap repr) -> do
                 atom <- getAtomAt (V3 0 0 0) repr
                 atom `shouldBe` Nothing
 
-    testCallbacks :: SpecWith repr
+    testCallbacks :: SpecWith (Wrap repr)
     testCallbacks = do
-        it "has the correct score" $ \repr -> do
+        it "has the correct score" $ \(Wrap repr) -> do
             score :: StandardScore <- runCallback repr
             score `shouldBe` 1002
 
-        it "has the correct score after a bead move" $ \repr -> do
+        it "has the correct score after a bead move" $ \(Wrap repr) -> do
             score :: StandardScore <- updateCallback repr 1002 $ Move (V3 5 6 6) (V3 0 0 (-1))
             score `shouldBe` 2002
 
-        it "has the correct score after a binder move" $ \repr -> do
+        it "has the correct score after a binder move" $ \(Wrap repr) -> do
             score :: StandardScore <- updateCallback repr 1002 $ Move (V3 0 1 2) (V3 1 0 0)
             score `shouldBe` 1000
 
         context "when computing the template haskell callbacks" $ do
-            it "has the correct sum42-beads" $ \repr -> do
+            it "has the correct sum42-beads" $ \(Wrap repr) -> do
                 res :: THCallback "sum42-beads" <- runCallback repr
                 res `shouldBe` THCallback (42 * beads)
 
-            it "has the correct prod2-all" $ \repr -> do
+            it "has the correct prod2-all" $ \(Wrap repr) -> do
                 res :: THCallback "prod2-all" <- runCallback repr
                 res `shouldBe` THCallback (2 ^ (beads + binders))
 
-            it "has the correct list42-binders" $ \repr -> do
+            it "has the correct list42-binders" $ \(Wrap repr) -> do
                 res :: THCallback "list42-binders" <- runCallback repr
                 res `shouldBe` THCallback (replicate binders 42)
 
-            it "has the correct prod-binders-beads" $ \repr -> do
+            it "has the correct prod-binders-beads" $ \(Wrap repr) -> do
                 res :: THCallback "prod-binders-beads" <- runCallback repr
                 res `shouldBe` THCallback (binders * beads)
 
-            it "has the correct list-11" $ \repr -> do
+            it "has the correct list-11" $ \(Wrap repr) -> do
                 res :: THCallback "list-11" <- runCallback repr
                 res `shouldBe` THCallback [sqrt 2, 1]
 
-            it "has the correct sum-11" $ \repr -> do
+            it "has the correct sum-11" $ \(Wrap repr) -> do
                 res :: THCallback "sum-11" <- runCallback repr
                 res `shouldBe` THCallback (1 + sqrt 2)
 
-            it "has the correct pairs-dist<2" $ \repr -> do
+            it "has the correct pairs-dist<2" $ \(Wrap repr) -> do
                 res :: THCallback "pairs-dist<2" <- runCallback repr
                 res `shouldBe` THCallback 22
 
-            it "has the correct complex-function" $ \repr -> do
+            it "has the correct complex-function" $ \(Wrap repr) -> do
                 res :: THCallback "complex-function" <- runCallback repr
                 res `shouldBe` complexFunctionResult
 
-    testAfterBeadMove :: SpecWith repr
+    testAfterBeadMove :: SpecWith (Wrap repr)
     testAfterBeadMove = do
-        it "reports the old location to be empty" $ \repr -> do
+        it "reports the old location to be empty" $ \(Wrap repr) -> do
             matom <- getAtomAt (V3 5 6 6) repr
             matom `shouldBe` Nothing
 
-        it "reports the new location to contain the bead" $ \repr -> do
+        it "reports the new location to contain the bead" $ \(Wrap repr) -> do
             matom <- getAtomAt (V3 5 6 5) repr
             matom `shouldBe` Just (Bead $ BeadInfo (V3 5 6 5) ev1 1 0 1)
 
-        it "reports the updated chain" $ \repr -> do
+        it "reports the updated chain" $ \(Wrap repr) -> do
             chain <- getChain repr 0 $ pure . otoList
             chain `shouldBe` updatedChain
 
-        it "reports the binders to be unchanged" $ \repr -> do
+        it "reports the binders to be unchanged" $ \(Wrap repr) -> do
             binders <- getBinders repr $ pure . otoList
             binders `shouldMatchList` dumpBinders dump
 
-        context "when dumping" $ beforeWith makeDump $ do
+        context "when dumping" $ beforeWith (\(Wrap repr) -> makeDump repr) $ do
             it "reports the updated chain" $ \dump' ->
                 dumpIndexedChains dump' `shouldBe` updatedChains
 
@@ -277,36 +280,36 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
                 dumpBinders dump' `shouldMatchList` dumpBinders dump
 
         context "when updating callbacks" $ do
-            it "has the correct sum-11" $ \repr -> do
+            it "has the correct sum-11" $ \(Wrap repr) -> do
                 res :: THCallback "sum-11" <- updateCallback repr (THCallback (1 + sqrt 2)) beadMove
                 corrRes <- runCallback repr
                 res `shouldAlmostBe` corrRes
 
-            it "has the correct pairs-dist<2" $ \repr -> do
+            it "has the correct pairs-dist<2" $ \(Wrap repr) -> do
                 res :: THCallback "pairs-dist<2" <- updateCallback repr (THCallback 22) beadMove
                 corrRes <- runCallback repr
                 res `shouldBe` corrRes
 
-            it "has the correct complex-function" $ \repr -> do
+            it "has the correct complex-function" $ \(Wrap repr) -> do
                 res <- updateCallback repr complexFunctionResult beadMove
                 corrRes <- runCallback repr
                 res `shouldAlmostBe` corrRes
 
-    testAfterBinderMove :: SpecWith repr
+    testAfterBinderMove :: SpecWith (Wrap repr)
     testAfterBinderMove = do
-        it "reports the old location to be empty" $ \repr -> do
+        it "reports the old location to be empty" $ \(Wrap repr) -> do
             matom <- getAtomAt (V3 0 1 2) repr
             matom `shouldBe` Nothing
 
-        it "reports the new location to contain the binder" $ \repr -> do
+        it "reports the new location to contain the binder" $ \(Wrap repr) -> do
             matom <- getAtomAt (V3 1 1 2) repr
             matom `shouldBe` Just (Binder $ BinderInfo (V3 1 1 2) bi0)
 
-        it "reports the updated binders" $ \repr -> do
+        it "reports the updated binders" $ \(Wrap repr) -> do
             binders <- getBinders repr $ pure . otoList
             binders `shouldMatchList` updatedBinders
 
-        context "when dumping" $ beforeWith makeDump $ do
+        context "when dumping" $ beforeWith (\(Wrap repr) -> makeDump repr) $ do
             it "reports the beads to be unchanged" $ \dump' ->
                 dumpIndexedChains dump' `shouldBe` updatedChains
 
