@@ -24,8 +24,9 @@ library
                        Bio.Motions.Callback.StandardScore,
                        Bio.Motions.Callback.Parser.Parser,
                        Bio.Motions.Callback.Parser.TH,
-                       Bio.Motions.Types
-                       Bio.Motions.BED
+                       Bio.Motions.Types,
+                       Bio.Motions.Common,
+                       Bio.Motions.BED,
                        Bio.Motions.Engine
   -- other-modules:
   -- other-extensions:

@@ -15,6 +15,7 @@ Portability : unportable
 module Bio.Motions.Representation.Chain.Internal where
 
 import Bio.Motions.Types
+import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import qualified Bio.Motions.Representation.Dump as D
 import Control.Lens
