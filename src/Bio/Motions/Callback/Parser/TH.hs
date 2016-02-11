@@ -209,8 +209,8 @@ eval ctx (EMax lhs rhs) =  [|| $$(eval ctx lhs) `max` $$(eval ctx rhs) ||]
 
 eval EvalCtx{..} (EBelongs node cls) = [||
     case (cls, access node $$(evalCtxArgs)) of
-        (AtomTypeBeadBindingTo x, Bead BeadInfo{..}) -> energyBetween beadEV x > 0
-        (AtomTypeBinder x, Binder BinderInfo{..}) -> x == binderType
+        (AtomTypeBeadBindingTo x, Bead b) -> energyBetween (b ^. beadEV) x > 0
+        (AtomTypeBinder x, Binder b) -> x == b ^. binderType
         _ -> False
     ||]
 
@@ -226,17 +226,17 @@ eval _ (ELit lit) = [|| lit ||]
 eval ctx EGr = undefined -- TODO
 eval EvalCtx{..} (EAtomIx node) = [||
     case access node $$(evalCtxArgs) of
-        Bead BeadInfo{..} -> beadAtomIndex
+        Bead b -> b ^. beadAtomIndex
         _ -> -1
     ||]
 eval EvalCtx{..} (EChainIx node) = [||
     case access node $$(evalCtxArgs) of
-        Bead BeadInfo{..} -> beadChain
+        Bead b -> b ^. beadChain
         _ -> -1
     ||]
 eval EvalCtx{..} (EChromoIx node) = [||
     case access node $$(evalCtxArgs) of
-        Bead BeadInfo{..} -> beadIndexOnChain
+        Bead b -> b ^. beadIndexOnChain
         _ -> -1
     ||]
 
@@ -274,10 +274,10 @@ forEachNode :: forall m r repr. (Monoid r, ReadRepresentation m repr, Monad m)
     => repr -> (Atom -> m r) -> m r
 forEachNode repr f = do
     numChains <- getNumberOfChains repr
-    binders <- getBinders repr $ go Binder
-    beads <- fold <$> traverse (\idx -> getChain repr idx $ go Bead) [0..numChains-1]
+    binders <- getBinders repr go
+    beads <- fold <$> traverse (\idx -> getChain repr idx go) [0..numChains-1]
     pure $ beads <> binders
   where
-    go :: (MonoTraversable c, Element c ~ a) => (a -> Atom) -> c -> m r
-    go conv = flip ofoldlM mempty $ \s x -> mappend s <$> f (conv x)
+    go :: (MonoTraversable c, Element c ~ a, AsAtom a) => c -> m r
+    go = flip ofoldlM mempty $ \s x -> mappend s <$> f (asAtom x)
 {-# INLINE forEachNode #-}

@@ -5,13 +5,12 @@ License     : MIT
 Stability   : experimental
 Portability : unportable
 -}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 module Bio.Motions.Common where
 
 import Bio.Motions.Types
-
+import Control.Lens
 import qualified Data.Vector.Unboxed as U
 
 laminType :: BinderType
@@ -32,18 +31,26 @@ instance HaveEnergyBetween EnergyVector BinderType where
     energyBetween (EnergyVector vec) (BinderType ix) = vec U.! ix
     {-# INLINE energyBetween #-}
 
-instance HaveEnergyBetween BinderInfo BeadInfo where
-    energyBetween BinderInfo{..} BeadInfo{..} = energyBetween beadEV binderType
+instance HaveEnergyBetween BeadSignature BinderSignature where
+    energyBetween x y = energyBetween (x ^. beadEV) (y ^. binderType)
     {-# INLINE energyBetween #-}
 
-instance HaveEnergyBetween BeadInfo BinderInfo where
+instance HaveEnergyBetween BinderSignature BeadSignature where
     energyBetween = flip energyBetween
     {-# INLINE energyBetween #-}
 
-instance HaveEnergyBetween Atom Atom where
-    energyBetween (Bead beadInfo) (Binder binderInfo) = energyBetween beadInfo binderInfo
-    energyBetween (Binder binderInfo) (Bead beadInfo) = energyBetween beadInfo binderInfo
+instance HaveEnergyBetween AtomSignature AtomSignature where
+    energyBetween (BeadSig beadInfo) (BinderSig binderInfo) = energyBetween beadInfo binderInfo
+    energyBetween (BinderSig binderInfo) (BeadSig beadInfo) = energyBetween beadInfo binderInfo
     energyBetween _ _ = 0
+    {-# INLINE energyBetween #-}
+
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween (Located x) y where
+    energyBetween x = energyBetween (x ^. located)
+    {-# INLINE energyBetween #-}
+
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Located y) where
+    energyBetween x y = energyBetween x (y ^. located)
     {-# INLINE energyBetween #-}
 
 instance HaveEnergyBetween x y => HaveEnergyBetween (Maybe x) y where
@@ -56,24 +63,29 @@ instance HaveEnergyBetween x y => HaveEnergyBetween x (Maybe y) where
     energyBetween _ _ = 0
     {-# INLINE energyBetween #-}
 
--- |Represents the objects with position
+-- |Represents objects having spatial position
 class HasPosition x where
-    -- |A lens returning the spatial position of the object
-    position :: Functor f => (Vec3 -> f Vec3) -> x -> f x
+    position :: Lens' x Vec3
 
 instance HasPosition Vec3 where
     position = id
     {-# INLINE position #-}
 
-instance HasPosition BinderInfo where
-    position f x = fmap (\p -> x { binderPosition = p }) $ f $ binderPosition x
+instance HasPosition (Located x) where
+    position = location
     {-# INLINE position #-}
 
-instance HasPosition BeadInfo where
-    position f x = fmap (\p -> x { beadPosition = p }) $ f $ beadPosition x
-    {-# INLINE position #-}
+class AsAtom a where
+    asAtom :: a -> Atom
 
-instance HasPosition Atom where
-    position f (Bead bead) = Bead <$> position f bead
-    position f (Binder binder) = Binder <$> position f binder
-    {-# INLINE position #-}
+instance AsAtom Atom where
+    asAtom = id
+    {-# INLINE asAtom #-}
+
+instance AsAtom BinderInfo where
+    asAtom = fmap BinderSig
+    {-# INLINE asAtom #-}
+
+instance AsAtom BeadInfo where
+    asAtom = fmap BeadSig
+    {-# INLINE asAtom #-}

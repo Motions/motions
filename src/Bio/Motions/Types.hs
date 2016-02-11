@@ -7,10 +7,15 @@ Portability : unportable
  -}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Bio.Motions.Types where
 
 import Linear
 import qualified Data.Vector.Unboxed as U
+import Control.Lens.TH
 
 -- |An alias used for representing energy.
 type Energy = Int
@@ -28,26 +33,36 @@ newtype BinderType = BinderType { getBinderType :: Int }
 -- |A 3D vector of Ints
 type Vec3 = V3 Int
 
--- |Represents the information about a particular binder
-data BinderInfo = BinderInfo
-    { binderPosition :: !Vec3   -- ^ The position of the binder
-    , binderType :: !BinderType -- ^ The type of the binder
-    }
-    deriving (Eq, Show)
-
 -- |Represents the information about a particular bead
-data BeadInfo = BeadInfo
-    { beadPosition :: !Vec3 -- ^ The position of the bead
-    , beadEV :: !EnergyVector -- ^ The energy vector of the bead
-    , beadAtomIndex :: !Int -- ^ The global index of this bead
-    , beadChain :: !Int -- ^ The index of the chain this bead belongs to
-    , beadIndexOnChain :: !Int -- ^ The index on the chain
+data BeadSignature = BeadSignature
+    { _beadEV :: !EnergyVector -- ^ The energy vector of the bead
+    , _beadAtomIndex :: !Int -- ^ The global index of this bead
+    , _beadChain :: !Int -- ^ The index of the chain this bead belongs to
+    , _beadIndexOnChain :: !Int -- ^ The index on the chain
     }
     deriving (Eq, Show)
+makeClassy ''BeadSignature
+
+-- |Represents the information about a particular binder
+newtype BinderSignature = BinderSignature
+    { _binderType :: BinderType -- ^ The type of the binder
+    }
+    deriving (Eq, Show)
+makeClassy ''BinderSignature
+
+data Located a = Located
+    { _location :: !Vec3
+    , _located  :: a
+    }
+    deriving (Eq, Show, Functor)
+makeLenses ''Located
+
+type BeadInfo = Located BeadSignature
+type BinderInfo = Located BinderSignature
 
 -- |Represents a move of an atom
 data Move = Move
-    { moveFrom :: !Vec3 -- ^ The previous position of the atom
+    { moveFrom :: !Vec3 -- ^ The previous location of the atom
     , moveDiff :: !Vec3 -- ^ The displacement
     }
     deriving (Eq, Show)
@@ -56,11 +71,22 @@ pattern MoveFromTo from to <- Move from ((+from) -> to) where
     MoveFromTo from to = Move from (to - from)
 
 -- |Represents an arbitrary atom
-data Atom = Bead { getBeadInfo :: BeadInfo }
-          | Binder { getBinderInfo :: BinderInfo }
+data AtomSignature = BeadSig { getBeadSignature :: BeadSignature }
+                   | BinderSig { getBinderSignature :: BinderSignature }
     deriving (Eq, Show)
+
+type Atom = Located AtomSignature
+
+pattern Bead b <- Located _ (BeadSig b)
+pattern Binder b <- Located _ (BinderSig b)
 
 -- |Represents an additional addition or removal of a binder
 -- due to a 'Move'.
 data BinderChange = AddBinder BinderInfo -- ^ Addition of a binder
                   | RemoveBinder BinderInfo -- ^ Removal of a binder
+
+instance HasBeadSignature BeadInfo where
+    beadSignature = located
+
+instance HasBinderSignature BinderInfo where
+    binderSignature = located
