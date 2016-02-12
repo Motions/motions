@@ -11,7 +11,6 @@ Portability : unportable
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Bio.Motions.Representation.Chain.Internal where
 
@@ -21,8 +20,10 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.Dump
 import Control.Lens
 import Control.Monad
+import Control.Monad.IO.Class
 import Control.Monad.Random
 import Data.List
+import Data.IORef
 import Data.Maybe
 import Data.MonoTraversable
 import qualified Data.Sequences as DS
@@ -31,12 +32,12 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Linear
 
-type Space = M.Map Vec3 AtomSignature
+type Space f = M.Map Vec3 (Atom' f)
 
-data PureChainRepresentation = PureChainRepresentation
-    { space :: !Space
-    , binders :: !(V.Vector BinderInfo)
-    , beads :: !(V.Vector BeadInfo)
+data ChainRepresentation f = ChainRepresentation
+    { space :: !(Space f)
+    , binders :: !(V.Vector (BinderInfo' f))
+    , beads :: !(V.Vector (BeadInfo' f))
     -- ^ Beads from all chains
     , chainIndices :: !(U.Vector Int)
     -- ^ Indices of first atoms of successive chains in the 'beads' vector,
@@ -45,73 +46,131 @@ data PureChainRepresentation = PureChainRepresentation
     -- ^ Radius of the bounding sphere
     }
 
-instance Applicative m => ReadRepresentation m PureChainRepresentation where
-    getBinders PureChainRepresentation{..} f = f binders
+type PureChainRepresentation = ChainRepresentation Identity
+type IOChainRepresentation = ChainRepresentation IORef
+
+-- |Used to wrap and unwrap 'f'.
+--
+-- See 'relocate'.
+class Monad m => Retrievable m f where
+    retrieve :: f a -> m a
+    pack :: a -> m (f a)
+
+instance Monad m => Retrievable m Identity where
+    retrieve = pure . runIdentity
+    {-# INLINE retrieve #-}
+    pack = pure . Identity
+    {-# INLINE pack #-}
+
+instance MonadIO m => Retrievable m IORef where
+    retrieve = liftIO . readIORef
+    {-# INLINE retrieve #-}
+    pack = liftIO . newIORef
+    {-# INLINE pack #-}
+
+-- |Converts between 'Located f' and 'Located f''.
+relocate :: (Retrievable m f, Retrievable m f') => Located' f a -> m (Located' f' a)
+relocate (Located' p a) = retrieve p >>= fmap (flip Located' a) . pack
+
+-- |A type-constrained version of 'reloate'
+retrieveLocated :: Retrievable m f => Located' f a -> m (Located a)
+retrieveLocated = relocate
+
+instance Retrievable m f => ReadRepresentation m (ChainRepresentation f) where
+    getBinders ChainRepresentation{..} f = mapM retrieveLocated binders >>= f
     {-# INLINE getBinders #-}
 
-    getNumberOfChains PureChainRepresentation{..} = pure $ U.length chainIndices - 1
+    getNumberOfChains ChainRepresentation{..} = pure $ U.length chainIndices - 1
     {-# INLINE getNumberOfChains #-}
 
-    getChain repr ix f = f $ getChain' repr ix
+    getChain repr ix f = mapM retrieveLocated (getChain' repr ix) >>= f
     {-# INLINE getChain #-}
 
-    getAtomAt pos PureChainRepresentation{..} = pure $ Located pos <$> M.lookup pos space
+    getAtomAt pos ChainRepresentation{..} = pure $ Located pos . (^. located) <$> M.lookup pos space
     {-# INLINE getAtomAt #-}
 
-instance Applicative m => Representation m PureChainRepresentation where
-    loadDump Dump{..} = pure PureChainRepresentation
-        { binders = V.fromList dumpBinders
-        , beads = V.fromList $ concat chains
-        , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
-        , space = M.fromList $ map convert dumpBinders ++ map convert (concat chains)
-        , radius = dumpRadius
-        }
-      where
-        chains = addIndices dumpChains
-        convert x = (x ^. position, asAtom x ^. located)
-
-    makeDump repr = pure Dump
-        { dumpBinders = V.toList $ binders repr
-        , dumpChains = (dropIndices <$>) . V.toList . getChain' repr <$> [0..U.length (chainIndices repr) - 2]
-        , dumpRadius = radius repr
-        }
-
-    generateMove repr@PureChainRepresentation{..} = do
-        moveBinder <- getRandom
-        if moveBinder then
-            pick binders Nothing
-        else
-            pick beads $ Just $ illegalBeadMove repr
-      where
-        -- |Pick a random move of some atom in a sequence
-        pick :: _  -- Under some cumbersome constraints...
-            => s -- ^The sequence of atoms
-            -> t (Move -> Element s -> Bool) -- ^A 'Traversable' of additional move constraints
-            -> m Move
-        pick xs constraints = do
-            x <- getRandomElement xs
-            d <- getRandomElement legalMoves
-            let pos = x ^. position
-                pos' = pos + d
-            guard $ not $ M.member pos' space
-            let m = Move pos d
-            forM_ constraints $ \c -> guard $ not $ c m x
-            pure m
+instance Monad m => Representation m PureChainRepresentation where
+    loadDump = loadDump'
+    makeDump = makeDump'
+    generateMove = generateMove'
 
     performMove (MoveFromTo from to) repr
-        | BinderSig binderInfo <- atom = pure $
-            let withLoc = Located from binderInfo
-                Just idx = V.elemIndex withLoc $ binders repr
+        | Binder binderSig <- atom = pure $
+            let Just idx = V.elemIndex (Located from binderSig) $ binders repr
             in  (repr { space = space'
-                      , binders = binders repr V.// [(idx, withLoc & position .~ to)]
+                      , binders = binders repr V.// [(idx, Located to binderSig)]
                       }, [])
-        | BeadSig (Located from -> beadInfo) <- atom = pure
+        | Bead beadSig <- atom = pure
             (repr { space = space'
-                  , beads = beads repr V.// [(beadInfo ^. beadAtomIndex, beadInfo & position .~ to)]
+                  , beads = beads repr V.// [(beadSig ^. beadAtomIndex, Located to beadSig)]
                   }, [])
       where
         atom = space repr M.! from
+        space' = M.insert to (atom & position .~ to) . M.delete from $ space repr
+
+instance MonadIO m => Representation m (ChainRepresentation IORef) where
+    loadDump = loadDump'
+    makeDump = makeDump'
+    generateMove = generateMove'
+
+    performMove (MoveFromTo from to) repr = do
+        liftIO $ writeIORef (atom ^. location) to
+        pure (repr { space = space' }, [])
+      where
+        atom = space repr M.! from
         space' = M.insert to atom $ M.delete from $ space repr
+
+-- |An 'f'-polymorphic implementation of 'loadDump' for 'ChainRepresentation f'.
+loadDump' :: _ => Dump -> m (ChainRepresentation f)
+loadDump' Dump{..} = do
+    relBinders <- mapM relocate dumpBinders
+    relBeads <- mapM relocate (concat chains)
+    pure ChainRepresentation
+        { binders = V.fromList relBinders
+        , beads = V.fromList relBeads
+        , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
+        , space = M.fromList $ zipWith convert relBinders dumpBinders ++ zipWith convert relBeads (concat chains)
+        , radius = dumpRadius
+        }
+  where
+    chains = addIndices dumpChains
+    convert new old = (old ^. position, asAtom new)
+
+-- |An 'f'-polymorphic implementation of 'makeDump' for 'ChainRepresentation f'.
+makeDump' :: _ => ChainRepresentation f -> m Dump
+makeDump' repr = do
+    relBinders <- mapM relocate (V.toList $ binders repr)
+    relChains <- mapM (mapM relocate . V.toList . getChain' repr) [0..U.length (chainIndices repr) - 2]
+    pure Dump
+        { dumpBinders = relBinders
+        , dumpChains = (dropIndices <$>) <$> relChains
+        , dumpRadius = radius repr
+        }
+
+-- |An 'f'-polymorphic implementation of 'generateMive' for 'ChainRepresentation f'.
+generateMove' :: _ => ChainRepresentation f -> m Move
+generateMove' repr@ChainRepresentation{..} = do
+    moveBinder <- getRandom
+    if moveBinder then
+        pick binders Nothing
+    else
+        pick beads $ Just $ illegalBeadMove repr
+  where
+    -- |Pick a random move of some atom in a sequence
+    pick :: _  -- Under some cumbersome constraints...
+        => s -- ^The sequence of atoms
+        -> t (Move -> Element s -> m Bool) -- ^A 'Traversable' of additional move constraints
+        -> m Move
+    pick xs constraints = do
+        x <- getRandomElement xs
+        d <- getRandomElement legalMoves
+        r <- retrieveLocated x
+        let pos = r ^. position
+            pos' = pos + d
+        guard $ not $ M.member pos' space
+        let m = Move pos d
+        forM_ constraints $ \c -> c m x >>= guard . not
+        pure m
 
 -- |Picks a random element from a 'DS.IsSequence', assuming that its indices form
 -- a continuous range from 0 to @'olength' s - 1@.
@@ -125,24 +184,26 @@ legalMoves = V.fromList [v | [x, y, z] <- replicateM 3 [-1, 0, 1],
                              quadrance v `elem` [1, 2]]
 
 -- |The pairs of local neighbours of a bead
-localNeighbours :: BeadInfo -> PureChainRepresentation -> [(Vec3, Vec3)]
-localNeighbours info repr = zip positions $ tail positions
+localNeighbours :: (Retrievable m f, Retrievable m f') => Located' f BeadSignature -> ChainRepresentation f' -> m [(Vec3, Vec3)]
+localNeighbours info repr = do
+    neighbours <- sequence $ catMaybes
+          [ fmap retrieveLocated  .  DS.index chain $ ix - 1
+          ,      retrieveLocated <$> Just info
+          , fmap retrieveLocated  .  DS.index chain $ ix + 1
+          ]
+    let positions = view position <$> neighbours
+    pure $ zip positions (tail positions)
   where
     ix = info ^. beadIndexOnChain
     chain = getChain' repr $ info ^. beadChain
-    neighbours = catMaybes [ DS.index chain $ ix - 1
-                           , Just info
-                           , DS.index chain $ ix + 1
-                           ]
-    positions = view position <$> neighbours
 
 -- |Checks if a segment connecting the two given points would intersect with a chain.
 -- Assumes that these points are neighbours on the 3-dimensional grid, i. e. the quadrance
 -- of the distance between these points equals 1 or 2.
-intersectsChain :: Space -> Vec3 -> Vec3 -> Bool
+intersectsChain :: Space f -> Vec3 -> Vec3 -> Bool
 intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
     d /= 1 && case (`M.lookup` space) <$> crossPoss of
-                [Just (BeadSig b1), Just (BeadSig b2)] -> chainNeighbours b1 b2
+                [Just (Bead b1), Just (Bead b2)] -> chainNeighbours b1 b2
                 _                                      -> False
   where
     d = qd v1 v2
@@ -152,15 +213,17 @@ intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
     chainNeighbours b1 b2 = b1 ^. beadChain == b2 ^. beadChain
                          && abs (b1 ^. beadIndexOnChain - b2 ^. beadIndexOnChain) == 1
 
-illegalBeadMove :: PureChainRepresentation -> Move -> BeadInfo -> Bool
-illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs
+illegalBeadMove :: Retrievable m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
+illegalBeadMove repr Move{..} bead = do
+    bead' <- retrieveLocated bead
+    pairs <- localNeighbours (bead' & position +~ moveDiff) repr
+    pure $ any (uncurry notOk) pairs
   where
-    pairs = localNeighbours (bead & position +~ moveDiff) repr
     notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
 
 -- |Returns the chain with the specified index.
-getChain' :: PureChainRepresentation -> Int -> V.Vector BeadInfo
-getChain' PureChainRepresentation{..} ix = V.slice b (e - b) beads
+getChain' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)
+getChain' ChainRepresentation{..} ix = V.slice b (e - b) beads
   where
     [b, e] = U.unsafeIndex chainIndices <$> [ix, ix + 1]
