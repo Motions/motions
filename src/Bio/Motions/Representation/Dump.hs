@@ -9,6 +9,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 module Bio.Motions.Representation.Dump where
 
+import Bio.Motions.Common
 import Bio.Motions.Types
 import Control.Lens
 import Control.Monad
@@ -29,29 +30,29 @@ data DumpBeadInfo = DumpBeadInfo
 -- |Represents a dump of the simulation state
 data Dump = Dump
     { dumpRadius :: Int -- ^ The bounding sphere radius
-    , dumpBinders :: [BinderInfo] -- ^ A list of binders (in unspecified order)
+    , dumpBinders :: [BinderInfo'] -- ^ A list of binders (in unspecified order)
     , dumpChains :: [[DumpBeadInfo]] -- ^ A list of chains, each represented as a list of beads
     }
 
-dumpIndexedChains :: Dump -> [[BeadInfo]]
+dumpIndexedChains :: Dump -> [[BeadInfo']]
 dumpIndexedChains = addIndices . dumpChains
 
 -- |Adds the missing bead indices to 'DumpBeadInfo's making them 'BeadInfo's.
-addIndices :: [[DumpBeadInfo]] -> [[BeadInfo]]
+addIndices :: [[DumpBeadInfo]] -> [[BeadInfo']]
 addIndices xs = evalState (mapM go $ zip [0..] xs) 0
  where
    go (chainIx, chain) = forM (zip [0..] chain) $ \(ixOnChain, DumpBeadInfo{..}) -> do
      atomIx <- get
      modify (+1)
-     pure . Located dumpBeadPosition $ BeadSignature
+     pure . Located' dumpBeadPosition $ BeadSignature
         { _beadEV = dumpBeadEV
         , _beadAtomIndex = atomIx
         , _beadChain = chainIx
         , _beadIndexOnChain = ixOnChain
         }
 
-dropIndices :: BeadInfo -> DumpBeadInfo
+dropIndices :: BeadInfo' -> DumpBeadInfo
 dropIndices b = DumpBeadInfo
-    { dumpBeadPosition = b ^. location
+    { dumpBeadPosition = b ^. position
     , dumpBeadEV = b ^. beadEV
     }

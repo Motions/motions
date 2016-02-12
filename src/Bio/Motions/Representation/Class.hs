@@ -43,7 +43,7 @@ class ReadRepresentation m repr where
     getBinders ::
         repr
         -- ^ The representation
-        -> (forall c. (MonoTraversable c, Element c ~ BinderInfo) => c -> m res)
+        -> (forall c. (MonoTraversable c, Element c ~ BinderInfo') => c -> m res)
         -- ^A function that will be given a 'MonoTraversable' containing the binders' data.
         -- Note: This 'MonoTraversable' must be neither saved nor returned by the function.
         -> m res
@@ -58,7 +58,7 @@ class ReadRepresentation m repr where
         -- ^ The representation
         -> Int
         -- ^The chain number. Chains are numbered 0..(n - 1) where n is the number of chains
-        -> (forall c. (MonoTraversable c, Element c ~ BeadInfo) => c -> m res)
+        -> (forall c. (MonoTraversable c, Element c ~ BeadInfo') => c -> m res)
         -- ^The function which will be given a 'MonoTraversable' containing the beads' data
         -- on the particular chain.
         -- Note: This 'MonoTraversable' must be neither saved nor returned by the function.
@@ -66,4 +66,4 @@ class ReadRepresentation m repr where
         -- ^ The return value of the above function
 
     -- |Retrieves the atom at the specified spatial position
-    getAtomAt :: Vec3 -> repr -> m (Maybe Atom)
+    getAtomAt :: Vec3 -> repr -> m (Maybe Atom')

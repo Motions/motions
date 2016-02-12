@@ -15,7 +15,7 @@ import Test.Hspec
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
-import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, intersectsChain, space)
+import Bio.Motions.Representation.Chain.Internal
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.Parser.TH
@@ -76,8 +76,8 @@ testIntersectsChain = do
         intersectsChain space (V3 7 8 7) (V3 7 8 8) `shouldBe` False
   where
     space = M.fromList
-        [ (V3 7 7 7, BeadSig $ BeadSignature ev 0 0 0)
-        , (V3 7 8 8, BeadSig $ BeadSignature ev 0 0 1)
+        [ (V3 7 7 7, Located' (V3 7 7 7) $ BeadSig $ BeadSignature ev 0 0 0)
+        , (V3 7 8 8, Located' (V3 7 8 8) $ BeadSig $ BeadSignature ev 0 0 1)
         ]
     ev = EnergyVector U.empty
 
@@ -105,9 +105,9 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
     dump = Dump
         { dumpRadius = 10
         , dumpBinders =
-            [ BinderInfo (V3 0 1 2) bi0
-            , BinderInfo (V3 0 1 3) bi0
-            , BinderInfo (V3 5 5 5) bi1
+            [ BinderInfo' (V3 0 1 2) bi0
+            , BinderInfo' (V3 0 1 3) bi0
+            , BinderInfo' (V3 5 5 5) bi1
             ]
         , dumpChains =
             [ [ DumpBeadInfo (V3 0 1 1) ev0
@@ -125,16 +125,16 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
     [bi0, bi1] = BinderType <$> [0, 1]
     [ev0, ev1] = EnergyVector . U.fromList <$> [[1, 0], [0, 1000]]
 
-    updatedChain = [ BeadInfo (V3 0 1 1) ev0 0 0 0
-                   , BeadInfo (V3 5 6 5) ev1 1 0 1
-                   , BeadInfo (V3 5 5 6) ev0 2 0 2
+    updatedChain = [ BeadInfo' (V3 0 1 1) ev0 0 0 0
+                   , BeadInfo' (V3 5 6 5) ev1 1 0 1
+                   , BeadInfo' (V3 5 5 6) ev0 2 0 2
                    ]
 
     updatedChains = updatedChain : tail (dumpIndexedChains dump)
 
-    updatedBinders = [ BinderInfo (V3 1 1 2) bi0
-                     , BinderInfo (V3 0 1 3) bi0
-                     , BinderInfo (V3 5 5 5) bi1
+    updatedBinders = [ BinderInfo' (V3 1 1 2) bi0
+                     , BinderInfo' (V3 0 1 3) bi0
+                     , BinderInfo' (V3 5 5 5) bi1
                      ]
 
     testRedump :: SpecWith Dump
@@ -220,7 +220,7 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
         it "reports the new location to contain the bead" $ \repr -> do
             matom <- getAtomAt (V3 5 6 5) repr
-            matom `shouldBe` Just (asAtom $ BeadInfo (V3 5 6 5) ev1 1 0 1)
+            matom `shouldBe` Just (asAtom $ BeadInfo' (V3 5 6 5) ev1 1 0 1)
 
         it "reports the updated chain" $ \repr -> do
             chain <- getChain repr 0 $ pure . otoList
@@ -245,7 +245,7 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
         it "reports the new location to contain the binder" $ \repr -> do
             matom <- getAtomAt (V3 1 1 2) repr
-            matom `shouldBe` Just (asAtom $ BinderInfo (V3 1 1 2) bi0)
+            matom `shouldBe` Just (asAtom $ BinderInfo' (V3 1 1 2) bi0)
 
         it "reports the updated binders" $ \repr -> do
             binders <- getBinders repr $ pure . otoList
@@ -262,6 +262,9 @@ spec :: Spec
 spec = do
     context "the pure chain representation" $
         testRepr (Proxy :: Proxy PureChainRepresentation)
+
+    context "the IO chain representation" $
+        testRepr (Proxy :: Proxy IOChainRepresentation)
 
     context "the intersectsChain function"
         testIntersectsChain

@@ -49,14 +49,14 @@ instance Monad m => Callback m 'Pre StandardScore where
         pure $ prev - atFrom + atTo
 
 -- |Returns the score between an object and the atom placed on the specified position.
-energyTo :: (Functor m, ReadRepresentation m repr, HasPosition obj, HaveEnergyBetween obj (Maybe Atom)) =>
+energyTo :: (Functor m, ReadRepresentation m repr, HasPosition obj, HaveEnergyBetween obj (Maybe Atom')) =>
     repr -> obj -> Vec3 -> m StandardScore
 energyTo repr obj pos = StandardScore . energyBetween obj <$> getAtomAt pos repr
 
 -- |Returns the total score between an object (e.g. an atom) and the atoms placed on the
 -- specified positions.
 energyToMany :: (Applicative m, ReadRepresentation m repr, HasPosition obj,
-    HaveEnergyBetween obj (Maybe Atom), Traversable t) =>
+    HaveEnergyBetween obj (Maybe Atom'), Traversable t) =>
     repr -> obj -> t Vec3 -> m StandardScore
 energyToMany repr obj poss = fold <$> traverse (energyTo repr obj) poss
 
