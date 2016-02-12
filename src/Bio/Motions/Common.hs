@@ -7,6 +7,8 @@ Portability : unportable
 -}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Bio.Motions.Common where
 
 import Bio.Motions.Types
@@ -72,20 +74,22 @@ instance HasPosition Vec3 where
     {-# INLINE position #-}
 
 instance HasPosition (Located x) where
-    position = location
+    position = location . _Wrapping Identity
     {-# INLINE position #-}
 
-class AsAtom a where
-    asAtom :: a -> Atom
+class AsAtom' f a where
+    asAtom :: a -> Located' f AtomSignature
 
-instance AsAtom Atom where
+instance AsAtom' f (Located' f AtomSignature) where
     asAtom = id
     {-# INLINE asAtom #-}
 
-instance AsAtom BinderInfo where
+instance AsAtom' f (Located' f BinderSignature) where
     asAtom = fmap BinderSig
     {-# INLINE asAtom #-}
 
-instance AsAtom BeadInfo where
+instance AsAtom' f (Located' f BeadSignature) where
     asAtom = fmap BeadSig
     {-# INLINE asAtom #-}
+
+type AsAtom a = AsAtom' Identity a

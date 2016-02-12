@@ -8,7 +8,7 @@ import Bio.Motions.Types
 import Linear
 
 testDump :: Spec
-testDump = 
+testDump =
     it "adds indices correctly" $
         addIndices dbiChains `shouldBe` biChains
   where

@@ -6,6 +6,9 @@ Stability   : experimental
 Portability : unportable
  -}
 
-module Bio.Motions.Representation.Chain.Pure (PureChainRepresentation) where
+module Bio.Motions.Representation.Chain
+    ( PureChainRepresentation
+    , IOChainRepresentation
+    ) where
 
-import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation)
+import Bio.Motions.Representation.Chain.Internal
