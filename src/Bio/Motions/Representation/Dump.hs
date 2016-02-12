@@ -9,6 +9,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 module Bio.Motions.Representation.Dump where
 
+import Bio.Motions.Common
 import Bio.Motions.Types
 import Control.Lens
 import Control.Monad
@@ -52,6 +53,6 @@ addIndices xs = evalState (mapM go $ zip [0..] xs) 0
 
 dropIndices :: BeadInfo -> DumpBeadInfo
 dropIndices b = DumpBeadInfo
-    { dumpBeadPosition = b ^. location
+    { dumpBeadPosition = b ^. position
     , dumpBeadEV = b ^. beadEV
     }
