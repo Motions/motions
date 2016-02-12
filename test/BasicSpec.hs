@@ -16,7 +16,7 @@ import Test.Hspec
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
-import Bio.Motions.Representation.Chain.Internal (PureChainRepresentation, intersectsChain, space)
+import Bio.Motions.Representation.Chain.Internal
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.Parser.TH
@@ -76,8 +76,8 @@ testIntersectsChain = do
     it "doesn't report about non-existing intersections" $
         intersectsChain space (V3 7 8 7) (V3 7 8 8) `shouldBe` False
   where
-    space = [ (V3 7 7 7, BeadSig $ BeadSignature ev 0 0 0)
-            , (V3 7 8 8, BeadSig $ BeadSignature ev 0 0 1)
+    space = [ (V3 7 7 7, Located (V3 7 7 7) $ BeadSig $ BeadSignature ev 0 0 0)
+            , (V3 7 8 8, Located (V3 7 8 8) $ BeadSig $ BeadSignature ev 0 0 1)
             ]
     ev = []
 
@@ -263,6 +263,9 @@ spec :: Spec
 spec = do
     context "the pure chain representation" $
         testRepr (Proxy :: Proxy PureChainRepresentation)
+
+    context "the IO chain representation" $
+        testRepr (Proxy :: Proxy IOChainRepresentation)
 
     context "the intersectsChain function"
         testIntersectsChain
