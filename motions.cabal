@@ -17,7 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Bio.Motions.Representation.Class,
-                       Bio.Motions.Representation.Chain.Pure,
+                       Bio.Motions.Representation.Chain,
                        Bio.Motions.Representation.Chain.Internal,
                        Bio.Motions.Representation.Dump,
                        Bio.Motions.Callback.Class,
