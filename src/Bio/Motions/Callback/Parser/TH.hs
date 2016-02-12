@@ -278,6 +278,6 @@ forEachNode repr f = do
     beads <- fold <$> traverse (\idx -> getChain repr idx go) [0..numChains-1]
     pure $ beads <> binders
   where
-    go :: (MonoTraversable c, Element c ~ a, AsAtom a) => c -> m r
+    go :: (MonoTraversable c, Element c ~ a, AsAtom Identity a) => c -> m r
     go = flip ofoldlM mempty $ \s x -> mappend s <$> f (asAtom x)
 {-# INLINE forEachNode #-}

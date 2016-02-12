@@ -24,14 +24,14 @@ testDump =
           ]
         ]
     biChains =
-        [ [ Located (V3 0 0 0) $ BeadSignature ev0 0 0 0
-          , Located (V3 0 1 0) $ BeadSignature ev1 1 0 1
-          , Located (V3 1 1 0) $ BeadSignature ev0 2 0 2
+        [ [ Located' (V3 0 0 0) $ BeadSignature ev0 0 0 0
+          , Located' (V3 0 1 0) $ BeadSignature ev1 1 0 1
+          , Located' (V3 1 1 0) $ BeadSignature ev0 2 0 2
           ]
-        , [ Located (V3 4 2 1) $ BeadSignature ev0 3 1 0
+        , [ Located' (V3 4 2 1) $ BeadSignature ev0 3 1 0
           ]
-        , [ Located (V3 3 2 1) $ BeadSignature ev1 4 2 0
-          , Located (V3 3 2 2) $ BeadSignature ev0 5 2 1
+        , [ Located' (V3 3 2 1) $ BeadSignature ev1 4 2 0
+          , Located' (V3 3 2 2) $ BeadSignature ev0 5 2 1
           ]
         ]
     ev0 = EnergyVector [1, 2]
