@@ -11,9 +11,13 @@ Portability : unportable
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Bio.Motions.Types where
 
 import Linear
+import Data.Functor.Identity
 import qualified Data.Vector.Unboxed as U
 import Control.Lens.TH
 
@@ -50,15 +54,27 @@ newtype BinderSignature = BinderSignature
     deriving (Eq, Show)
 makeClassy ''BinderSignature
 
-data Located a = Located
-    { _location :: !Vec3
+-- |Adds a position data to an arbitary object
+--
+-- The location is wrapped inside a type constructor 'f',
+-- so that e.g. mutable references could be used.
+data Located f a = Located
+    { _location :: !(f Vec3)
     , _located  :: a
     }
-    deriving (Eq, Show, Functor)
+    deriving Functor
 makeLenses ''Located
 
-type BeadInfo = Located BeadSignature
-type BinderInfo = Located BinderSignature
+deriving instance (Eq a, Eq (f Vec3)) => Eq (Located f a)
+deriving instance (Show a, Show (f Vec3)) => Show (Located f a)
+
+type Located' = Located Identity
+
+type BeadInfo f = Located f BeadSignature
+type BinderInfo f = Located f BinderSignature
+
+type BeadInfo' = BeadInfo Identity
+type BinderInfo' = BinderInfo Identity
 
 -- |Represents a move of an atom
 data Move = Move
@@ -75,18 +91,23 @@ data AtomSignature = BeadSig { getBeadSignature :: BeadSignature }
                    | BinderSig { getBinderSignature :: BinderSignature }
     deriving (Eq, Show)
 
-type Atom = Located AtomSignature
+type Atom f = Located f AtomSignature
+type Atom' = Atom Identity
 
 pattern Bead b <- Located _ (BeadSig b)
 pattern Binder b <- Located _ (BinderSig b)
 
+pattern Located' p x = Located (Identity p) x
+
 -- |Represents an additional addition or removal of a binder
 -- due to a 'Move'.
-data BinderChange = AddBinder BinderInfo -- ^ Addition of a binder
-                  | RemoveBinder BinderInfo -- ^ Removal of a binder
+data BinderChange = AddBinder BinderInfo' -- ^ Addition of a binder
+                  | RemoveBinder BinderInfo' -- ^ Removal of a binder
 
-instance HasBeadSignature BeadInfo where
+instance HasBeadSignature (BeadInfo f) where
     beadSignature = located
+    {-# INLINE beadSignature #-}
 
-instance HasBinderSignature BinderInfo where
+instance HasBinderSignature (BinderInfo f) where
     binderSignature = located
+    {-# INLINE binderSignature #-}

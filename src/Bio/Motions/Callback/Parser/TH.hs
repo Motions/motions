@@ -102,7 +102,7 @@ createCallback ParsedCallback{..} = do
         instance Monad m => Callback m 'Post (THCallback $(name)) where
             runCallback repr = forEachKNodes repr run
               where
-                run :: Vec (THCallbackArity $(name)) Atom -> m (THCallback $(name))
+                run :: Vec (THCallbackArity $(name)) Atom' -> m (THCallback $(name))
                 run args =  pure $
                     if $(unTypeQ $ ev callbackCondition) then
                         THCallback $(constrE $ unTypeQ $ ev expr)
@@ -166,7 +166,7 @@ data Vec (n :: Nat) a where
 
 -- |Evaluation context
 data EvalCtx n = EvalCtx
-    { evalCtxArgs :: Q (TExp (Vec n Atom)) -- ^A typed expression representing the arguments vector
+    { evalCtxArgs :: Q (TExp (Vec n Atom')) -- ^A typed expression representing the arguments vector
     , evalCtxRepr :: Name -- ^The name of the binding of the representation
     }
 
@@ -255,7 +255,7 @@ instance Lift (Node n) where
 -- of nodes.
 class ForEachKNodes (n :: Nat) where
     forEachKNodes :: (Monoid r, ReadRepresentation m repr, Monad m)
-        => repr -> (Vec n Atom -> m r) -> m r
+        => repr -> (Vec n Atom' -> m r) -> m r
 
 -- |The base case.
 instance ForEachKNodes Zero where
@@ -271,13 +271,13 @@ instance ForEachKNodes n => ForEachKNodes (Succ n) where
 -- |Performs a monadic action over all nodes (i.e. beads and atoms)
 -- and gathers the results monoidally.
 forEachNode :: forall m r repr. (Monoid r, ReadRepresentation m repr, Monad m)
-    => repr -> (Atom -> m r) -> m r
+    => repr -> (Atom' -> m r) -> m r
 forEachNode repr f = do
     numChains <- getNumberOfChains repr
     binders <- getBinders repr go
     beads <- fold <$> traverse (\idx -> getChain repr idx go) [0..numChains-1]
     pure $ beads <> binders
   where
-    go :: (MonoTraversable c, Element c ~ a, AsAtom a) => c -> m r
+    go :: (MonoTraversable c, Element c ~ a, AsAtom Identity a) => c -> m r
     go = flip ofoldlM mempty $ \s x -> mappend s <$> f (asAtom x)
 {-# INLINE forEachNode #-}
