@@ -45,11 +45,11 @@ instance HaveEnergyBetween AtomSignature AtomSignature where
     energyBetween _ _ = 0
     {-# INLINE energyBetween #-}
 
-instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween (Located x) y where
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween (Located' x) y where
     energyBetween x = energyBetween (x ^. located)
     {-# INLINE energyBetween #-}
 
-instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Located y) where
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Located' y) where
     energyBetween x y = energyBetween x (y ^. located)
     {-# INLINE energyBetween #-}
 
@@ -71,8 +71,8 @@ instance HasPosition Vec3 where
     position = id
     {-# INLINE position #-}
 
-instance HasPosition (Located x) where
-    position = location
+instance HasPosition (Located' x) where
+    position = location . _Wrapping Identity
     {-# INLINE position #-}
 
 class AsAtom a where

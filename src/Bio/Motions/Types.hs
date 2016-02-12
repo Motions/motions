@@ -11,9 +11,13 @@ Portability : unportable
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Bio.Motions.Types where
 
 import Linear
+import Data.Functor.Identity
 import qualified Data.Vector.Unboxed as U
 import Control.Lens.TH
 
@@ -50,15 +54,20 @@ data BinderSignature = BinderSignature
     deriving (Eq, Show)
 makeClassy ''BinderSignature
 
-data Located a = Located
-    { _location :: !Vec3
+data Located f a = Located
+    { _location :: !(f Vec3)
     , _located  :: a
     }
-    deriving (Eq, Show, Functor)
+    deriving Functor
 makeLenses ''Located
 
-type BeadInfo = Located BeadSignature
-type BinderInfo = Located BinderSignature
+deriving instance (Eq a, Eq (f Vec3)) => Eq (Located f a)
+deriving instance (Show a, Show (f Vec3)) => Show (Located f a)
+
+type Located' = Located Identity
+
+type BeadInfo = Located' BeadSignature
+type BinderInfo = Located' BinderSignature
 
 -- |Represents a move of an atom
 data Move = Move
@@ -75,18 +84,22 @@ data AtomSignature = BeadSig { getBeadSignature :: BeadSignature }
                    | BinderSig { getBinderSignature :: BinderSignature }
     deriving (Eq, Show)
 
-type Atom = Located AtomSignature
+type Atom = Located' AtomSignature
 
 pattern Bead b <- Located _ (BeadSig b)
 pattern Binder b <- Located _ (BinderSig b)
+
+pattern Located' p x = Located (Identity p) x
 
 -- |Represents an additional addition or removal of a binder
 -- due to a 'Move'.
 data BinderChange = AddBinder BinderInfo -- ^ Addition of a binder
                   | RemoveBinder BinderInfo -- ^ Removal of a binder
 
-instance HasBeadSignature BeadInfo where
+instance HasBeadSignature (Located f BeadSignature) where
     beadSignature = located
+    {-# INLINE beadSignature #-}
 
-instance HasBinderSignature BinderInfo where
+instance HasBinderSignature (Located f BinderSignature) where
     binderSignature = located
+    {-# INLINE binderSignature #-}
