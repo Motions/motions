@@ -151,6 +151,7 @@ intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
     chainNeighbours b1 b2 = beadChain b1 == beadChain b2
                          && abs (beadIndexOnChain b1 - beadIndexOnChain b2) == 1
 
+
 illegalBeadMove :: PureChainRepresentation -> Move -> BeadInfo -> Bool
 illegalBeadMove repr Move{..} bead = any (uncurry notOk) pairs
   where
