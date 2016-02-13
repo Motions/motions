@@ -33,6 +33,7 @@ data Dump = Dump
     , dumpBinders :: [BinderInfo] -- ^ A list of binders (in unspecified order)
     , dumpChains :: [[DumpBeadInfo]] -- ^ A list of chains, each represented as a list of beads
     }
+    deriving (Show)
 
 dumpIndexedChains :: Dump -> [[BeadInfo]]
 dumpIndexedChains = addIndices . dumpChains
