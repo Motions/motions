@@ -8,6 +8,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedLists #-}
 
 module BasicSpec where
 
@@ -73,11 +74,11 @@ testIntersectsChain = do
     it "doesn't report about non-existing intersections" $
         intersectsChain space (V3 7 8 7) (V3 7 8 8) `shouldBe` False
   where
-    space = M.fromList
+    space =
         [ (V3 7 7 7, Bead $ BeadInfo (V3 7 7 7) ev 0 0 0)
         , (V3 7 8 8, Bead $ BeadInfo (V3 7 8 8) ev 0 0 1)
         ]
-    ev = EnergyVector U.empty
+    ev = []
 
 testRepr :: forall proxy repr. Representation IO repr => proxy repr -> Spec
 testRepr _ = before (loadDump dump :: IO repr) $ do
@@ -120,8 +121,11 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
               ]
             ]
         }
-    [bi0, bi1] = BinderType <$> [0, 1]
-    [ev0, ev1] = EnergyVector . U.fromList <$> [[1, 0], [0, 1000]]
+
+    bi0 = BinderType 0
+    bi1 = BinderType 1
+    ev0 = [1, 0]
+    ev1 = [0, 1000]
 
     updatedChain = [ BeadInfo (V3 0 1 1) ev0 0 0 0
                    , BeadInfo (V3 5 6 5) ev1 1 0 1

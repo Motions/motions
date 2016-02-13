@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module StateInitiationSpec where
 
 import Data.Maybe
@@ -41,18 +42,15 @@ run m seed = evalRand m $ mkStdGen seed
 getAllLamins :: Dump -> [BinderInfo]
 getAllLamins d = filter (\x -> binderType x == BinderType 0) $ dumpBinders d
 
-toEnergyVectors :: [[[Int]]] -> [[EnergyVector]]
-toEnergyVectors = map (map $ EnergyVector . U.fromList)
-
 dumpToSpace :: Dump -> R.Space
 dumpToSpace dump = M.fromList $ [(binderPosition b, Binder b) | b <- dumpBinders dump] ++
                                 [(beadPosition b, Bead b) | b <- concat $ addIndices $ dumpChains dump]
 
 
 fewShortEVectors :: [[EnergyVector]]
-fewShortEVectors = toEnergyVectors [[[0,1], [1,0], [2,0], [1,0], [1,0]],
-                                   [[0,0], [1,1], [1,1], [0,0]],
-                                   [[0,1], [1,1], [1,1], [0,0]]]
+fewShortEVectors = [[[0,1], [1,0], [2,0], [1,0], [1,0]],
+                    [[0,0], [1,1], [1,1], [0,0]],
+                    [[0,1], [1,1], [1,1], [0,0]]]
 
 oneSuperLongEVector :: [[EnergyVector]]
-oneSuperLongEVector = toEnergyVectors [replicate 100000 [1,1,1]]
+oneSuperLongEVector = [replicate 100000 [1,1,1]]
