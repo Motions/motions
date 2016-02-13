@@ -17,6 +17,7 @@ module Bio.Motions.Representation.Chain.Internal where
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
+import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Control.Lens
 import Control.Monad
@@ -32,10 +33,8 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Linear
 
-type Space f = M.Map Vec3 (Atom' f)
-
 data ChainRepresentation f = ChainRepresentation
-    { space :: !(Space f)
+    { space :: !(Space' f)
     , binders :: !(V.Vector (BinderInfo' f))
     , beads :: !(V.Vector (BeadInfo' f))
     -- ^ Beads from all chains
@@ -177,12 +176,6 @@ generateMove' repr@ChainRepresentation{..} = do
 getRandomElement :: (MonadRandom m, DS.IsSequence s, DS.Index s ~ Int) => s -> m (Element s)
 getRandomElement s = DS.unsafeIndex s <$> getRandomR (0, olength s - 1)
 
--- |The legal moves an atom may make
-legalMoves :: V.Vector Vec3
-legalMoves = V.fromList [v | [x, y, z] <- replicateM 3 [-1, 0, 1],
-                             let v = V3 x y z,
-                             quadrance v `elem` [1, 2]]
-
 -- |The pairs of local neighbours of a bead
 localNeighbours :: (Wrapper m f, Wrapper m f')
     => BeadInfo' f -> ChainRepresentation f' -> m [(Vec3, Vec3)]
@@ -197,22 +190,6 @@ localNeighbours info repr = do
   where
     ix = info ^. beadIndexOnChain
     chain = getChain' repr $ info ^. beadChain
-
--- |Checks if a segment connecting the two given points would intersect with a chain.
--- Assumes that these points are neighbours on the 3-dimensional grid, i. e. the quadrance
--- of the distance between these points equals 1 or 2.
-intersectsChain :: Space f -> Vec3 -> Vec3 -> Bool
-intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
-    d /= 1 && case (`M.lookup` space) <$> crossPoss of
-                [Just (Bead b1), Just (Bead b2)] -> chainNeighbours b1 b2
-                _                                      -> False
-  where
-    d = qd v1 v2
-    crossPoss | x1 == x2 = [V3 x1 y1 z2, V3 x1 y2 z1]
-              | y1 == y2 = [V3 x1 y1 z2, V3 x2 y1 z1]
-              | z1 == z2 = [V3 x1 y2 z1, V3 x2 y1 z1]
-    chainNeighbours b1 b2 = b1 ^. beadChain == b2 ^. beadChain
-                         && abs (b1 ^. beadIndexOnChain - b2 ^. beadIndexOnChain) == 1
 
 illegalBeadMove :: Wrapper m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
 illegalBeadMove repr Move{..} bead = do
