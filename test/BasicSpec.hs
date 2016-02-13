@@ -17,6 +17,7 @@ import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.Chain.Internal
+import Bio.Motions.Representation.Common
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.Parser.TH
