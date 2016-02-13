@@ -34,8 +34,7 @@ testDump =
           , BeadInfo (V3 3 2 2) ev0 5 2 1
           ]
         ]
-    ev0 = EnergyVector [1, 2]
-    ev1 = EnergyVector [0, 2]
+    (ev0, ev1) = ([1, 2], [0, 2])
 
 spec :: Spec
 spec = context "the Dump module" testDump

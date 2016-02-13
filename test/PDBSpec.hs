@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLists #-}
 
 module PDBSpec where
 
@@ -55,10 +56,10 @@ test = do
                 forM_ (dumpBinders dump) $ \binder ->
                     length (filter (isThisBinder binder) atomData) `shouldBe` 1
             it "yields every bead once" $
-                forM_ (concat $ chains) $ \bead ->
+                forM_ (concat chains) $ \bead ->
                     length (filter (isThisBead bead) atomData) `shouldBe` 1
 
-        let connectData = snd . span isAtomEntry $ atomData
+        let connectData = dropWhile isAtomEntry atomData
         it "yields CONECT entries last" $
             let isConnect PDBConnect {} = True
                 isConnect _             = False
@@ -99,8 +100,8 @@ test = do
               ]
             ]
         }
-    [bi0, bi1, bi2] = BinderType <$> [1,2,3] -- no lamins
-    [ev0, ev1, ev2] = EnergyVector . U.fromList <$> [[1,0,0,0],[0,1,0,0],[0,0,1,0]]
+    [bi0, bi1, bi2] = map BinderType [1,2,3] -- no lamins
+    (ev0, ev1, ev2) = ([1,0,0,0], [0,1,0,0], [0,0,1,0])
     chains = dumpIndexedChains dump
     atomCount = (sum . map length . dumpChains) dump + (length . dumpBinders) dump
     connectCount = sum . map  (flip (-) 1 . length) . dumpChains $ dump

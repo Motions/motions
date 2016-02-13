@@ -12,7 +12,7 @@ import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Dump
 
-import Data.MonoTraversable
+import GHC.Exts
 import Linear
 
 data FrameHeader = FrameHeader
@@ -56,7 +56,7 @@ data PDBMetaEntry = EnergyVectorMap EnergyVector String
                   | ChainIdMap ChainId Char
 
 instance Show PDBMetaEntry where
-    show (EnergyVectorMap ev str) = "EV" ++ (show . otoList . getEnergyVector) ev ++ " " ++ str
+    show (EnergyVectorMap ev str) = "EV" ++ (show . toList) ev ++ " " ++ str
     show (BinderTypeMap bt str) = "BT" ++ show bt ++ " " ++ str
     show (ChainIdMap ch c) = "CH" ++ show ch ++ " " ++ [c]
 
