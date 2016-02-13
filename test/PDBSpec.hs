@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedLists #-}
 
 module PDBSpec where
 
@@ -99,8 +100,8 @@ test = do
               ]
             ]
         }
-    [bi0, bi1, bi2] = BinderType <$> [1,2,3] -- no lamins
-    [ev0, ev1, ev2] = EnergyVector . U.fromList <$> [[1,0,0,0],[0,1,0,0],[0,0,1,0]]
+    [bi0, bi1, bi2] = BinderType <$> [1,2,3] :: [BinderType]-- no lamins
+    [ev0, ev1, ev2] = [[1,0,0,0],[0,1,0,0],[0,0,1,0]] :: [EnergyVector]
     chains = dumpIndexedChains dump
     atomCount = (sum . map length . dumpChains) dump + (length . dumpBinders) dump
     connectCount = sum . map  (flip (-) 1 . length) . dumpChains $ dump

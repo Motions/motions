@@ -7,13 +7,14 @@ Portability : unportable
  -}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedLists #-}
 module Bio.Motions.BED where
 
 import Bio.Motions.Types
 
 import qualified Control.Applicative as A
 import Control.Monad.State
-import Control.Monad.Random
+import Control.Monad.Random hiding (fromList)
 import Control.Monad.Trans.Maybe
 import Control.Monad.Except
 import Data.Maybe
@@ -23,6 +24,7 @@ import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as U
 
 import Text.Read
+import GHC.Exts (fromList)
 
 -- |Represents a binding site
 data BindingSiteInfo = BindingSiteInfo
@@ -95,7 +97,7 @@ divCeil x y = fromBool (x `mod` y > 0) + div x y
 -- in the simulation
 collect :: Int -> [Int] -> [BindingSiteInfo] -> [[EnergyVector]]
 collect typesCount lengths bsInfos =
-  [[EnergyVector . U.fromList $ [M.findWithDefault 0 (chr, pos, bsType) dict
+  [[fromList [M.findWithDefault 0 (chr, pos, bsType) dict
       | bsType <- [0..typesCount - 1]] | pos <- [0..chrLen - 1]] | (chr, chrLen) <- zip [0..] lengths]
   where
     expandBsInfos = concat [map (bsChain,,bsType) [bsFrom..bsTo] | BindingSiteInfo{..} <- bsInfos]

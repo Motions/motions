@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLists #-}
 module BEDSpec where
 
 import Test.Hspec
@@ -22,7 +23,7 @@ test = do
   context "when creating a lists of EnergyVectors" $ do
     ans <- runIO $ parseBEDs 10 [50, 40, 20] ["test/testdata/0.bed", "test/testdata/1.bed"]
     it "should calculate energy vectors correctly" $
-      ans `shouldBe` map (map $ EnergyVector . U.fromList) [
+      ans `shouldBe` [
         [[0,1],[1,0],[2,0],[1,0],[1,0]],
         [[0,0],[1,1],[1,1],[0,0]],
         [[0,1],[1,1]]]

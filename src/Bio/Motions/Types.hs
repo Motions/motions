@@ -7,10 +7,12 @@ Portability : unportable
  -}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
 module Bio.Motions.Types where
 
 import Linear
 import qualified Data.Vector.Unboxed as U
+import GHC.Exts
 
 -- |An alias used for representing energy.
 type Energy = Int
@@ -20,6 +22,11 @@ type Energy = Int
 -- the energy of binding with lamins.
 newtype EnergyVector = EnergyVector { getEnergyVector :: U.Vector Int }
     deriving (Eq, Show, Ord)
+
+instance IsList EnergyVector where
+    type Item EnergyVector = Int
+    fromList = EnergyVector . fromList
+    toList = toList . getEnergyVector
 
 -- |Represents a binder type
 newtype BinderType = BinderType { getBinderType :: Int }
