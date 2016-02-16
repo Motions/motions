@@ -55,41 +55,39 @@ instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Locate
     energyBetween x y = energyBetween x (y ^. located)
     {-# INLINE energyBetween #-}
 
-instance HaveEnergyBetween x y => HaveEnergyBetween (Maybe x) y where
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween (Maybe x) y where
     energyBetween (Just x) y = energyBetween x y
     energyBetween _ _ = 0
     {-# INLINE energyBetween #-}
 
-instance HaveEnergyBetween x y => HaveEnergyBetween x (Maybe y) where
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Maybe y) where
     energyBetween x (Just y) = energyBetween x y
     energyBetween _ _ = 0
     {-# INLINE energyBetween #-}
 
--- |Represents objects having spatial position
-class HasPosition x where
-    position :: Lens' x Vec3
-
-instance HasPosition Vec3 where
-    position = id
-    {-# INLINE position #-}
-
-instance HasPosition (Located x) where
-    position = location . _Wrapping Identity
-    {-# INLINE position #-}
+-- |A convenient unwrapper of 'wrappedPosition'.
+position :: Lens' (Located a) Vec3
+position = wrappedPosition . _Wrapping Identity
+{-# INLINE position #-}
 
 class AsAtom' f a where
-    asAtom :: a -> Atom' f
+    asAtom' :: a -> Atom' f
 
 instance AsAtom' f (Atom' f) where
-    asAtom = id
-    {-# INLINE asAtom #-}
+    asAtom' = id
+    {-# INLINE asAtom' #-}
 
 instance AsAtom' f (BinderInfo' f) where
-    asAtom = fmap BinderSig
-    {-# INLINE asAtom #-}
+    asAtom' = fmap BinderSig
+    {-# INLINE asAtom' #-}
 
 instance AsAtom' f (BeadInfo' f) where
-    asAtom = fmap BeadSig
-    {-# INLINE asAtom #-}
+    asAtom' = fmap BeadSig
+    {-# INLINE asAtom' #-}
+
+-- |A type-constrained version of 'asAtom''.
+asAtom :: AsAtom' Identity a => a -> Atom
+asAtom = asAtom'
+{-# INLINE asAtom #-}
 
 type AsAtom a = AsAtom' Identity a
