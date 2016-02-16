@@ -10,6 +10,7 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 module Bio.Motions.Callback.GyrationRadius(GyrationRadius(..)) where
 
 import Bio.Motions.Types
@@ -69,12 +70,12 @@ gyrationRadiusChange Move{..} repr movedChainIndex = do
     return $ (toAdd - diffLen - toSubtract) / countPairs chainLength
 
 -- |Computes the sum of distances between all pairs of atoms in the given chain
-sumOfDistances :: (MonoTraversable c, HasPosition (Element c)) => c -> Double
+sumOfDistances :: (MonoTraversable c, Element c ~ Located a) => c -> Double
 sumOfDistances chain = ofoldl' go 0 chain / 2.0
   where go result bead = result + distancesToAll (bead ^. position) chain
 
 -- |Computes the sum of distances between the given position and all atoms in the given chain
-distancesToAll :: (MonoTraversable c, HasPosition (Element c)) => Vec3 -> c -> Double
+distancesToAll :: (MonoTraversable c, Element c ~ Located a) => Vec3 -> c -> Double
 distancesToAll start = ofoldl' go 0
   where go result bead = result + sqrt (fromIntegral $ qd (bead ^. position) start)
 
