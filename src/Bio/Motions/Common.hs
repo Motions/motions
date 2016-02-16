@@ -65,17 +65,9 @@ instance HaveEnergyBetween x y => HaveEnergyBetween x (Maybe y) where
     energyBetween _ _ = 0
     {-# INLINE energyBetween #-}
 
--- |Represents objects having spatial position
-class HasPosition x where
-    position :: Lens' x Vec3
-
-instance HasPosition Vec3 where
-    position = id
-    {-# INLINE position #-}
-
-instance HasPosition (Located x) where
-    position = location . _Wrapping Identity
-    {-# INLINE position #-}
+-- |A convenient unwrapper of 'wrappedPosition'.
+position :: Lens' (Located a) Vec3
+position = wrappedPosition . _Wrapping Identity
 
 class AsAtom' f a where
     asAtom :: a -> Atom' f
