@@ -9,10 +9,18 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TupleSections #-}
+
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module BasicSpec where
 
 import Test.Hspec
+import Test.Hspec.QuickCheck
+import Test.QuickCheck.Monadic
+import Test.QuickCheck.Property (rejected)
+
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
@@ -23,7 +31,11 @@ import Bio.Motions.Callback.Parser.TH
 import Bio.Motions.Representation.Dump
 
 import Control.Monad
+import Control.Monad.Random
+import Control.Monad.Trans
+import Control.Monad.Trans.Maybe
 import Control.Lens
+import Data.Maybe
 import Data.MonoTraversable
 import Data.Proxy
 import qualified Data.Map.Strict as M
@@ -91,6 +103,12 @@ import GHC.TypeLits
 
 x `shouldAlmostBe` y = abs (x - y) `shouldSatisfy` (< 1e-7)
 
+instance MonadRandom m => MonadRandom (PropertyM m) where
+    getRandom = lift getRandom
+    getRandoms = lift getRandoms
+    getRandomR = lift . getRandomR
+    getRandomRs = lift . getRandomRs
+
 testIntersectsChain :: Spec
 testIntersectsChain = do
     it "reports actual intersections to exist" $
@@ -104,8 +122,8 @@ testIntersectsChain = do
             ]
     ev = []
 
-testRepr :: forall proxy repr. Representation IO repr => proxy repr -> Spec
-testRepr _ = before (loadDump dump :: IO repr) $ do
+testRepr :: _ => proxy (repr :: *) -> Spec
+testRepr (_ :: _ repr) = before (loadDump dump :: IO repr) $ do
     context "when redumping" $
         beforeWith makeDump testRedump
 
@@ -114,6 +132,9 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
     context "when computing callbacks"
         testCallbacks
+
+    context "when generating a move"
+        testGenerateMove
 
     beforeWith (\repr -> fst <$> performMove beadMove repr) $
         context "after making a bead move" $ do
@@ -295,6 +316,9 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
                 corrRes <- runCallback repr
                 res `shouldAlmostBe` corrRes
 
+        context "when generating a move"
+            testGenerateMove
+
     testAfterBinderMove :: SpecWith repr
     testAfterBinderMove = do
         it "reports the old location to be empty" $ \repr -> do
@@ -315,6 +339,49 @@ testRepr _ = before (loadDump dump :: IO repr) $ do
 
             it "reports the updated binders" $ \dump' ->
                 dumpBinders dump' `shouldMatchList` updatedBinders
+
+        context "when generating a move"
+            testGenerateMove
+
+    testGenerateMove :: SpecWith repr
+    testGenerateMove = modifyMaxSuccess (const 1000) $ do
+        it "moves an existing atoms" $ \repr -> monadicIO $ do
+            MoveFromTo from _ <- genMove repr
+            atom <- getAtomAt from repr
+            assert $ isJust atom
+
+        it "moves an atom into an unoccupied position" $ \repr -> monadicIO $ do
+            MoveFromTo _ to <- genMove repr
+            atom <- getAtomAt to repr
+            assert $ isNothing atom
+
+        it "performs only moves with the correct length" $ \repr -> monadicIO $ do
+            Move _ diff <- genMove repr
+            assert $ quadrance diff `elem` ([1, 2] :: [_])
+
+        context "when generating many moves" $
+            beforeWith prepareMoves $ do
+                it "fails reasonably rarely" $ \(_, moves) ->
+                    length moves `shouldSatisfy` (> 100)
+
+                beforeWith getAtoms $ do
+                    it "moves binders sufficiently often" $ \atoms ->
+                        length [x | Just (Binder x) <- atoms] `shouldSatisfy` (> 50)
+
+                    it "moves beads sufficiently often" $ \atoms ->
+                        length [x | Just (Bead x) <- atoms] `shouldSatisfy` (> 50)
+
+        it "does not move any lamins" $ \repr -> monadicIO $ do
+            MoveFromTo from _ <- genMove repr
+            Just atom <- getAtomAt from repr
+            case atom ^. located of
+                BinderSig binder -> assert $ binder ^. binderType /= laminType
+                BeadSig bead -> stop rejected
+      where
+        prepareMoves repr = (repr,) . catMaybes <$>
+            (replicateM 1000 . runMaybeT $ generateMove repr)
+        getAtoms (repr, moves) = forM moves $ flip getAtomAt repr . moveFrom
+        genMove repr = runMaybeT (generateMove repr) >>= maybe (stop rejected) pure
 
 spec :: Spec
 spec = do
