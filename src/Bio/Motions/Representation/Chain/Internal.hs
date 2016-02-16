@@ -152,9 +152,9 @@ generateMove' :: _ => ChainRepresentation f -> m Move
 generateMove' repr@ChainRepresentation{..} = do
     moveBinder <- getRandom
     if moveBinder then
-        pick binders Nothing
+        pick binders [illegalBinderMove]
     else
-        pick beads $ Just $ illegalBeadMove repr
+        pick beads [illegalBeadMove repr]
   where
     -- |Pick a random move of some atom in a sequence
     pick :: _  -- Under some cumbersome constraints...
@@ -188,9 +188,9 @@ localNeighbours :: (Wrapper m f, Wrapper m f')
     => BeadInfo' f -> ChainRepresentation f' -> m [(Vec3, Vec3)]
 localNeighbours info repr = do
     neighbours <- sequence $ catMaybes
-          [ fmap retrieveLocated  .  DS.index chain $ ix - 1
+          [ fmap retrieveLocated  $  chain V.!? (ix - 1)
           ,      retrieveLocated <$> Just info
-          , fmap retrieveLocated  .  DS.index chain $ ix + 1
+          , fmap retrieveLocated  $  chain V.!? (ix + 1)
           ]
     let positions = view position <$> neighbours
     pure $ zip positions (tail positions)
@@ -222,6 +222,9 @@ illegalBeadMove repr Move{..} bead = do
   where
     notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
+
+illegalBinderMove :: Applicative m => Move -> BinderInfo' f -> m Bool
+illegalBinderMove _ binder = pure $ binder ^. binderType == laminType
 
 -- |Returns the chain with the specified index.
 getChain' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)
