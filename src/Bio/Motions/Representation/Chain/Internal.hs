@@ -114,7 +114,7 @@ instance MonadIO m => Representation m IOChainRepresentation where
     generateMove = generateMove'
 
     performMove (MoveFromTo from to) repr = do
-        liftIO $ writeIORef (atom ^. location) to
+        liftIO $ writeIORef (atom ^. wrappedPosition) to
         pure (repr { space = space' }, [])
       where
         atom = space repr M.! from
@@ -134,7 +134,7 @@ loadDump' Dump{..} = do
         }
   where
     chains = addIndices dumpChains
-    convert new old = (old ^. position, asAtom new)
+    convert new old = (old ^. position, asAtom' new)
 
 -- |An 'f'-polymorphic implementation of 'makeDump' for 'ChainRepresentation f'.
 makeDump' :: _ => ChainRepresentation f -> m Dump

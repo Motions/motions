@@ -44,28 +44,29 @@ instance Monad m => Callback m 'Pre StandardScore where
 
     updateCallback repr prev (MoveFromTo moveFrom moveTo) = do
         Just fromAtom <- getAtomAt moveFrom repr
-        atFrom <- energyToMany repr fromAtom $ neighbours fromAtom
-        atTo <- energyToMany repr fromAtom $ delete moveFrom $ neighbours moveTo
+        atFrom <- energyToMany repr fromAtom . neighbours $ fromAtom ^. position
+        atTo <- energyToMany repr fromAtom . delete moveFrom $ neighbours moveTo
         pure $ prev - atFrom + atTo
 
 -- |Returns the score between an object and the atom placed on the specified position.
-energyTo :: (Functor m, ReadRepresentation m repr, HasPosition obj, HaveEnergyBetween obj (Maybe Atom)) =>
+energyTo :: (Functor m, ReadRepresentation m repr, HaveEnergyBetween obj Atom) =>
     repr -> obj -> Vec3 -> m StandardScore
 energyTo repr obj pos = StandardScore . energyBetween obj <$> getAtomAt pos repr
 
 -- |Returns the total score between an object (e.g. an atom) and the atoms placed on the
 -- specified positions.
-energyToMany :: (Applicative m, ReadRepresentation m repr, HasPosition obj,
-    HaveEnergyBetween obj (Maybe Atom), Traversable t) =>
+energyToMany :: (Applicative m, ReadRepresentation m repr,
+    HaveEnergyBetween obj Atom, Traversable t) =>
     repr -> obj -> t Vec3 -> m StandardScore
 energyToMany repr obj poss = fold <$> traverse (energyTo repr obj) poss
 
--- |Returns the neighbour positions for a position or something with position (e.g. an atom).
-neighbours :: HasPosition x => x -> [Vec3]
-neighbours x = ((x ^. position) ^+^) <$> ([id, negated] <*> basis)
+-- |Returns the neighbours of a given position
+neighbours :: Vec3 -> [Vec3]
+neighbours x = (x ^+^) <$> ([id, negated] <*> basis)
 
 -- |Returns the total score for beads belonging to a particular chain.
 chainScore :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m StandardScore
 chainScore repr idx = getChain repr idx $ ofoldlM combine mempty
   where
-    combine acc beadInfo = mappend acc <$> energyToMany repr (BeadSig <$> beadInfo) (neighbours beadInfo)
+    combine acc beadInfo = mappend acc <$>
+        energyToMany repr (asAtom beadInfo) (neighbours $ beadInfo ^. position)
