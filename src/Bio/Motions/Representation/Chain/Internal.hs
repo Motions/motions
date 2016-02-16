@@ -114,7 +114,7 @@ instance MonadIO m => Representation m IOChainRepresentation where
     generateMove = generateMove'
 
     performMove (MoveFromTo from to) repr = do
-        liftIO $ writeIORef (atom ^. location) to
+        liftIO $ writeIORef (atom ^. wrappedPosition) to
         pure (repr { space = space' }, [])
       where
         atom = space repr M.! from

@@ -59,7 +59,7 @@ makeClassy ''BinderSignature
 -- The location is wrapped inside a type constructor 'f',
 -- so that e.g. mutable references could be used.
 data Located' f a = Located'
-    { _location :: !(f Vec3)
+    { _wrappedPosition :: !(f Vec3)
     , _located  :: a
     }
     deriving Functor
