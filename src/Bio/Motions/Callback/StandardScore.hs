@@ -37,7 +37,9 @@ instance Monoid StandardScore where
     mappend = (+)
     {-# INLINE mappend #-}
 
-instance Monad m => Callback m 'Pre StandardScore where
+instance Callback 'Pre StandardScore where
+    callbackName _ = "Standard Score"
+
     runCallback repr = do
         numChains <- getNumberOfChains repr
         fold <$> traverse (chainScore repr) [0..numChains - 1]

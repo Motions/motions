@@ -1,6 +1,6 @@
 {- |
-Module      : Bio.Motions.Representation.Chain.Pure
-Description : Contains a pure and ineffective chain-based 'Representation'.
+Module      : Bio.Motions.Representation.Chain
+Description : Contains ineffective chain-based 'Representation's.
 License     : MIT
 Stability   : experimental
 Portability : unportable
