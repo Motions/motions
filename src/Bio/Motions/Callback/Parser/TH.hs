@@ -28,13 +28,13 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Language.Haskell.TH.Syntax
 
-import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Class hiding (CallbackResult)
 import Bio.Motions.Callback.Parser.Parser
 import Bio.Motions.Representation.Class
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Control.Lens
-import Control.Monad.State.Strict
+import Control.Monad.State.Strict hiding (lift)
 import Data.Foldable
 import Data.Traversable
 import Data.Maybe
@@ -154,6 +154,8 @@ createCallback ParsedCallback{..} = concat <$> sequence [common, monoid, callbac
     callback = case callbackResult of
         CallbackSum _ -> [d|
             instance Monad m => Callback m 'Post (THCallback $(name)) where
+                callbackName _ = $(lift callbackName)
+
                 runCallback = forEachKNodes <*> runTHCallback
                 {-# INLINE runCallback #-}
 
@@ -169,6 +171,8 @@ createCallback ParsedCallback{..} = concat <$> sequence [common, monoid, callbac
             |]
         _ -> [d|
             instance Monad m => Callback m 'Post (THCallback $(name)) where
+                callbackName _ = $(lift callbackName)
+
                 runCallback = forEachKNodes <*> runTHCallback
                 {-# INLINE runCallback #-}
             |]
