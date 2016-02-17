@@ -34,7 +34,7 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Control.Lens
-import Control.Monad.State.Strict
+import Control.Monad.State.Strict hiding (lift)
 import Data.Foldable
 import Data.Traversable
 import Data.MonoTraversable
@@ -99,10 +99,12 @@ createCallback ParsedCallback{..} = do
         type instance THCallbackArity $(name) = $(liftProxy (proxy# :: Proxy# n))
         type instance THCallbackResult $(name) = $(constrT $ liftProxy (proxy# :: Proxy# a))
 
-        instance Monad m => Callback m 'Post (THCallback $(name)) where
+        instance Callback 'Post (THCallback $(name)) where
+            callbackName _ = $(lift callbackName)
+
             runCallback repr = forEachKNodes repr run
               where
-                run :: Vec (THCallbackArity $(name)) Atom -> m (THCallback $(name))
+                run :: Monad m => Vec (THCallbackArity $(name)) Atom -> m (THCallback $(name))
                 run args =  pure $
                     if $(unTypeQ $ ev callbackCondition) then
                         THCallback $(constrE $ unTypeQ $ ev expr)
