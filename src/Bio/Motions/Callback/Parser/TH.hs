@@ -99,7 +99,9 @@ createCallback ParsedCallback{..} = do
         type instance THCallbackArity $(name) = $(liftProxy (proxy# :: Proxy# n))
         type instance THCallbackResult $(name) = $(constrT $ liftProxy (proxy# :: Proxy# a))
 
-        instance Monad m => Callback m 'Post (THCallback $(name)) where
+        instance Callback 'Post (THCallback $(name)) where
+            callbackName _ = callbackName -- TODO: hmm?
+
             runCallback repr = forEachKNodes repr run
               where
                 run :: Vec (THCallbackArity $(name)) Atom -> m (THCallback $(name))

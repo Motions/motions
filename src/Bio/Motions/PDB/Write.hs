@@ -8,7 +8,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Bio.Motions.PDB.Write ( writePDB
-                             , FrameHeader
+                             , FrameHeader(..)
                              ) where
 
 import Bio.Motions.Types

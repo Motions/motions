@@ -24,6 +24,7 @@ library
                        Bio.Motions.Callback.StandardScore,
                        Bio.Motions.Callback.Parser.Parser,
                        Bio.Motions.Callback.Parser.TH,
+                       Bio.Motions.EnabledCallbacks,
                        Bio.Motions.Types,
                        Bio.Motions.Common,
                        Bio.Motions.PDB.Meta,
@@ -49,6 +50,16 @@ library
                        hPDB >= 1.2 && < 1.21,
                        bytestring >= 0.10 && < 0.11
   hs-source-dirs:      src
+  default-language:    Haskell2010
+
+executable motions
+  main-is:             Main.hs
+  build-depends:       base >=4.8 && <4.9,
+                       vector >=0.11 && <0.12,
+                       MonadRandom >=0.4 && <0.5,
+                       optparse-applicative >=0.12 && <0.13,
+                       transformers >=0.4 && <0.5,
+                       motions
   default-language:    Haskell2010
 
 test-suite spec
