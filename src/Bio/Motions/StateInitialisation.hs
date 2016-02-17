@@ -33,38 +33,34 @@ initialise :: (MonadRandom m) =>
   -- ^Maximum number of initialisation attempts
   -> Int
   -- ^Radius
-  -> Int
-  -- ^Number of binders
-  -> Int
-  -- ^Number of binder types (excluding lamin),
-  -- if it's zero then number of binders must be zero
+  -> [Int]
+  -- ^Number of binders of each type excluding lamin,
+  -- the order must be the same as the order used in energy vectors
   -> [[EnergyVector]]
   -- ^EnergyVectors of beads
   -> m (Maybe Dump)
   -- ^Initial state
-initialise maxTries r bindersCount binderTypesCount evs = runRepetitionGuardT maxTries $ do
-    guard $ binderTypesCount > 0 || bindersCount == 0
-    spaceToDump r <$> initialiseSpace r bindersCount binderTypesCount evs
+initialise maxTries r bindersCounts evs = runRepetitionGuardT maxTries $
+    spaceToDump r <$> initialiseSpace r bindersCounts evs
 
 -- |Creates an initial state
 initialiseSpace :: (MonadRandom m) =>
      Int
   -- ^Radius
-  -> Int
-  -- ^Number of binders
-  -> Int
-  -- ^Number of binder types (excluding lamin),
-  -- if it's zero then number of binders must be zero
+  -> [Int]
+  -- ^Number of binders of each type excluding lamin,
+  -- the order must be the same as the order used in energy vectors
   -> [[EnergyVector]]
   -- ^EnergyVectors of beads
   -> RepetitionGuardT m Space
   -- ^Initial state
-initialiseSpace r bindersCount binderTypesCount beads = do
+initialiseSpace r bindersCounts beads = do
     stateWithChains <- addChains r stateWithLamins beads
     addBinders stateWithChains
   where
     stateWithLamins = addLamins M.empty $ spherePoints (fromIntegral r)
-    addBinders = foldr (<=<) return . replicate bindersCount $ addBinder r binderTypesCount
+    addBinders = foldr (<=<) return . concat $
+        zipWith (\count -> replicate count . addBinder r) bindersCounts [1..]
 
 -- |Converts Space to Dump
 spaceToDump :: Int -> Space -> Dump
@@ -133,20 +129,18 @@ getRandomFreePosition r space = go
         then nextRep >> go
         else return ans
 
--- |Adds a binder of random type in a space
+-- |Adds a binder of given type in a space
 addBinder :: (MonadRandom m) =>
     Int
  -- ^Radius
  -> Int
- -- ^Number of binder types (excluding lamin),
- -- must be a non-negative integer
+ -- ^The binder's type
  -> Space
  -- ^Current space
  -> RepetitionGuardT m Space
  -- ^Space with added binder
-addBinder r types space = do
+addBinder r binderType space = do
     pos <- getRandomFreePosition r space
-    binderType <- getRandomR (1, types)
     return $ M.insert pos (asAtom $ BinderInfo pos $ BinderType binderType) space
 
 -- |Finds a good starting point for a chain and adds it there

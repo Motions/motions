@@ -16,11 +16,11 @@ import Bio.Motions.Representation.Common
 
 spec :: Spec
 spec = context "when generating state" $ do
-    let ans = run (initialise 1000 10 12 3 fewShortEVectors) 123
+    let ans = run (initialise 1000 10 [4,4,4] fewShortEVectors) 123
     it "generates something, when possible" $
         ans `shouldSatisfy` isJust
     it "generates nothing, when impossible" $
-        run (initialise 1000 100 3 3 oneSuperLongEVector) 123 `shouldSatisfy` isNothing
+        run (initialise 1000 100 [1,1,1] oneSuperLongEVector) 123 `shouldSatisfy` isNothing
     let Just dump = ans
     it "generates proper amount of non-lamin binders" $
         length (dumpBinders dump) - length (getAllLamins dump) `shouldBe` 12
