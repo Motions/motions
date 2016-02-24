@@ -36,12 +36,14 @@ initialise :: (MonadRandom m) =>
   -> Int
   -- ^Number of binders
   -> Int
-  -- ^Number of binders' types
+  -- ^Number of binder types (excluding lamin),
+  -- if it's zero then number of binders must be zero
   -> [[EnergyVector]]
   -- ^EnergyVectors of beads
   -> m (Maybe Dump)
   -- ^Initial state
-initialise maxTries r bindersCount binderTypesCount evs = runRepetitionGuardT maxTries $
+initialise maxTries r bindersCount binderTypesCount evs = runRepetitionGuardT maxTries $ do
+    guard $ binderTypesCount > 0 || bindersCount == 0
     spaceToDump r <$> initialiseSpace r bindersCount binderTypesCount evs
 
 -- |Creates an initial state
@@ -51,17 +53,18 @@ initialiseSpace :: (MonadRandom m) =>
   -> Int
   -- ^Number of binders
   -> Int
-  -- ^Number of binders' types
+  -- ^Number of binder types (excluding lamin),
+  -- if it's zero then number of binders must be zero
   -> [[EnergyVector]]
   -- ^EnergyVectors of beads
   -> RepetitionGuardT m Space
   -- ^Initial state
-initialiseSpace r bindersCount bindersTypesCount beads = do
+initialiseSpace r bindersCount binderTypesCount beads = do
     stateWithChains <- addChains r stateWithLamins beads
     addBinders stateWithChains
   where
     stateWithLamins = addLamins M.empty $ spherePoints (fromIntegral r)
-    addBinders = foldr (<=<) return . replicate bindersCount $ addBinder r bindersTypesCount
+    addBinders = foldr (<=<) return . replicate bindersCount $ addBinder r binderTypesCount
 
 -- |Converts Space to Dump
 spaceToDump :: Int -> Space -> Dump
