@@ -8,7 +8,6 @@ Portability : unportable
 module Bio.Motions.PDB.Meta ( PDBMeta
                             , mkPDBMeta
                             , mkSimplePDBMeta
-                            , legacyPDBMeta
                             , writePDBMeta
                             ) where
 
@@ -35,9 +34,9 @@ mkPDBMeta evs bts chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts 
 -- have one type. The @resName@ field of an @ATOM@ PDB record in such a file is compatible with
 -- the prototype simulation's output.
 mkSimplePDBMeta ::
-    (ChainId -> Char) -- ^ A mapping from chain identifiers to characters defined in 'chars'.
- -> PDBMeta
-mkSimplePDBMeta = PDBMeta simpleBeadRes simpleBinderRes
+    [ChainId] -- ^ The set of chain identifiers used through the simulation.
+ -> Maybe PDBMeta
+mkSimplePDBMeta chs = PDBMeta simpleBeadRes simpleBinderRes <$> mapChains chs
   where
     simpleBeadRes ev | doesNotBind ev = "UNB"
                      | bindsWithLamins ev = "LAM"
@@ -45,10 +44,6 @@ mkSimplePDBMeta = PDBMeta simpleBeadRes simpleBinderRes
     simpleBinderRes bt | bt == laminType = "LAM"
                        | otherwise = "BIN"
 
--- |A 'PDBMeta' structure that describes a PDB file compatible with the prototype simulation's output.
--- Assumes that there is only one chain in the simulation.
-legacyPDBMeta :: PDBMeta
-legacyPDBMeta = mkSimplePDBMeta $ const ' '
 
 writePDBMetaData :: Handle -> [PDBMetaEntry] -> IO ()
 writePDBMetaData = mapM_ . hPrint

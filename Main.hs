@@ -54,6 +54,7 @@ data RunSettings' = RunSettings'
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
     , verboseCallbacks :: Bool
+    , simplePDB :: Bool
     }
 
 mkRunSettings :: RunSettings' -> RunSettings repr score
@@ -169,6 +170,8 @@ runSettingsParser = RunSettings'
         (long "verbose-callbacks"
         <> short 'v'
         <> help "Output callback results in verbose format")
+    <*> switch
+        (long "simple-pdb")
 
 simulationParser :: Parser SimulationSettings
 simulationParser = SimulationSettings
