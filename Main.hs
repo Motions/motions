@@ -53,6 +53,7 @@ data RunSettings' = RunSettings'
     { pdbFile :: FilePath
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
+    , verboseCallbacks :: Bool
     }
 
 mkRunSettings :: RunSettings' -> RunSettings repr score
@@ -127,7 +128,7 @@ initialiseParser = InitialisationSettings
         <> short 'l'
         <> metavar "CHAIN-LENGTHS-FILE"
         <> help "File containing chain lengths - integers separated with spaces")
-    <*> option auto
+    <*> strOption
         (long "bindersfile"
         <> short 'b'
         <> metavar "BINDERS-COUNTS-FILE"
@@ -164,6 +165,10 @@ runSettingsParser = RunSettings'
         (long "intermediate-states"
         <> short 'i'
         <> help "Write intermediate states to PDB file")
+    <*> switch
+        (long "verbose-callbacks"
+        <> short 'v'
+        <> help "Output callback results in verbose format")
 
 simulationParser :: Parser SimulationSettings
 simulationParser = SimulationSettings
