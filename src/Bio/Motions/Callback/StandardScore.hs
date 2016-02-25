@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Callback.StandardScore
 Description : Contains the definition of the standard score function.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

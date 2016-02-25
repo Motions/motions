@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Utils.RepetitionGuard
 Description : Monad transformer used to limit the number of repetitions.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
 -}

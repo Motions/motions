@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Representation.Class
 Description : Contains the definition of the 'Representation' class.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

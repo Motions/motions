@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.PDB.Write
 Description : Writing simulation output to the PDB format.
-License:    : MIT
+License:    : Apache
 Stability   : experimental
 Portability : unportable
  -}

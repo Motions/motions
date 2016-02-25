@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Engine
 Description : Contains the simulation engine.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

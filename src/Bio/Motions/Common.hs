@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Common
 Description : Common utility functions for working with common types.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
 -}

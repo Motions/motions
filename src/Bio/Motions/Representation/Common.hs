@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Representation.Common
 Description : Common utility functions for operations on simulation state.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
 -}

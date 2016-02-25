@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.StateInitialisation
 Description : Random initialisation of state for new simulation.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
 -}

@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Representation.Chain.Internal
 Description : Contains the internal definitions for the 'Pure Chain Representation'.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

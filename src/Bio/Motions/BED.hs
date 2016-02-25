@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.BED
 Description : Parsing BED into chain of beads
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

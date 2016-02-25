@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.PDB.Meta
 Description : Structures that allow conversion from/to the PDB format.
-License:    : MIT
+License:    : Apache
 Stability   : experimental
 Portability : unportable
  -}

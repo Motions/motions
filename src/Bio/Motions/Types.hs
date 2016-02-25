@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Types
 Description : Contains the definitions of common types used in the Motions project.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

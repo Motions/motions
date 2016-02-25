@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.PDB.Internal
 Description : Internal definitions for handling the PDB format.
-License:    : MIT
+License:    : Apache
 Stability   : experimental
 Portability : unportable
  -}
