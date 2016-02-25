@@ -36,8 +36,12 @@ import Linear
 data ChainRepresentation f = ChainRepresentation
     { space :: !(Space' f)
     , binders :: !(V.Vector (BinderInfo' f))
+    , moveableBinders :: !(U.Vector Int)
+    -- ^ Indices (in the 'binders' vector) of the binders that may be moved.
     , beads :: !(V.Vector (BeadInfo' f))
     -- ^ Beads from all chains
+    , moveableBeads :: !(U.Vector Int)
+    -- ^ Indices (in the 'beads' vector) of the beads that may be moved.
     , chainIndices :: !(U.Vector Int)
     -- ^ Indices of first atoms of successive chains in the 'beads' vector,
     -- with an additional @'V.length' 'beads'@ at the end -- see 'getChain''.
@@ -120,13 +124,15 @@ instance MonadIO m => Representation m IOChainRepresentation where
         space' = M.insert to atom $ M.delete from $ space repr
 
 -- |An 'f'-polymorphic implementation of 'loadDump' for 'ChainRepresentation f'.
-loadDump' :: _ => Dump -> m (ChainRepresentation f)
-loadDump' Dump{..} = do
+loadDump' :: _ => Dump -> FreezePredicate -> m (ChainRepresentation f)
+loadDump' Dump{..} isFrozen = do
     relBinders <- mapM relocate dumpBinders
     relBeads <- mapM relocate (concat chains)
     pure ChainRepresentation
         { binders = V.fromList relBinders
+        , moveableBinders = U.fromList [i | (i, b) <- zip [0..] relBinders, b ^. binderType /= laminType]
         , beads = V.fromList relBeads
+        , moveableBeads = U.fromList [i | (i, b) <- zip [0..] relBeads, not . isFrozen $ b ^. beadSignature]
         , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
         , space = M.fromList $ zipWith convert relBinders dumpBinders ++ zipWith convert relBeads (concat chains)
         , radius = dumpRadius
@@ -151,17 +157,19 @@ generateMove' :: _ => ChainRepresentation f -> m Move
 generateMove' repr@ChainRepresentation{..} = do
     moveBinder <- getRandom
     if moveBinder then
-        pick binders [illegalBinderMove]
+        pick moveableBinders binders []
     else
-        pick beads [illegalBeadMove repr]
+        pick moveableBeads beads [illegalBeadMove repr]
   where
     -- |Pick a random move of some atom in a sequence
     pick :: _  -- Under some cumbersome constraints...
-        => s -- ^The sequence of atoms
+        => ixs -- ^The sequence of moveable atoms' indices
+        -> s -- ^The sequence of atoms
         -> t (Move -> Element s -> m Bool) -- ^A 'Traversable' of additional move constraints
         -> m Move
-    pick xs constraints = do
-        x <- getRandomElement xs
+    pick ixs xs constraints = do
+        ix <- getRandomElement ixs
+        let x = DS.unsafeIndex xs ix
         d <- getRandomElement legalMoves
         r <- retrieveLocated x
         let pos = r ^. position
@@ -199,9 +207,6 @@ illegalBeadMove repr Move{..} bead = do
   where
     notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
-
-illegalBinderMove :: Applicative m => Move -> BinderInfo' f -> m Bool
-illegalBinderMove _ binder = pure $ binder ^. binderType == laminType
 
 -- |Returns the chain with the specified index.
 getChain' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)

@@ -55,6 +55,7 @@ data RunSettings' = RunSettings'
     , writeIntermediatePDB :: Bool
     , verboseCallbacks :: Bool
     , simplePDB :: Bool
+    , freezeFile :: Maybe FilePath
     }
 
 mkRunSettings :: RunSettings' -> RunSettings repr score
@@ -172,6 +173,10 @@ runSettingsParser = RunSettings'
         <> help "Output callback results in verbose format")
     <*> switch
         (long "simple-pdb")
+    <*> optional (strOption
+        (long "freezefile"
+        <> metavar "FREEZE_FILE"
+        <> help "File containing the ranges of frozen beads' indices"))
 
 simulationParser :: Parser SimulationSettings
 simulationParser = SimulationSettings

@@ -124,7 +124,7 @@ testIntersectsChain = do
     ev = []
 
 testRepr :: _ => proxy (repr :: *) -> Spec
-testRepr (_ :: _ repr) = before (loadDump dump :: IO repr) $ do
+testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
     context "when redumping" $
         beforeWith makeDump testRedump
 
@@ -147,6 +147,8 @@ testRepr (_ :: _ repr) = before (loadDump dump :: IO repr) $ do
   where
     beads = sum . map length $ dumpIndexedChains dump
     binders = length $ dumpBinders dump
+
+    freezePredicate b = b ^. beadChain == 0
     dump = Dump
         { dumpRadius = 10
         , dumpBinders =
@@ -372,12 +374,12 @@ testRepr (_ :: _ repr) = before (loadDump dump :: IO repr) $ do
                     it "moves beads sufficiently often" $ \atoms ->
                         length [x | Just (Bead x) <- atoms] `shouldSatisfy` (> 50)
 
-        it "does not move any lamins" $ \repr -> monadicIO $ do
+        it "does not move any lamins or frozen beads" $ \repr -> monadicIO $ do
             MoveFromTo from _ <- genMove repr
             Just atom <- getAtomAt from repr
             case atom ^. located of
                 BinderSig binder -> assert $ binder ^. binderType /= laminType
-                BeadSig bead -> stop rejected
+                BeadSig bead -> assert . not . freezePredicate $ bead ^. beadSignature
       where
         prepareMoves repr = (repr,) . catMaybes <$>
             (replicateM 1000 . runMaybeT $ generateMove repr)

@@ -19,6 +19,13 @@ import Bio.Motions.Types
 type Space' f = M.Map Vec3 (Atom' f)
 type Space = Space' Identity
 
+-- |A predicate used to determine whether a bead should be frozen
+-- or not.
+type FreezePredicate = BeadSignature -> Bool
+
+freezeNothing :: FreezePredicate
+freezeNothing = const False
+
 -- |The legal moves an atom may make
 legalMoves :: V.Vector Vec3
 legalMoves = V.fromList [v | [x, y, z] <- replicateM 3 [-1, 0, 1],

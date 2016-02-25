@@ -11,6 +11,7 @@ Portability : unportable
 module Bio.Motions.Representation.Class where
 
 import Bio.Motions.Types
+import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 
 import Control.Applicative
@@ -24,7 +25,7 @@ import Data.MonoTraversable
 -- simulation takes place
 class ReadRepresentation m repr => Representation m repr where
     -- |Loads the state from a 'Dump'
-    loadDump :: Dump -> m repr
+    loadDump :: Dump -> FreezePredicate -> m repr
 
     -- |Saves the current state in a 'Dump'
     makeDump :: repr -> m Dump
