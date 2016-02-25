@@ -19,8 +19,11 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 import Bio.Motions.PDB.Write
 import Bio.Motions.PDB.Meta
+import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.EnabledCallbacks
+import Bio.Motions.Utils.FreezePredicateParser
+import Text.Parsec.String
 
 import Control.Monad.State
 import Control.Monad.Random
@@ -45,6 +48,8 @@ data RunSettings repr score = RunSettings
     -- ^ Number of simulation steps.
     , writeIntermediatePDB :: Bool
     -- ^ Whether to write intermediate PDB frames.
+    , freezeFile :: Maybe FilePath
+    -- ^ A file containing the ranges of the frozen beads' indices.
     }
 
 step :: (MonadRandom m, MonadState (SimulationState repr score) m,
@@ -114,7 +119,10 @@ writeCallbacks handle = do
 
 simulate :: _ => RunSettings repr score -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score) dump = do
-    repr :: repr <- loadDump dump
+    freezePredicate <- case freezeFile of
+        Just file -> liftIO (parseFromFile freezePredicateParser file) >>= either (fail . show) pure
+        Nothing -> pure freezeNothing
+    repr :: repr <- loadDump dump freezePredicate
     score :: score <- runCallback repr
 
     preCallbackResults <- getCallbackResults repr enabledPreCallbacks
