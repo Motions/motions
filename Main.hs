@@ -127,7 +127,7 @@ initialiseParser = InitialisationSettings
         <> short 'l'
         <> metavar "CHAIN-LENGTHS-FILE"
         <> help "File containing chain lengths - integers separated with spaces")
-    <*> option auto
+    <*> strOption
         (long "bindersfile"
         <> short 'b'
         <> metavar "BINDERS-COUNTS-FILE"
