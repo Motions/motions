@@ -53,6 +53,7 @@ data RunSettings' = RunSettings'
     { pdbFile :: FilePath
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
+    , verboseCallbacks :: Bool
     }
 
 mkRunSettings :: RunSettings' -> RunSettings repr score
@@ -164,6 +165,10 @@ runSettingsParser = RunSettings'
         (long "intermediate-states"
         <> short 'i'
         <> help "Write intermediate states to PDB file")
+    <*> switch
+        (long "verbose-callbacks"
+        <> short 'v'
+        <> help "Output callback results in verbose format")
 
 simulationParser :: Parser SimulationSettings
 simulationParser = SimulationSettings

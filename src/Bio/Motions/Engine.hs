@@ -27,6 +27,7 @@ import Control.Monad.Random
 import Control.Monad.Trans.Maybe
 import System.IO
 import Control.Lens
+import Data.List(intercalate)
 
 data SimulationState repr score = SimulationState
     { repr :: repr
@@ -45,6 +46,8 @@ data RunSettings repr score = RunSettings
     -- ^ Number of simulation steps.
     , writeIntermediatePDB :: Bool
     -- ^ Whether to write intermediate PDB frames.
+    , verboseCallbacks :: Bool
+    -- ^ Enable verbose callback output.
     }
 
 step :: (MonadRandom m, MonadState (SimulationState repr score) m,
@@ -91,26 +94,28 @@ pushPDB handle = do
     removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
     notLamin b = b ^. binderType /= laminType
 
-stepAndWrite :: _ => Handle -> Maybe Handle -> m ()
-stepAndWrite callbacksHandle pdbHandle = do
+stepAndWrite :: _ => Handle -> Bool -> Maybe Handle -> m ()
+stepAndWrite callbacksHandle verbose pdbHandle = do
     oldScore <- gets score
     step -- TODO: do something with the move
     newScore <- gets score
 
     when (oldScore /= newScore) $ do
-        writeCallbacks callbacksHandle
+        writeCallbacks callbacksHandle verbose
         case pdbHandle of
           Just handle -> pushPDB handle
           Nothing -> pure ()
 
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
 
-writeCallbacks :: _ => Handle -> m ()
-writeCallbacks handle = do
-    gets preCallbackResults >>= mapM_ writeCallbackResult
-    gets postCallbackResults >>= mapM_ writeCallbackResult
+writeCallbacks :: _ => Handle -> Bool -> m ()
+writeCallbacks handle verbose = do
+    preStr <- fmap resultStr <$> gets preCallbackResults 
+    postStr <- fmap resultStr <$> gets postCallbackResults
+    liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
   where
-    writeCallbackResult (CallbackResult cb) = liftIO $ hPutStrLn handle $ getCallbackName cb ++ ": " ++ show cb
+    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
+    separator = if verbose then "\n" else " "
 
 simulate :: _ => RunSettings repr score -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score) dump = do
@@ -127,7 +132,8 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
     pdbHandle <- liftIO $ openFile pdbFile WriteMode
     st' <- flip execStateT st $ do
         when writeIntermediatePDB $ pushPDB pdbHandle
-        replicateM_ numSteps $ stepAndWrite callbacksHandle $ guard writeIntermediatePDB >> Just pdbHandle
+        replicateM_ numSteps $ stepAndWrite callbacksHandle verboseCallbacks $
+            guard writeIntermediatePDB >> Just pdbHandle
         unless writeIntermediatePDB $ pushPDB pdbHandle
     liftIO $ hClose pdbHandle
     let SimulationState{..} = st'
