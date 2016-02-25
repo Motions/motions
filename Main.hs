@@ -53,6 +53,7 @@ data RunSettings' = RunSettings'
     { pdbFile :: FilePath
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
+    , freezeFile :: Maybe FilePath
     }
 
 mkRunSettings :: RunSettings' -> RunSettings repr score
@@ -163,6 +164,10 @@ runSettingsParser = RunSettings'
         (long "intermediate-states"
         <> short 'i'
         <> help "Write intermediate states to PDB file")
+    <*> optional (strOption
+        (long "freezefile"
+        <> metavar "FREEZE_FILE"
+        <> help "File containing the ranges of frozen beads' indices"))
 
 simulationParser :: Parser SimulationSettings
 simulationParser = SimulationSettings
