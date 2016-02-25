@@ -128,6 +128,12 @@ initialiseParser = InitialisationSettings
         <> metavar "CHAIN-LENGTHS-FILE"
         <> help "File containing chain lengths - integers separated with spaces")
     <*> option auto
+        (long "bindersfile"
+        <> short 'b'
+        <> metavar "BINDERS-COUNTS-FILE"
+        <> help "File containing counts of binders of different types (excluding lamin) \
+                 \ - integers separated with spaces")
+    <*> option auto
         (long "radius"
         <> short 'r'
         <> metavar "RADIUS"
@@ -137,11 +143,6 @@ initialiseParser = InitialisationSettings
         <> short 'x'
         <> metavar "RESOLUTION"
         <> help "Simulation resolution - chain molecules per bead")
-    <*> option auto
-        (long "num-binders"
-        <> short 'b'
-        <> metavar "BINDER-COUNT"
-        <> help "Number of binders")
     <*> option auto
         (long "num-attempts"
         <> short 'n'
