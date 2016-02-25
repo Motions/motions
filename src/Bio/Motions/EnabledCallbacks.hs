@@ -2,7 +2,7 @@
 {- |
 Module      : Bio.Motions.EnabledCallbacks
 Description : Contains lists of enabled 'Pre' and 'Post' 'Callback's.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

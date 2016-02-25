@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Callback.Parser.TH
 Description : Contains the Template Haskell stuff.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

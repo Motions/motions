@@ -1,7 +1,7 @@
 {- |
 Module      : Main
 Description : Contains the main function.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

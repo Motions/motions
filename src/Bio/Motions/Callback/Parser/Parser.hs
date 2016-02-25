@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Callback.Parser.Parser
 Description : Contains the definitions of various 'Callback' parsing-related types.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

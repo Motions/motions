@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Representation.Chain
 Description : Contains ineffective chain-based 'Representation's.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}

@@ -1,7 +1,7 @@
 {- |
 Module      : Bio.Motions.Callback.Class
 Description : Contains the definitions of various 'Callback'-related primitives.
-License     : MIT
+License     : Apache
 Stability   : experimental
 Portability : unportable
  -}
