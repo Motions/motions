@@ -53,6 +53,7 @@ data RunSettings' = RunSettings'
     { pdbFile :: FilePath
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
+    , simplePDB :: Bool
     }
 
 mkRunSettings :: RunSettings' -> RunSettings repr score
@@ -164,6 +165,8 @@ runSettingsParser = RunSettings'
         (long "intermediate-states"
         <> short 'i'
         <> help "Write intermediate states to PDB file")
+    <*> switch
+        (long "simple-pdb")
 
 simulationParser :: Parser SimulationSettings
 simulationParser = SimulationSettings
