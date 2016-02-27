@@ -24,6 +24,7 @@ library
                        Bio.Motions.Utils.FreezePredicateParser,
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Callback.Class,
+                       Bio.Motions.Callback.GyrationRadius,
                        Bio.Motions.Callback.StandardScore,
                        Bio.Motions.Callback.Parser.Parser,
                        Bio.Motions.Callback.Parser.TH,
