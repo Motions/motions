@@ -12,6 +12,7 @@ Portability : unportable
 module Bio.Motions.EnabledCallbacks where
 
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.GyrationRadius
 
 import Data.Proxy
 

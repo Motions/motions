@@ -28,6 +28,7 @@ import Bio.Motions.Representation.Chain.Internal
 import Bio.Motions.Representation.Common
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
+import Bio.Motions.Callback.GyrationRadius
 import Bio.Motions.Callback.Parser.TH
 import Bio.Motions.Representation.Dump
 
@@ -242,6 +243,25 @@ testRepr (_ :: _ repr) = before (loadDump dump :: IO repr) $ do
         it "has the correct score after a binder move" $ \repr -> do
             score :: StandardScore <- updateCallback repr 1002 $ Move (V3 0 1 2) (V3 1 0 0)
             score `shouldBe` 1000
+
+        it "has correct gyration radii" $ \repr -> do
+            GyrationRadius [c1, c2, c3] <- runCallback repr
+            c1 `shouldAlmostBe` 5.92809748
+            c2 `shouldAlmostBe` 7.07106781
+            c3 `shouldAlmostBe` 1.41421356
+
+        it "has the same gyration radii afer a binder move" $ \repr -> do
+            old_radii :: GyrationRadius <- runCallback repr
+            new_radii :: GyrationRadius <- updateCallback repr old_radii $ Move (V3 0 1 2) (V3 1 0 0)
+            old_radii `shouldBe` new_radii
+
+        it "has correct gyradion radii afer a bead move" $ \repr -> do
+            old_radii :: GyrationRadius <- runCallback repr
+            res@(GyrationRadius [c1, c2, c3]) <- updateCallback repr old_radii $ Move (V3 0 1 1) (V3 0 0 (-1))
+            --res `shouldBe` GyrationRadius []
+            c1 `shouldAlmostBe` 6.34952763
+            c2 `shouldAlmostBe` 7.07106781
+            c3 `shouldAlmostBe` 1.41421356
 
         context "when computing the template haskell callbacks" $ do
             it "has the correct sum42-beads" $ \repr -> do
