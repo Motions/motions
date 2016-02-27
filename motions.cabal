@@ -68,10 +68,11 @@ executable motions
 
 test-suite spec
     type:              exitcode-stdio-1.0
-    main-is:           Spec.hs
+    main-is:           Main.hs
     build-depends:     motions,
                        base >=4.8 && <4.9,
                        hspec >=2.2 && <2.3,
+                       hspec-jenkins >= 0.1.1,
                        QuickCheck >=2.8 && <2.9,
                        linear >=1.20 && <1.21,
                        vector >=0.11 && <0.12,
