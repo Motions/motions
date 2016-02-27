@@ -12,6 +12,7 @@ Portability : unportable
 module Bio.Motions.EnabledCallbacks where
 
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.GyrationRadius
 
 import Data.Proxy
 
@@ -27,4 +28,4 @@ enabledPreCallbacks :: [CallbackType Pre]
 enabledPreCallbacks = [CallbackType (Proxy :: Proxy TestCb)]
 
 enabledPostCallbacks :: [CallbackType Post]
-enabledPostCallbacks = []
+enabledPostCallbacks = [CallbackType (Proxy :: Proxy GyrationRadius)]
