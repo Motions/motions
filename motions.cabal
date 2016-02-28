@@ -11,7 +11,7 @@ license-file:        LICENSE
 -- maintainer:
 -- copyright:
 category:            Bioinformatics
-build-type:          Simple
+build-type:          Custom
 -- extra-source-files:
 cabal-version:       >=1.10
 
@@ -33,8 +33,9 @@ library
                        Bio.Motions.PDB.Write,
                        Bio.Motions.PDB.Internal,
                        Bio.Motions.BED,
-                       Bio.Motions.Engine
-                       Bio.Motions.StateInitialisation
+                       Bio.Motions.Engine,
+                       Bio.Motions.StateInitialisation,
+                       Bio.Motions.ProtoStream
   -- other-modules:
   -- other-extensions:
   build-depends:       base >=4.8 && <4.9,
@@ -55,6 +56,7 @@ library
                        bytestring >= 0.10 && < 0.11
   hs-source-dirs:      src
   default-language:    Haskell2010
+  extra-libraries:     protostream, stdc++
 
 executable motions
   main-is:             Main.hs
