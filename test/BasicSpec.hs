@@ -236,11 +236,11 @@ testRepr (_ :: _ repr) = before (loadDump dump :: IO repr) $ do
             score `shouldBe` 1002
 
         it "has the correct score after a bead move" $ \repr -> do
-            score :: StandardScore <- updateCallback repr 1002 $ Move (V3 5 6 6) (V3 0 0 (-1))
+            score :: StandardScore <- updateCallback repr 1002 beadMove
             score `shouldBe` 2002
 
         it "has the correct score after a binder move" $ \repr -> do
-            score :: StandardScore <- updateCallback repr 1002 $ Move (V3 0 1 2) (V3 1 0 0)
+            score :: StandardScore <- updateCallback repr 1002 binderMove
             score `shouldBe` 1000
 
         context "when computing the template haskell callbacks" $ do
