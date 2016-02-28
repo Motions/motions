@@ -23,6 +23,7 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Engine
 import Bio.Motions.StateInitialisation
+import Bio.Motions.ProtoStream
 
 import System.IO
 import Control.Monad.IO.Class
@@ -115,10 +116,15 @@ run initialiseSettings SimulationSettings{..} = do
     RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
     RunRepr runRepr = fromMaybe (error "Invalid representation") $ lookup reprName reprMap
 
+--main :: IO ()
+--main = uncurry run =<< execParser
+--    (info (helper <*> parser)
+--          (fullDesc <> progDesc "Perform a MCMC simulation of chromatin movements"))
+
 main :: IO ()
-main = uncurry run =<< execParser
-    (info (helper <*> parser)
-          (fullDesc <> progDesc "Perform a MCMC simulation of chromatin movements"))
+main = do
+    hstream <- new_stream_reader
+    test
 
 initialiseParser :: Parser InitialisationSettings
 initialiseParser = InitialisationSettings
