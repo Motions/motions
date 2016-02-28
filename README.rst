@@ -8,6 +8,8 @@ using a variation of the "Strings and Binders Switch" model.
 Installation
 ------------
 
+Make sure that `CMake`_ >= 3.1 and `Git`__ is installed in your system before proceeding.
+
 `Stack`_ is the easiest way to build and run the simulation.
 First you need to install `stack`_. Installation depends on the platform.
 Most linux distributions should provide an easy way to get `stack`_ from
@@ -30,6 +32,8 @@ The following commands do everything for you::
 Some dependencies require a fair amount of RAM when being built. Our experiences
 tell that at least 3 GB is necessary (use swap if needed).
 
+.. _CMake: https://cmake.org/
+.. _Git: https://git-scm.com/
 .. _stack: http://docs.haskellstack.org/en/stable/README.html
 .. _stack documentation: http://docs.haskellstack.org/en/stable/README.html#how-to-install
 
