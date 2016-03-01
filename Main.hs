@@ -80,11 +80,9 @@ reprMap = [ ("PureChain", runPureChain)
 
 scoreMap :: [(String, RunScore)]
 scoreMap = [ ("StandardScore", runStandardScore)
-           , ("TestCb", runTestCb)
            ]
   where
     runStandardScore = RunScore $ \run -> run (Proxy :: Proxy StandardScore)
-    runTestCb = RunScore $ \run -> run (Proxy :: Proxy TestCb)
 
 loadInts :: FilePath -> IO [Int]
 loadInts path = withFile path ReadMode $ fmap (map read . words) . hGetLine
