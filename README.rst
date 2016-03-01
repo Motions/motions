@@ -49,34 +49,34 @@ Motions supports simulation of multiple chains. Each chain bead has an associate
 which describes how strongly the chain interacts with various binders present inside the cell nucleus.
 The descriptions of chains are given using:
 
-    1. Files in the `BED format`__ to describe the different chain features
-           that will later be translated to energy vectors.
-    2. One file containing lengths of chains given by a line of integers
-           separated with spaces.
-    3. The simulation resolution given by a command line argument.
+1. Files in the `BED format`_ to describe the different chain features
+   that will later be translated to energy vectors.
+2. One file containing lengths of chains given by a line of integers
+   separated with spaces.
+3. The simulation resolution given by a command line argument.
 
 Example input containing chain descriptions:
 
-    1. File "feat0.bed"::
+1. File "feat0.bed"::
 
-           chr1	0	9
-           chr1	20	29
-           chr1	20	29
-           chr1	40	49
-           chr1	80	89
+       chr1	0	9
+       chr1	20	29
+       chr1	20	29
+       chr1	40	49
+       chr1	80	89
 
-    2. File "feat1.bed"::
+2. File "feat1.bed"::
 
-           chr1	10	19
-           chr1	30	39
+       chr1	10	19
+       chr1	30	39
 
-    3. File "lengths"::
+3. File "lengths"::
 
-           100
+       100
 
-    4. The resolution command line argument::
+4. The resolution command line argument::
 
-           10
+       10
 
 For now we only use the required BED fields and we assume that chromosome names have
 the form "chrX" or "X", where X is a number, for example "chr5".
@@ -126,7 +126,7 @@ An example run would be::
 
     stack exec -- motions feat0.bed feat1.bed -l lengths -b binders -r 10 -x 10 -n 1000 -o out -s 100000 -i
 
-The output of the simulation is given in the `PDB (Protein Data Bank) format`__.
+The output of the simulation is given in the `PDB (Protein Data Bank) format`_.
 How each energy vector, binder and chain is mapped to a string in the PDB format is described in a ".meta"
 file created together with the output file.
 
