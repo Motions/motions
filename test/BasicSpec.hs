@@ -70,8 +70,7 @@ import GHC.TypeLits
 [callback|CALLBACK "prod-binders-beads"
     EVERY 1
     NODES 2
-    WHERE (BELONGS(X 0, BINDER 0) OR BELONGS(X 0, BINDER 1))
-          AND (BELONGS(X 1, BEAD_BINDING_TO 0) OR BELONGS(X 1, BEAD_BINDING_TO 1))
+    WHERE BELONGS(X 0, BINDER) AND BELONGS(X 1, BEAD)
     COMPUTE SUM 1
 |]
 
@@ -101,6 +100,13 @@ import GHC.TypeLits
     NODES 5
     WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 4, BEAD_BINDING_TO 0) AND DIST(X 1, X 3) <= 1.5
     COMPUTE SUM DIST(X 0, X 1) + DIST(X 1, X 4) * DIST(X 3, X 2) - DIST(X 4, X 0)
+|]
+
+[callback|CALLBACK "count-lamins"
+    EVERY 1
+    NODES 1
+    WHERE BELONGS(X 0, BINDER LAMIN)
+    COMPUTE SUM 1
 |]
 
 x `shouldAlmostBe` y = abs (x - y) `shouldSatisfy` (< 1e-7)
@@ -297,6 +303,10 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
                 res :: THCallback "complex-function" <- runCallback repr
                 res `shouldBe` complexFunctionResult
 
+            it "has the correct count-lamins" $ \repr -> do
+                res :: THCallback "count-lamins" <- runCallback repr
+                res `shouldBe` THCallback 2
+
     testAfterBeadMove :: SpecWith repr
     testAfterBeadMove = do
         it "reports the old location to be empty" $ \repr -> do
@@ -337,6 +347,10 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
                 res <- updateCallback repr complexFunctionResult beadMove
                 corrRes <- runCallback repr
                 res `shouldAlmostBe` corrRes
+
+            it "has the correct count-lamins" $ \repr -> do
+                res :: THCallback "count-lamins" <- updateCallback repr (THCallback 2) beadMove
+                res `shouldBe` THCallback 2
 
         context "when generating a move"
             testGenerateMove

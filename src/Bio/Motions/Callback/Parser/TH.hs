@@ -244,6 +244,8 @@ eval EvalCtx{..} (EBelongs node cls) = [||
     case (cls, access node $$(evalCtxArgs)) of
         (AtomTypeBeadBindingTo x, Bead b) -> energyBetween (b ^. beadEV) x > 0
         (AtomTypeBinder x, Binder b) -> x == b ^. binderType
+        (AtomTypeAnyBead, Bead _) -> True
+        (AtomTypeAnyBinder, Binder _) -> True
         _ -> False
     ||]
 
@@ -276,6 +278,8 @@ eval EvalCtx{..} (EChromoIx node) = [||
 instance Lift AtomType where
     lift (AtomTypeBeadBindingTo cls)   = [| AtomTypeBeadBindingTo cls |]
     lift (AtomTypeBinder cls) = [| AtomTypeBinder cls |]
+    lift AtomTypeAnyBead = [| AtomTypeAnyBead |]
+    lift AtomTypeAnyBinder = [| AtomTypeAnyBinder |]
 
 instance Lift BinderType where
     lift (BinderType t) = [| BinderType t |]

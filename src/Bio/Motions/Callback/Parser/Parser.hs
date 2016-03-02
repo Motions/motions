@@ -19,8 +19,6 @@ Portability : unportable
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Bio.Motions.Callback.Parser.Parser
     ( CallbackFrequency(..)
     , AtomType(..)
@@ -36,22 +34,27 @@ module Bio.Motions.Callback.Parser.Parser
     , ToNode(..)
     , parseCallback) where
 
-import Data.Maybe
-import Text.Parsec
-import qualified Text.Parsec.Token as P
-import Text.Parsec.Language (javaStyle)
-import GHC.Prim
+import Bio.Motions.Common
 import Bio.Motions.Types
+import Data.Maybe
+import GHC.Prim
+import Text.Parsec
+import Text.Parsec.Language (javaStyle)
+import qualified Text.Parsec.Token as P
 
 -- |Represents the frequency a callback has to be run
 data CallbackFrequency = EveryNFrames Int | EveryNAcceptedFrames Int
 
 -- |Represents the type of an atom
 data AtomType = AtomTypeBinder BinderType
-              -- ^ A binder
+              -- ^ A binder with the given 'BinderType'
               | AtomTypeBeadBindingTo BinderType
               -- ^ A bead with non-zero value for the given 'BinderType'
-              -- in its 'EnergyVector'.
+              -- in its 'EnergyVector'
+              | AtomTypeAnyBinder
+              -- ^ Any binder
+              | AtomTypeAnyBead
+              -- ^ Any bead
 
 -- |The return value of a callback
 data CallbackResult c n a where
@@ -362,7 +365,9 @@ class ParseConstant a where
 instance ParseConstant Int where
     constant = fromIntegral <$> integer
 
-deriving instance ParseConstant BinderType
+instance ParseConstant BinderType where
+    constant =   BinderType <$> constant
+             <|> (reserved "LAMIN" >> pure laminType)
 
 -- |Floating-point or integral constants.
 instance ParseConstant Double where
@@ -382,8 +387,9 @@ instance ToNode n => ParseConstant (Node n) where
 instance ParseConstant AtomType where
     constant =   (reserved "BEAD_BINDING_TO"
                     >> AtomTypeBeadBindingTo <$> constant)
-             <|> (reserved "BINDER"
-                    >> AtomTypeBinder        <$> constant)
+             <|> (reserved "BINDER" >>
+                    option AtomTypeAnyBinder (AtomTypeBinder <$> constant))
+             <|> (reserved "BEAD" >> pure AtomTypeAnyBead)
 
 -- |The language definition.
 dslDef :: P.LanguageDef st
@@ -391,7 +397,8 @@ dslDef = javaStyle
          { P.reservedOpNames = ["+", "-", "/", "*", "%", "//", "<=", ">=", "==", "!=", "<", ">"]
          , P.reservedNames = ["AND", "OR", "NOT", "DIST", "INT", "GR", "ATOM_INDEX", "CHAIN_INDEX",
                              "CHROMOSOME", "MIN", "MAX", "BELONGS", "X", "BEAD", "BINDER", "CALLBACK",
-                             "EVERY", "ACCEPTED", "NODES", "WHERE", "COMPUTE", "SUM", "PRODUCT", "LIST"]
+                             "EVERY", "ACCEPTED", "NODES", "WHERE", "COMPUTE", "SUM", "PRODUCT", "LIST",
+                             "BEAD_BINDING_TO", "LAMIN"]
          }
 
 -- |The token parser.
