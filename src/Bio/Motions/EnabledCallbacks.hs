@@ -7,15 +7,28 @@ Stability   : experimental
 Portability : unportable
  -}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TypeFamilies #-}
 module Bio.Motions.EnabledCallbacks where
 
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.GyrationRadius
+import Bio.Motions.Callback.Parser.TH
 
 import Data.Proxy
+
+[callback|CALLBACK "sum42-beads"
+    EVERY 1
+    NODES 1
+    WHERE BELONGS(X 0, BEAD_BINDING_TO 0) OR BELONGS(X 0, BEAD_BINDING_TO 1)
+    COMPUTE SUM 42
+|]
 
 enabledPreCallbacks :: [CallbackType Pre]
 enabledPreCallbacks = [CallbackType (Proxy :: Proxy GyrationRadius)]
 
 enabledPostCallbacks :: [CallbackType Post]
-enabledPostCallbacks = []
+enabledPostCallbacks = [CallbackType (Proxy :: Proxy (THCallback "sum42-beads"))]
