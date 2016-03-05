@@ -1,13 +1,6 @@
-{-# LANGUAGE QuasiQuotes #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TupleSections #-}
@@ -15,6 +8,8 @@
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module BasicSpec where
+
+import LoadCallbacks
 
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -46,69 +41,6 @@ import Linear
 
 import GHC.TypeLits
 
-[callback|CALLBACK "sum42-beads"
-    EVERY 1
-    NODES 1
-    WHERE BELONGS(X 0, BEAD_BINDING_TO 0) OR BELONGS(X 0, BEAD_BINDING_TO 1)
-    COMPUTE SUM 42
-|]
-
-[callback|CALLBACK "prod2-all"
-    EVERY 1
-    NODES 1
-    WHERE 1 == 1
-    COMPUTE PRODUCT 2
-|]
-
-[callback|CALLBACK "list42-binders"
-    EVERY 1
-    NODES 1
-    WHERE BELONGS(X 0, BINDER 0) OR BELONGS(X 0, BINDER 1)
-    COMPUTE LIST 42
-|]
-
-[callback|CALLBACK "prod-binders-beads"
-    EVERY 1
-    NODES 2
-    WHERE BELONGS(X 0, BINDER) AND BELONGS(X 1, BEAD)
-    COMPUTE SUM 1
-|]
-
-[callback|CALLBACK "list-11"
-    EVERY 1
-    NODES 2
-    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 1, BEAD_BINDING_TO 1)
-    COMPUTE LIST DIST(X 0, X 1)
-|]
-
-[callback|CALLBACK "sum-11"
-    EVERY 1
-    NODES 2
-    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 1, BEAD_BINDING_TO 1)
-    COMPUTE SUM DIST(X 0, X 1)
-|]
-
-[callback|CALLBACK "pairs-dist<2"
-    EVERY 1
-    NODES 2
-    WHERE DIST(X 0, X 1) * DIST(X 0, X 1) < 2
-    COMPUTE SUM 1
-|]
-
-[callback|CALLBACK "complex-function"
-    EVERY 1
-    NODES 5
-    WHERE BELONGS(X 0, BINDER 1) AND BELONGS(X 4, BEAD_BINDING_TO 0) AND DIST(X 1, X 3) <= 1.5
-    COMPUTE SUM DIST(X 0, X 1) + DIST(X 1, X 4) * DIST(X 3, X 2) - DIST(X 4, X 0)
-|]
-
-[callback|CALLBACK "count-lamins"
-    EVERY 1
-    NODES 1
-    WHERE BELONGS(X 0, BINDER LAMIN)
-    COMPUTE SUM 1
-|]
-
 x `shouldAlmostBe` y = abs (x - y) `shouldSatisfy` (< 1e-7)
 
 instance MonadRandom m => MonadRandom (PropertyM m) where
@@ -130,7 +62,7 @@ testIntersectsChain = do
             ]
     ev = []
 
-testRepr :: _ => proxy (repr :: *) -> Spec
+testRepr :: _ => proxy repr -> Spec
 testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
     context "when redumping" $
         beforeWith makeDump testRedump
