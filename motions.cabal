@@ -24,11 +24,11 @@ library
                        Bio.Motions.Utils.FreezePredicateParser,
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Callback.Class,
+                       Bio.Motions.Callback.Discover,
                        Bio.Motions.Callback.GyrationRadius,
                        Bio.Motions.Callback.StandardScore,
                        Bio.Motions.Callback.Parser.Parser,
                        Bio.Motions.Callback.Parser.TH,
-                       Bio.Motions.EnabledCallbacks,
                        Bio.Motions.Types,
                        Bio.Motions.Common,
                        Bio.Motions.PDB.Meta,
@@ -54,7 +54,8 @@ library
                        constraints >=0.6 && <0.7,
                        random-shuffle >=0.0.4 && <0.1,
                        hPDB >= 1.2 && < 1.21,
-                       bytestring >= 0.10 && < 0.11
+                       bytestring >= 0.10 && < 0.11,
+                       filepath >= 1.4 && <1.5
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -65,6 +66,7 @@ executable motions
                        MonadRandom >=0.4 && <0.5,
                        optparse-applicative >=0.12 && <0.13,
                        transformers >=0.4 && <0.5,
+                       split >=0.2 && <0.3,
                        motions
   default-language:    Haskell2010
 
@@ -94,4 +96,6 @@ test-suite spec
                        PDBSpec,
                        DumpSpec,
                        StateInitialisationSpec,
-                       FreezePredicateParserSpec
+                       FreezePredicateParserSpec,
+                       LoadCallbacks,
+                       CallbackSpec

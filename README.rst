@@ -124,7 +124,10 @@ To get a detailed description of the arguments.
 
 An example run would be::
 
-    stack exec -- motions feat0.bed feat1.bed -l lengths -b binders -r 10 -x 10 -n 1000 -o out -s 100000 -i
+    stack exec -- motions feat0.bed feat1.bed -l lengths -b binders -r 10 -x 10 -n 1000 -o out -s 100000 -i -c callbacks
+
+Where "callbacks" is a file containing the names of the enabled callbacks, separated by newlines.
+Builtin callbacks' names: "Standard Score", "Gyration Radius" (without quotes).
 
 The output of the simulation is given in the `PDB (Protein Data Bank) format`_.
 How each energy vector, binder and chain is mapped to a string in the PDB format is described in a ".meta"

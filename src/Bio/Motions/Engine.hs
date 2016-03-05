@@ -21,13 +21,13 @@ import Bio.Motions.PDB.Write
 import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
-import Bio.Motions.EnabledCallbacks
 import Bio.Motions.Utils.FreezePredicateParser
 import Text.Parsec.String
 
 import Control.Monad.State
 import Control.Monad.Random
 import Control.Monad.Trans.Maybe
+import qualified Data.Map.Strict as M
 import System.IO
 import Control.Lens
 import Data.List
@@ -56,6 +56,12 @@ data RunSettings repr score = RunSettings
     -- ^ Whether to write simpler residue/atom names in the PDB file.
     , freezeFile :: Maybe FilePath
     -- ^ A file containing the ranges of the frozen beads' indices.
+    , allPreCallbacks :: [CallbackType 'Pre]
+    -- ^ List of all available pre-callbacks' types
+    , allPostCallbacks :: [CallbackType 'Post]
+    -- ^ List of all available post-callbacks' types
+    , requestedCallbacksFile :: FilePath
+    -- ^ List of requested callback names
     }
 
 step :: (MonadRandom m, MonadState (SimulationState repr score) m,
@@ -125,6 +131,19 @@ writeCallbacks handle verbose = do
     resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
 
+-- |Parses a list of callback names
+filterCallbacks ::
+       [CallbackType mode]
+    -- ^List of all available callback types
+    -> [String]
+    -- ^Requested callback names
+    -> ([CallbackType mode], [String])
+    -- ^(Requested callback types, leftover names)
+filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
+  where
+    m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
+    (found, notFound) = partition (isJust . (`M.lookup` m)) req
+
 simulate :: _ => RunSettings repr score -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score) dump = do
     freezePredicate <- case freezeFile of
@@ -138,6 +157,12 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
         pdbMeta = fromMaybe (error pdbError) $ if simplePDB then mkSimplePDBMeta chs
                                                             else mkPDBMeta evs bts chs
         pdbMetaFile = pdbFile ++ ".meta"
+
+    requestedCallbacks <- liftIO $ lines <$> readFile requestedCallbacksFile
+    let (enabledPreCallbacks, remainingCallbacks) = filterCallbacks allPreCallbacks requestedCallbacks
+        (enabledPostCallbacks, remainingCallbacks') = filterCallbacks allPostCallbacks remainingCallbacks
+    unless (null remainingCallbacks') . error $
+        "Unrecognized callbacks: " ++ intercalate ", " remainingCallbacks'
 
     score :: score <- runCallback repr
     preCallbackResults <- getCallbackResults repr enabledPreCallbacks
