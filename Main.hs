@@ -11,16 +11,19 @@ Portability : unportable
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Main where
 
-import Bio.Motions.EnabledCallbacks
 import Bio.Motions.Types
 import Bio.Motions.BED
 import Bio.Motions.Representation.Chain
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Discover
 import Bio.Motions.Callback.StandardScore
+import Bio.Motions.Callback.GyrationRadius()
 import Bio.Motions.Engine
 import Bio.Motions.StateInitialisation
 
@@ -33,6 +36,8 @@ import Options.Applicative
 import Data.Proxy
 import Data.Maybe
 import Data.List
+
+import LoadCallbacks
 
 data InitialisationSettings = InitialisationSettings
     { bedFiles :: [FilePath]
@@ -56,10 +61,14 @@ data RunSettings' = RunSettings'
     , verboseCallbacks :: Bool
     , simplePDB :: Bool
     , freezeFile :: Maybe FilePath
+    , requestedCallbacksFile :: FilePath
     }
 
 mkRunSettings :: RunSettings' -> RunSettings repr score
 mkRunSettings RunSettings'{..} = RunSettings{..}
+  where
+    allPreCallbacks = $(allCallbacks Pre)
+    allPostCallbacks = $(allCallbacks Post)
 
 type Run' gen = RunSettings' -> Dump -> (RandT gen IO) Dump
 type Run gen score = Proxy score -> Run' gen
@@ -83,6 +92,8 @@ scoreMap = [ ("StandardScore", runStandardScore)
            ]
   where
     runStandardScore = RunScore $ \run -> run (Proxy :: Proxy StandardScore)
+
+
 
 loadInts :: FilePath -> IO [Int]
 loadInts path = withFile path ReadMode $ fmap (map read . words) . hGetLine
@@ -175,6 +186,11 @@ runSettingsParser = RunSettings'
         (long "freezefile"
         <> metavar "FREEZE_FILE"
         <> help "File containing the ranges of frozen beads' indices"))
+    <*> strOption
+        (long "callbacks"
+         <> short 'c'
+         <> metavar "CALLBACKS"
+         <> help "File containing a newline-separated list of enabled callback names")
 
 simulationParser :: Parser SimulationSettings
 simulationParser = SimulationSettings
