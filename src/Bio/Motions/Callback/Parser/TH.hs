@@ -45,6 +45,7 @@ import qualified Text.Parsec as P
 import Data.Proxy
 import qualified GHC.TypeLits as TL
 import GHC.Prim
+import System.FilePath
 
 class IsTHCallback (name :: TL.Symbol) where
     -- |Represents the return value type of a callback.
@@ -186,9 +187,26 @@ quoteCallback p str =
         Left err -> fail $ show err
 
 -- |A callback quasiquoter
+callback :: QuasiQuoter
 callback = QuasiQuoter
     { quoteDec = quoteCallback (proxy# :: Proxy# (ToNat 10))
     }
+
+-- |An external callback list quasiquoter
+--
+-- Given the path to a file containing the list of callback file names
+-- (relative to the list file) and parses them all.
+callbackList :: QuasiQuoter
+callbackList = QuasiQuoter{..}
+  where
+    quoteDec listFile = do
+        list <- runIO $ readFile listFile
+        addDependentFile listFile
+        liftM concat $ forM (lines list) $ \fileName -> do
+            let callbackFile = replaceFileName listFile fileName
+            callback <- runIO $ readFile callbackFile
+            addDependentFile callbackFile
+            quoteCallback (proxy# :: Proxy# (ToNat 10)) callback
 
 -- |A fixed-width vector
 data Vec (n :: Nat) a where

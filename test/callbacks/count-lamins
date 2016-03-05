@@ -1,0 +1,5 @@
+CALLBACK "count-lamins"
+    EVERY 1
+    NODES 1
+    WHERE BELONGS(X 0, BINDER LAMIN)
+    COMPUTE SUM 1

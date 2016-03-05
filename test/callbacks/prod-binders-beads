@@ -1,0 +1,5 @@
+CALLBACK "prod-binders-beads"
+    EVERY 1
+    NODES 2
+    WHERE BELONGS(X 0, BINDER) AND BELONGS(X 1, BEAD)
+    COMPUTE SUM 1
