@@ -42,9 +42,11 @@ import Data.MonoTraversable
 import Data.Monoid
 import Linear
 import qualified Text.Parsec as P
+import qualified Text.Parsec.String as P
 import Data.Proxy
 import qualified GHC.TypeLits as TL
 import GHC.Prim
+import System.FilePath
 
 class IsTHCallback (name :: TL.Symbol) where
     -- |Represents the return value type of a callback.
@@ -185,10 +187,26 @@ quoteCallback p str =
             createCallback exp
         Left err -> fail $ show err
 
+type ArityLimit = ToNat 10
+
 -- |A callback quasiquoter
+callback :: QuasiQuoter
 callback = QuasiQuoter
-    { quoteDec = quoteCallback (proxy# :: Proxy# (ToNat 10))
+    { quoteDec = quoteCallback (proxy# :: Proxy# ArityLimit)
     }
+
+-- |An external callbacks file quasiquoter
+callbacksFile :: QuasiQuoter
+callbacksFile = QuasiQuoter{..}
+  where
+    quoteDec fileName = do
+        let parser = P.many1 $ parseCallback (proxy# :: Proxy# ArityLimit)
+        result <- runIO $ P.parseFromFile parser fileName
+        addDependentFile fileName
+        case result of
+            Left err -> fail $ show err
+            Right (cbs :: [ParsedCallbackWrapper LiftsA LiftsN]) ->
+                fold <$> sequence [createCallback exp | ParsedCallbackWrapper exp <- cbs]
 
 -- |A fixed-width vector
 data Vec (n :: Nat) a where
