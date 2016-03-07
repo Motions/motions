@@ -70,8 +70,10 @@ deriving instance Fractional (THCallbackResult name) => Fractional (THCallback n
 deriving instance Enum (THCallbackResult name) => Enum (THCallback name)
 deriving instance Real (THCallbackResult name) => Real (THCallback name)
 deriving instance Integral (THCallbackResult name) => Integral (THCallback name)
-deriving instance Show (THCallbackResult name) => Show (THCallback name)
 deriving instance Read (THCallbackResult name) => Read (THCallback name)
+
+instance Show (THCallbackResult name) => Show (THCallback name) where
+    show = show . getTHCallback
 
 -- |An auxiliary class used for lifting types into type expressions.
 class LiftProxy a where

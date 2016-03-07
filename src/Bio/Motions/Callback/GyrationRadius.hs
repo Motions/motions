@@ -28,7 +28,10 @@ of the list is the gyration radius of the n-th chain. The gyration
 radius of a chain is the average parwise distance of its beads.
 -}
 newtype GyrationRadius = GyrationRadius [Double]
-    deriving(Eq, Show)
+    deriving Eq
+
+instance Show GyrationRadius where
+    show (GyrationRadius rs) = show rs
 
 instance Callback 'Pre GyrationRadius where
     callbackName _ = "Gyration Radius"
