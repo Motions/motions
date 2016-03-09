@@ -26,6 +26,8 @@ import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.GyrationRadius()
 import Bio.Motions.Engine
 import Bio.Motions.StateInitialisation
+import Bio.Motions.PDB.Read
+import Bio.Motions.PDB.Meta
 
 import System.IO
 import Control.Monad.IO.Class
@@ -39,7 +41,7 @@ import Data.List
 
 import LoadCallbacks
 
-data InitialisationSettings = InitialisationSettings
+data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]
     , chainLengthsFile :: FilePath
     , bindersCountsFile :: FilePath
@@ -47,6 +49,14 @@ data InitialisationSettings = InitialisationSettings
     , resolution :: Int
     , initAttempts :: Int
     }
+
+data LoadStateSettings = LoadStateSettings
+    { pdbFiles :: [FilePath]
+    , metaFile :: FilePath
+    }
+
+data InitialisationSettings = Generate GenerateSettings
+                            | Load LoadStateSettings
 
 data SimulationSettings = SimulationSettings
     { runSettings :: RunSettings'
@@ -97,7 +107,7 @@ loadInts :: FilePath -> IO [Int]
 loadInts path = withFile path ReadMode $ fmap (map read . words) . hGetLine
 
 load :: (MonadIO m, MonadRandom m) => InitialisationSettings -> m Dump
-load InitialisationSettings{..} = do
+load (Generate GenerateSettings{..}) = do
     chainLengths <- liftIO $ loadInts chainLengthsFile
     energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
     bindersCounts <- liftIO $ loadInts bindersCountsFile
@@ -110,17 +120,26 @@ load InitialisationSettings{..} = do
   where
     binderErrorMsg = "The number of different binder types must be the same as the number of chain features \
                       \ (BED files) minus one (the lamin feature)."
+load (Load LoadStateSettings{..}) = liftIO $ do
+    meta <- either (error . ("Meta file read error " ++)) pure =<< withFile metaFile ReadMode readPDBMeta
+    print meta
+    pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
+    dump <- either (error . ("PDB read error " ++ )) pure =<< readPDB pdbHandles meta
+    mapM_ hClose pdbHandles
+    pure dump
 
-run :: InitialisationSettings -> SimulationSettings -> IO ()
-run initialiseSettings SimulationSettings{..} = do
+run :: SimulationSettings -> InitialisationSettings -> IO ()
+run simulationSettings initialisationSettings = do
     gen <- newStdGen
     flip evalRandT gen $ do
-        dump <- load initialiseSettings
-        simulate runSettings dump
+        dump <- load initialisationSettings
+        runSimulation simulationSettings dump
     -- TODO: do something with the dump?
     pure ()
+
+runSimulation :: RandomGen gen => SimulationSettings -> Dump -> RandT gen IO Dump
+runSimulation SimulationSettings{..} = runScore runRepr runSettings
   where
-    simulate = runScore runRepr
     RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
     RunRepr runRepr = fromMaybe (error "Invalid representation") $ lookup reprName reprMap
 
@@ -129,8 +148,16 @@ main = uncurry run =<< execParser
     (info (helper <*> parser)
           (fullDesc <> progDesc "Perform a MCMC simulation of chromatin movements"))
 
-initialiseParser :: Parser InitialisationSettings
-initialiseParser = InitialisationSettings
+initialisationParser :: Parser InitialisationSettings
+initialisationParser = subparser
+    $  command "generate" (info (helper <*> (Generate <$> generateParser))
+        (progDesc "Generate an initial random state"))
+    <> command "load" (info (helper <*> (Load <$> loadParser))
+        (progDesc "Load initial state from PDB files"))
+    <> metavar "INITIALISE-COMMAND"
+
+generateParser :: Parser GenerateSettings
+generateParser = GenerateSettings
     <$> some (strArgument $ metavar "BED files...")
     <*> strOption
         (long "lengthsfile"
@@ -158,6 +185,15 @@ initialiseParser = InitialisationSettings
         <> short 'n'
         <> metavar "INIT-ATTEMPTS"
         <> help "Number of state initialization attempts")
+
+loadParser :: Parser LoadStateSettings
+loadParser = LoadStateSettings
+    <$> some (strArgument $ metavar "PDB files...")
+    <*> strOption
+        (long "metafile"
+        <> short 'm'
+        <> metavar "PDB-META-FILE"
+        <> help "File containing meta information about PDB-state conversion")
 
 runSettingsParser :: Parser RunSettings'
 runSettingsParser = RunSettings'
@@ -210,5 +246,5 @@ simulationParser = SimulationSettings
     scores = showKeys scoreMap
     showKeys = intercalate ", " . map fst
 
-parser :: Parser (InitialisationSettings, SimulationSettings)
-parser = (,) <$> initialiseParser <*> simulationParser
+parser :: Parser (SimulationSettings, InitialisationSettings)
+parser = (,) <$> simulationParser <*> initialisationParser
