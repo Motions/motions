@@ -4,7 +4,7 @@ module BEDSpec where
 import Test.Hspec
 import Bio.Motions.BED
 import Bio.Motions.Types
-import Text.ParserCombinators.Parsec
+import Text.Parsec.ByteString
 import Data.Either(isLeft)
 import qualified Data.Vector.Unboxed as U
 
