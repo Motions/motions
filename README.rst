@@ -49,6 +49,11 @@ Or simply execute it from the directory containing the executable (the path may 
     cd .stack-work/dist/x86_64-linux/Cabal-1.22.4.0/build/motions/
     ./motions
 
+Running with randomly generated state
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The first way of running Motions is to let it generate a random initial state and start from there.
+
 Motions supports simulation of multiple chains. Each chain bead has an associated energy vector
 which describes how strongly the chain interacts with various binders present inside the cell nucleus.
 The descriptions of chains are given using:
@@ -128,7 +133,7 @@ To get a detailed description of the arguments.
 
 An example run would be::
 
-    stack exec -- motions feat0.bed feat1.bed -l lengths -b binders -r 10 -x 10 -n 1000 -o out -s 100000 -i -c callbacks
+    stack exec -- motions -o out -c callbacks -s 100000 -i generate feat0.bed feat1.bed -l lengths -b binders -r 10 -x 10 -n 1000
 
 Where "callbacks" is a file containing the names of the enabled callbacks, separated by newlines.
 Builtin callbacks' names: "Standard Score", "Gyration Radius" (without quotes).
@@ -139,3 +144,16 @@ file created together with the output file.
 
 .. _BED format: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 .. _PDB (Protein Data Bank) format: http://www.wwpdb.org/documentation/file-format
+
+Running the simulation using PDB files as input
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The other way is to provide PDB files from which the initial state will be loaded along with a ".meta"
+file as described in the previous section.
+
+An example run would be::
+
+    stack exec -- motions -o out -c callbacks -s 100000 -i load in.pdb in_lamins.pdb in.meta
+
+With the in.pdb file containing atoms strictly inside the cell nucleus and in_lamins.pdb containing lamins.
+If a provided PDB file contains multiple frames, the last frame will be used as initial state.

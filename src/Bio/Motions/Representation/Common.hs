@@ -36,14 +36,19 @@ legalMoves = V.fromList [v | [x, y, z] <- replicateM 3 [-1, 0, 1],
 -- Assumes that these points are neighbours on the 3-dimensional grid, i. e. the quadrance
 -- of the distance between these points equals 1 or 2.
 intersectsChain :: Space' f -> Vec3 -> Vec3 -> Bool
-intersectsChain space v1@(V3 x1 y1 z1) v2@(V3 x2 y2 z2) =
-    d /= 1 && case (`M.lookup` space) <$> crossPoss of
+intersectsChain space v1 v2 =
+    d /= 1 && case (`M.lookup` space) <$> crossPoss v1 v2 of
                 [Just (Bead b1), Just (Bead b2)] -> chainNeighbours b1 b2
                 _                                -> False
   where
     d = qd v1 v2
-    crossPoss | x1 == x2 = [V3 x1 y1 z2, V3 x1 y2 z1]
-              | y1 == y2 = [V3 x1 y1 z2, V3 x2 y1 z1]
-              | z1 == z2 = [V3 x1 y2 z1, V3 x2 y1 z1]
     chainNeighbours b1 b2 = b1 ^. beadChain == b2 ^. beadChain
                          && abs (b1 ^. beadIndexOnChain - b2 ^. beadIndexOnChain) == 1
+
+-- |Returns the segment crossing the segment connecting the two given points.
+-- Assumes that the quadrance between these points equals 2.
+-- Returns a two-element list for convenience.
+crossPoss :: Vec3 -> Vec3 -> [Vec3]
+crossPoss (V3 x1 y1 z1) (V3 x2 y2 z2) | x1 == x2 = [V3 x1 y1 z2, V3 x1 y2 z1]
+                                      | y1 == y2 = [V3 x1 y1 z2, V3 x2 y1 z1]
+                                      | z1 == z2 = [V3 x1 y2 z1, V3 x2 y1 z1]
