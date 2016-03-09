@@ -28,7 +28,10 @@ between the contacting atoms. Contacts are defined as pairs (binder, bead) with 
 distance.
  -}
 newtype StandardScore = StandardScore Int
-    deriving (Eq, Ord, Num, Show, Integral, Enum, Real)
+    deriving (Eq, Ord, Num, Integral, Enum, Real)
+
+instance Show StandardScore where
+    show (StandardScore i) = show i
 
 instance Monoid StandardScore where
     mempty = 0

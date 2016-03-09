@@ -135,8 +135,8 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
     let evs = nub . map dumpBeadEV . concat . dumpChains $ dump
         bts = nub . map (^. binderType) . dumpBinders $ dump
         chs = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
-        pdbMeta = fromMaybe (error pdbError) $ if simplePDB then mkSimplePDBMeta chs
-                                                            else mkPDBMeta evs bts chs
+        mkMeta = if simplePDB then mkSimplePDBMeta else mkPDBMeta
+        pdbMeta = fromMaybe (error pdbError) $ mkMeta evs bts chs
         pdbMetaFile = pdbFile ++ ".meta"
 
     score :: score <- runCallback repr
@@ -154,7 +154,7 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
             (guard writeIntermediatePDB >> Just pdbHandle) verboseCallbacks pdbMeta
         unless writeIntermediatePDB $ pushPDB pdbHandle pdbMeta
     liftIO $ hClose pdbHandle
-    liftIO $ withFile pdbMetaFile WriteMode $ \h -> writePDBMeta h evs bts chs pdbMeta
+    liftIO $ withFile pdbMetaFile WriteMode $ \h -> writePDBMeta h pdbMeta
 
     let SimulationState{..} = st'
     makeDump repr
