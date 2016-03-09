@@ -28,9 +28,7 @@ writePDBData :: Handle -> [PDBEntry] -> IO ()
 writePDBData handle = mapM_ $ PP.print handle . toEvent
 
 toEvent :: PDBEntry -> PE.PDBEvent
-toEvent PDBHeader{..}  = PE.HEADER (BS.pack . show $ seqNum)
-                                   (BS.pack . show $ atomCount)
-                                   (BS.pack $ "step " ++ show step)
+toEvent PDBHeader{..}  = PE.HEADER (BS.pack classification) "" ""
 toEvent PDBTitle{..}   = PE.TITLE 0 $ BS.pack title
 toEvent PDBAtom{..} = PE.ATOM
     { no = serial
