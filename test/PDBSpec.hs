@@ -8,6 +8,7 @@ import Bio.Motions.PDB.Internal
 import Bio.Motions.Types
 
 import qualified Data.Vector.Unboxed as U
+import qualified Data.Map as M
 import Control.Monad
 import Data.List
 import Data.Maybe
@@ -25,15 +26,6 @@ test = do
                 isHeader _            = False
                 headerFirst = isHeader . head $ pdbData
             in headerFirst `shouldBe` True
-        context "when creating the header" $ do
-            let PDBHeader seqNum atomCnt step = head pdbData
-            it "yields a correct sequence number" $
-                seqNum `shouldBe` headerSeqNum
-            it "yields a correct atom count" $
-                atomCnt `shouldBe` atomCount
-            it "yields a correct header step" $
-                step `shouldBe` headerStep
-
         it "yields the title second" $
             let isTitle PDBTitle {} = True
                 isTitle _           = False
@@ -71,19 +63,22 @@ test = do
             in forM_ connectPairs $ \(a, b) ->
                 length (filter (isThisConnect a b) connectData) `shouldBe` 1
   where
-    frameHeader = FrameHeader{..}
+    frameHeader = StepHeader{..}
     meta = PDBMeta{..}
     headerSeqNum = 123
     headerStep = 456
     headerTitle = "headerTitle"
-    beadRes ev | ev == ev0 = "AAA"
-               | ev == ev1 = "AAB"
-               | ev == ev2 = "AAC"
-    binderRes bi | bi == bi0 = "BAA"
-                 | bi == bi1 = "BAB"
-                 | bi == bi2 = "BAC"
-    chainId ch | ch == 0 = 'A'
-               | ch == 1 = 'B'
+    beadRes = M.fromList [ (ev0, "AAA")
+                         , (ev1, "AAB")
+                         , (ev2, "AAC")
+                         ]
+    binderRes = M.fromList [ (bi0, "BAA")
+                           , (bi1, "BAB")
+                           , (bi2, "BAC")
+                           ]
+    chainId = M.fromList [ (0, 'A')
+                         , (1, 'B')
+                         ]
     dump = Dump
         { dumpBinders =
             [ BinderInfo (V3 0 0 0) bi0
@@ -106,11 +101,11 @@ test = do
     connectCount = sum . map  (flip (-) 1 . length) . dumpChains $ dump
 
     isThisBinder (BinderInfo pos typ) PDBAtom{..} =
-        name == "O" && resName == binderRes typ && chainID == ' ' && coords == toCoordData pos
+        name == "O" && resName == binderRes M.! typ && chainID == ' ' && coords == toCoordData pos
     isThisBinder _ _ = False
 
     isThisBead (BeadInfo pos ev _ ch _) PDBAtom{..} =
-        name == "C" && resName == beadRes ev && chainID == chainId ch && coords == toCoordData pos
+        name == "C" && resName == beadRes M.! ev && chainID == chainId M.! ch && coords == toCoordData pos
     isThisBead _ _ = False
 
     isThisConnect a b PDBConnect{..} = a == fstSerial && b == sndSerial

@@ -23,6 +23,8 @@ library
                        Bio.Motions.Representation.Dump,
                        Bio.Motions.Utils.FreezePredicateParser,
                        Bio.Motions.Utils.RepetitionGuard,
+                       Bio.Motions.Utils.Parsec,
+                       Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,
                        Bio.Motions.Callback.GyrationRadius,
                        Bio.Motions.Callback.StandardScore,
@@ -33,6 +35,7 @@ library
                        Bio.Motions.Common,
                        Bio.Motions.PDB.Meta,
                        Bio.Motions.PDB.Write,
+                       Bio.Motions.PDB.Read,
                        Bio.Motions.PDB.Internal,
                        Bio.Motions.BED,
                        Bio.Motions.Engine
