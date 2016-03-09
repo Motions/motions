@@ -5,6 +5,7 @@ License     : Apache
 Stability   : experimental
 Portability : unportable
  -}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -91,22 +92,30 @@ step = runMaybeT $ do
     factor :: Double
     factor = 2
 
-pushPDB :: _ => Handle -> PDBMeta -> m ()
-pushPDB handle pdbMeta = do
+pushPDBStep :: _ => Handle -> PDBMeta -> m ()
+pushPDBStep handle pdbMeta = do
     st@SimulationState{..} <- get
-    dump <- removeLamins <$> makeDump repr -- TODO: remove lamins?
-
-    let frameHeader = FrameHeader { headerSeqNum = frameCounter
-                                  , headerStep = stepCounter
-                                  , headerTitle = "chromosome;bonds=" ++ show score
-                                  }
-
+    dump <- removeLamins <$> makeDump repr
+    let frameHeader = StepHeader { headerSeqNum = frameCounter
+                                 , headerStep = stepCounter
+                                 , headerTitle = "chromosome;bonds=" ++ show score
+                                 }
     liftIO $ writePDB handle frameHeader pdbMeta dump >> hPutStrLn handle "END"
-
     put st { frameCounter = frameCounter + 1 }
   where
+    removeLamins :: Dump -> Dump
     removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
     notLamin b = b ^. binderType /= laminType
+
+pushPDBLamins :: _ => Handle -> PDBMeta -> m ()
+pushPDBLamins handle pdbMeta = do
+    st@SimulationState{..} <- get
+    dump <- filterLamins <$> makeDump repr
+    let frameHeader = LaminHeader
+    liftIO $ writePDB handle frameHeader pdbMeta dump >> hPutStrLn handle "END"
+  where
+    filterLamins d = d { dumpBinders = filter isLamin $ dumpBinders d }
+    isLamin b = b ^. binderType == laminType
 
 stepAndWrite :: _ => Handle -> Maybe Handle -> Bool -> PDBMeta -> m ()
 stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
@@ -117,7 +126,7 @@ stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
     when (oldScore /= newScore) $ do
         writeCallbacks callbacksHandle verbose
         case pdbHandle of
-          Just handle -> pushPDB handle pdbMeta
+          Just handle -> pushPDBStep handle pdbMeta
           Nothing -> pure ()
 
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
@@ -154,9 +163,10 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
     let evs = nub . map dumpBeadEV . concat . dumpChains $ dump
         bts = nub . map (^. binderType) . dumpBinders $ dump
         chs = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
-        pdbMeta = fromMaybe (error pdbError) $ if simplePDB then mkSimplePDBMeta chs
-                                                            else mkPDBMeta evs bts chs
+        mkMeta = if simplePDB then mkSimplePDBMeta else mkPDBMeta
+        pdbMeta = fromMaybe (error pdbError) $ mkMeta evs bts chs
         pdbMetaFile = pdbFile ++ ".meta"
+        pdbLaminFile = pdbFile ++ ".lamin"
 
     requestedCallbacks <- liftIO $ lines <$> readFile requestedCallbacksFile
     let (enabledPreCallbacks, remainingCallbacks) = filterCallbacks allPreCallbacks requestedCallbacks
@@ -173,13 +183,16 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
 
     let callbacksHandle = stdout
     pdbHandle <- liftIO $ openFile pdbFile WriteMode
+    pdbLaminHandle <- liftIO $ openFile pdbLaminFile WriteMode
     st' <- flip execStateT st $ do
-        when writeIntermediatePDB $ pushPDB pdbHandle pdbMeta
+        pushPDBLamins pdbLaminHandle pdbMeta
+        when writeIntermediatePDB $ pushPDBStep pdbHandle pdbMeta
         replicateM_ numSteps $ stepAndWrite callbacksHandle
             (guard writeIntermediatePDB >> Just pdbHandle) verboseCallbacks pdbMeta
-        unless writeIntermediatePDB $ pushPDB pdbHandle pdbMeta
+        unless writeIntermediatePDB $ pushPDBStep pdbHandle pdbMeta
     liftIO $ hClose pdbHandle
-    liftIO $ withFile pdbMetaFile WriteMode $ \h -> writePDBMeta h evs bts chs pdbMeta
+    liftIO $ hClose pdbLaminHandle
+    liftIO $ withFile pdbMetaFile WriteMode $ \h -> writePDBMeta h pdbMeta
 
     let SimulationState{..} = st'
     makeDump repr

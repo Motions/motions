@@ -11,6 +11,7 @@ Portability : unportable
 module Bio.Motions.BED where
 
 import Bio.Motions.Types
+import Bio.Motions.Utils.Parsec
 
 import qualified Control.Applicative as A
 import Control.Monad.State
@@ -18,7 +19,8 @@ import Control.Monad.Random hiding (fromList)
 import Control.Monad.Trans.Maybe
 import Control.Monad.Except
 import Data.Maybe
-import Text.ParserCombinators.Parsec
+import Text.Parsec as P
+import Text.Parsec.ByteString
 import Foreign.Marshal.Utils(fromBool)
 import qualified Data.Map as M
 import qualified Data.Vector.Unboxed as U
@@ -54,35 +56,24 @@ parseBEDs resolution lengths fileNames = do
 -- |Parses a single BED file
 parseBED :: Int -> Parser [BindingSiteInfo]
 parseBED bsType = do
-  optional $ string "Track" >> manyTill anyChar eol
-  endBy (line bsType) eol
-
--- |Reads end of line
-eol :: Parser String
-eol = try (string "\n\r")
-     <|> try (string "\r\n")
-     <|> string "\r"
-     <|> string "\n"
-     <?> "End of line"
+  optional $ string "Track" >> manyTill anyChar endOfLine
+  endBy (line bsType) endOfLine
 
 -- |Parses one line of BED
 line :: Int -> Parser BindingSiteInfo
 line bsType = do
   bsChain <- chromosome
   tab
-  bsFrom <- parseInt
+  bsFrom <- int
   tab
-  bsTo <- parseInt
+  bsTo <- int
   unless (bsFrom <= bsTo) $ fail "Binding site ends before it begins"
-  optional (tab >> manyTill anyChar (lookAhead eol))
+  optional (tab >> manyTill anyChar (lookAhead endOfLine))
   return BindingSiteInfo{..}
-
-parseInt :: Parser Int
-parseInt = (read A.<$> many1 digit) <?> "non-negative integer"
 
 -- |Parses BED 'chromosome' column
 chromosome :: Parser Int
-chromosome = optional (string "chr") >> (\x -> x-1) A.<$> parseInt
+chromosome = optional (string "chr") >> (\x -> x-1) A.<$> int
 
 -- |Groups nucleotides according to the resolution parameter
 applyResolution :: Int -> BindingSiteInfo -> BindingSiteInfo
