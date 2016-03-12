@@ -85,8 +85,7 @@ test = do
     chainId ch | ch == 0 = 'A'
                | ch == 1 = 'B'
     dump = Dump
-        { dumpRadius = 10
-        , dumpBinders =
+        { dumpBinders =
             [ BinderInfo (V3 0 0 0) bi0
             , BinderInfo (V3 0 0 2) bi1
             , BinderInfo (V3 0 0 4) bi2

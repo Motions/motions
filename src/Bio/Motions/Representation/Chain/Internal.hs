@@ -45,8 +45,6 @@ data ChainRepresentation f = ChainRepresentation
     , chainIndices :: !(U.Vector Int)
     -- ^ Indices of first atoms of successive chains in the 'beads' vector,
     -- with an additional @'V.length' 'beads'@ at the end -- see 'getChain''.
-    , radius :: !Int
-    -- ^ Radius of the bounding sphere
     }
 
 type PureChainRepresentation = ChainRepresentation Identity
@@ -135,7 +133,6 @@ loadDump' Dump{..} isFrozen = do
         , moveableBeads = U.fromList [i | (i, b) <- zip [0..] relBeads, not . isFrozen $ b ^. beadSignature]
         , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
         , space = M.fromList $ zipWith convert relBinders dumpBinders ++ zipWith convert relBeads (concat chains)
-        , radius = dumpRadius
         }
   where
     chains = addIndices dumpChains
@@ -149,7 +146,6 @@ makeDump' repr = do
     pure Dump
         { dumpBinders = relBinders
         , dumpChains = (dropIndices <$>) <$> relChains
-        , dumpRadius = radius repr
         }
 
 -- |An 'f'-polymorphic implementation of 'generateMive' for 'ChainRepresentation f'.

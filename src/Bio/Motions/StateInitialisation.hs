@@ -41,7 +41,7 @@ initialise :: (MonadRandom m) =>
   -> m (Maybe Dump)
   -- ^Initial state
 initialise maxTries r bindersCounts evs = runRepetitionGuardT maxTries $
-    spaceToDump r <$> initialiseSpace r bindersCounts evs
+    spaceToDump <$> initialiseSpace r bindersCounts evs
 
 -- |Creates an initial state
 initialiseSpace :: (MonadRandom m) =>
@@ -63,8 +63,8 @@ initialiseSpace r bindersCounts beads = do
         zipWith (\count -> replicate count . addBinder r) bindersCounts [1..]
 
 -- |Converts Space to Dump
-spaceToDump :: Int -> Space -> Dump
-spaceToDump dumpRadius space = Dump{..}
+spaceToDump :: Space -> Dump
+spaceToDump space = Dump{..}
   where
     dumpBinders = [Located l b | Located l (BinderSig b) <- M.elems space]
     beads = [Located l b | Located l (BeadSig b) <- M.elems space]

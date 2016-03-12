@@ -29,8 +29,7 @@ data DumpBeadInfo = DumpBeadInfo
 
 -- |Represents a dump of the simulation state
 data Dump = Dump
-    { dumpRadius :: Int -- ^ The bounding sphere radius
-    , dumpBinders :: [BinderInfo] -- ^ A list of binders (in unspecified order)
+    { dumpBinders :: [BinderInfo] -- ^ A list of binders (in unspecified order)
     , dumpChains :: [[DumpBeadInfo]] -- ^ A list of chains, each represented as a list of beads
     }
     deriving (Show)

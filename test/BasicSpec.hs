@@ -157,8 +157,7 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
 
     freezePredicate b = b ^. beadChain == 0
     dump = Dump
-        { dumpRadius = 10
-        , dumpBinders =
+        { dumpBinders =
             [ BinderInfo (V3 0 1 2) bi0
             , BinderInfo (V3 0 1 3) bi0
             , BinderInfo (V3 5 5 5) bi1
@@ -200,9 +199,6 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
 
     testRedump :: SpecWith Dump
     testRedump = do
-        it "yields the same radius" $ \dump' ->
-            dumpRadius dump' `shouldBe` dumpRadius dump
-
         it "yields the same chains" $ \dump' ->
             dumpChains dump' `shouldBe` dumpChains dump
 
