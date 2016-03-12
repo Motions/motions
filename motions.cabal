@@ -11,8 +11,8 @@ license-file:        LICENSE
 -- maintainer:
 -- copyright:
 category:            Bioinformatics
-build-type:          Simple
--- extra-source-files:
+build-type:          Custom
+extra-source-files:  src/motions.proto
 cabal-version:       >=1.10
 
 library
@@ -21,6 +21,8 @@ library
                        Bio.Motions.Representation.Chain.Internal,
                        Bio.Motions.Representation.Common,
                        Bio.Motions.Representation.Dump,
+                       Bio.Motions.Format.DumpDeserialisation,
+                       Bio.Motions.Format.DumpSerialisation,
                        Bio.Motions.Utils.FreezePredicateParser,
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Callback.Class,
@@ -35,9 +37,18 @@ library
                        Bio.Motions.PDB.Write,
                        Bio.Motions.PDB.Internal,
                        Bio.Motions.BED,
-                       Bio.Motions.Engine
+                       Bio.Motions.Engine,
                        Bio.Motions.StateInitialisation
-  -- other-modules:
+  other-modules:       Bio.Motions.Format.Proto.Callback,
+                       Bio.Motions.Format.Proto.Callback.Type,
+                       Bio.Motions.Format.Proto.Header,
+                       Bio.Motions.Format.Proto.Header.ChainDescription,
+                       Bio.Motions.Format.Proto.Header.ChainDescription.BeadDescription,
+                       Bio.Motions.Format.Proto.Header.ChainDescription.BeadDescription.Binding,
+                       Bio.Motions.Format.Proto.Keyframe,
+                       Bio.Motions.Format.Proto.Keyframe.Binder,
+                       Bio.Motions.Format.Proto.Keyframe.Chain,
+                       Bio.Motions.Format.Proto.Point
   -- other-extensions:
   build-depends:       base >=4.8 && <4.9,
                        vector >=0.11 && <0.12,
@@ -54,7 +65,9 @@ library
                        constraints >=0.6 && <0.7,
                        random-shuffle >=0.0.4 && <0.1,
                        hPDB >= 1.2 && < 1.21,
-                       bytestring >= 0.10 && < 0.11
+                       bytestring >= 0.10 && < 0.11,
+                       protocol-buffers >=2.1.12 && <2.2.1,
+                       hprotoc >= 2.1.12 && < 2.2.1
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -93,5 +106,6 @@ test-suite spec
                        BEDSpec,
                        PDBSpec,
                        DumpSpec,
+                       DumpSerializationSpec,
                        StateInitialisationSpec,
                        FreezePredicateParserSpec
