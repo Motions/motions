@@ -4,3 +4,5 @@
 dist/
 *~
 results.xml
+src/Bio/Motions/Format/Proto*
+src/Bio/Motions/Format/proto.hs
