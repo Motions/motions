@@ -60,7 +60,7 @@ library
   default-language:    Haskell2010
 
 executable motions
-  main-is:             Main.hs
+  main-is:             Motions.hs
   build-depends:       base >=4.8 && <4.9,
                        vector >=0.11 && <0.12,
                        MonadRandom >=0.4 && <0.5,
@@ -72,7 +72,7 @@ executable motions
 
 test-suite spec
     type:              exitcode-stdio-1.0
-    main-is:           Main.hs
+    main-is:           Spec.hs
     build-depends:     motions,
                        base >=4.8 && <4.9,
                        hspec >=2.2 && <2.3,
