@@ -9,7 +9,7 @@
 
 module BasicSpec where
 
-import LoadCallbacks
+import LoadTestCallbacks
 
 import Test.Hspec
 import Test.Hspec.QuickCheck

@@ -7,7 +7,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE UndecidableInstances #-}
-module LoadCallbacks where
+module LoadTestCallbacks where
 
 import Bio.Motions.Callback.Parser.TH
 
