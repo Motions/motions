@@ -8,7 +8,7 @@ using a variation of the "Strings and Binders Switch" model.
 Installation
 ------------
 
-Make sure that `CMake`_ >= 3.1 and `Git`__ is installed in your system before proceeding.
+Make sure that `CMake`_ >= 3.1 and `Git`_ is installed in your system before proceeding.
 
 `Stack`_ is the easiest way to build and run the simulation.
 First you need to install `stack`_. Installation depends on the platform.
