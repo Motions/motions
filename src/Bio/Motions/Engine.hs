@@ -142,7 +142,7 @@ filterCallbacks ::
 filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
   where
     m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
-    (found, notFound) = partition (isJust . (`M.lookup` m)) req
+    (found, notFound) = partition (`M.member` m) req
 
 simulate :: _ => RunSettings repr score -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score) dump = do
