@@ -34,8 +34,8 @@ makeLibProtostream _ flags = do
     createDirectoryIfMissing False buildDir
 
     withCurrentDirectory buildDir $ do
-        rawSystemExit verbosity "env" ["cmake", ".."]
-        rawSystemExit verbosity "env" ["make", "cprotostream_static"]
+        run ["cmake", ".."]
+        run ["make", "cprotostream_static"]
 
     return emptyHookedBuildInfo
   where
