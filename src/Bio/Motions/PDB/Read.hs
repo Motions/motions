@@ -11,17 +11,12 @@ Portability : unportable
 module Bio.Motions.PDB.Read ( readPDB
                             ) where
 
-import Bio.Motions.Types
-import Bio.Motions.Common
 import Bio.Motions.PDB.Internal
 import Bio.Motions.Representation.Dump
-import Bio.Motions.Utils.Parsec
 
-import Control.Lens
 import Control.Monad.State.Strict
 import Control.Monad.Except
 import Text.Parsec as P
-import Text.Parsec.ByteString
 import qualified Bio.PDB.EventParser.PDBEvents as PE
 import qualified Bio.PDB.EventParser.PDBEventParser as PP
 import qualified Data.ByteString.Char8 as BS

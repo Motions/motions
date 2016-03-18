@@ -10,7 +10,7 @@
 
 module CallbackSpec where
 
-import LoadTestCallbacks
+import LoadTestCallbacks()
 
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore

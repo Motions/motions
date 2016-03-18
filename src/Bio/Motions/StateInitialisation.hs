@@ -13,9 +13,7 @@ module Bio.Motions.StateInitialisation where
 import Control.Lens
 import Control.Monad
 import Control.Monad.Random
-import Data.List
 import qualified Data.Map.Strict as M
-import Data.Maybe
 import qualified Data.Vector as V
 import GHC.Exts(groupWith, sortWith)
 import Linear

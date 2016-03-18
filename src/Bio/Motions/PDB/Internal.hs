@@ -29,8 +29,6 @@ import Data.List
 import Data.Function
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Bio.PDB.EventParser.PDBEvents as PE
-import qualified Bio.PDB.EventParser.PDBEventParser as PP
 import qualified Data.ByteString.Char8 as BS
 
 type Serial = Int

@@ -10,7 +10,6 @@ import Data.Either
 import Text.Parsec
 import Test.Hspec
 import Test.Hspec.SmallCheck
-import Test.SmallCheck
 
 run :: String -> Either ParseError FreezePredicate
 run = parse freezePredicateParser "<test>"
