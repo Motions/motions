@@ -11,7 +11,6 @@ module Bio.Motions.Callback.Discover where
 import Bio.Motions.Callback.Class
 import Data.Proxy
 import Language.Haskell.TH
-import Language.Haskell.TH.Syntax
 
 -- |Finds all callbacks with the given 'Mode' and creates a list of
 -- their 'CallbackType's.

@@ -39,7 +39,7 @@ import Data.Proxy
 import Data.Maybe
 import Data.List
 
-import LoadCallbacks
+import LoadCallbacks()
 
 data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]

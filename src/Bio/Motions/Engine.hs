@@ -36,8 +36,8 @@ import Data.Maybe
 data SimulationState repr score = SimulationState
     { repr :: repr
     , score :: score
-    , preCallbackResults :: [CallbackResult Pre]
-    , postCallbackResults :: [CallbackResult Post]
+    , preCallbackResults :: [CallbackResult 'Pre]
+    , postCallbackResults :: [CallbackResult 'Post]
     , stepCounter :: Int
     , frameCounter :: Int
     }
