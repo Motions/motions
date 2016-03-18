@@ -8,6 +8,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.PDB.Internal where
 
 import Bio.Motions.Types

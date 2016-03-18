@@ -30,7 +30,7 @@ class HaveEnergyBetween x y where
     energyBetween :: x -> y -> Energy
 
 instance HaveEnergyBetween EnergyVector BinderType where
-    energyBetween (EnergyVector vec) (BinderType ix) = vec U.! ix
+    energyBetween (EnergyVector vec) (BinderType idx) = vec U.! idx
     {-# INLINE energyBetween #-}
 
 instance HaveEnergyBetween BeadSignature BinderSignature where

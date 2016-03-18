@@ -15,6 +15,7 @@ Portability : unportable
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Types where
 
 import Linear

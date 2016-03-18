@@ -21,7 +21,11 @@ Portability : unportable
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-missing-fields #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-unused-matches #-}
 module Bio.Motions.Callback.Parser.TH where
 
 import Language.Haskell.TH
@@ -35,19 +39,15 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Control.Lens
-import Control.Monad.State.Strict hiding (lift)
 import Data.Foldable
-import Data.Traversable
 import Data.Maybe
 import Data.MonoTraversable
 import Data.Monoid
 import Linear
 import qualified Text.Parsec as P
 import qualified Text.Parsec.String as P
-import Data.Proxy
 import qualified GHC.TypeLits as TL
 import GHC.Prim
-import System.FilePath
 
 class IsTHCallback (name :: TL.Symbol) where
     -- |Represents the return value type of a callback.
@@ -91,11 +91,11 @@ instance LiftProxy Double where
 instance LiftProxy Bool where
     liftProxy _ = [t| Bool |]
 
-instance LiftProxy Zero where
-    liftProxy _ = [t| Zero |]
+instance LiftProxy 'Zero where
+    liftProxy _ = [t| 'Zero |]
 
-instance LiftProxy n => LiftProxy (Succ n) where
-    liftProxy _ = [t| Succ $(liftProxy (proxy# :: Proxy# n)) |]
+instance LiftProxy n => LiftProxy ('Succ n) where
+    liftProxy _ = [t| 'Succ $(liftProxy (proxy# :: Proxy# n)) |]
 
 -- |Convenient alias.
 type LiftsA = Both Lift LiftProxy
@@ -220,8 +220,8 @@ callbacksFile = QuasiQuoter{..}
 
 -- |A fixed-width vector
 data Vec (n :: Nat) a where
-    Nil :: Vec Zero a
-    (:::) :: a -> Vec n a -> Vec (Succ n) a
+    Nil :: Vec 'Zero a
+    (:::) :: a -> Vec n a -> Vec ('Succ n) a
 
 infixr 5 :::
 
@@ -233,8 +233,8 @@ data EvalCtx n = EvalCtx
 
 -- |Convert 'TL.Nat' to 'Nat'.
 type family ToNat (n :: TL.Nat) :: Nat where
-    ToNat 0 = Zero
-    ToNat n = Succ (ToNat (n TL.- 1))
+    ToNat 0 = 'Zero
+    ToNat n = 'Succ (ToNat (n TL.- 1))
 
 -- |Type-safe !! on 'Vec'tors.
 access :: Node n -> Vec n a -> a
@@ -328,10 +328,10 @@ class ForEachKNodes (n :: Nat) where
         => repr -> (Vec n Atom -> m r) -> m r
 
     forEachKNodesContaining :: (Monoid r, ReadRepresentation m repr, Monad m)
-        => Atom -> repr -> (Vec (Succ n) Atom -> m r) -> m r
+        => Atom -> repr -> (Vec ('Succ n) Atom -> m r) -> m r
 
 -- |The base case.
-instance ForEachKNodes Zero where
+instance ForEachKNodes 'Zero where
     forEachKNodes _ fun = fun Nil
     {-# INLINE forEachKNodes #-}
 
@@ -339,7 +339,7 @@ instance ForEachKNodes Zero where
     {-# INLINE forEachKNodesContaining #-}
 
 -- |The recursive case.
-instance ForEachKNodes n => ForEachKNodes (Succ n) where
+instance ForEachKNodes n => ForEachKNodes ('Succ n) where
     forEachKNodes repr fun = forEachNode repr $ \x ->
         forEachKNodes repr $ fun . (x :::)
     {-# INLINE forEachKNodes #-}
@@ -369,7 +369,7 @@ forEachNode repr f = do
 {-# INLINE forEachNode #-}
 
 replaceAll :: Eq a => a -> a -> Vec n a -> Vec n a
-replaceAll from to Nil = Nil
+replaceAll _ _ Nil = Nil
 replaceAll from to (x ::: xs)
     | from == x = to ::: rest
     | otherwise = x ::: rest

@@ -7,7 +7,6 @@ import Bio.Motions.Representation.Dump
 import Bio.Motions.PDB.Internal
 import Bio.Motions.Types
 
-import qualified Data.Vector.Unboxed as U
 import qualified Data.Map as M
 import Control.Monad
 import Data.List
@@ -110,6 +109,7 @@ testWrite = do
     isThisBead _ _ = False
 
     isThisConnect a b PDBConnect{..} = a == fstSerial && b == sndSerial
+    isThisConnect _ _ _ = False
 
 testRead :: Spec
 testRead = do

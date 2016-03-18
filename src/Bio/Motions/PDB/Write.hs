@@ -11,7 +11,6 @@ module Bio.Motions.PDB.Write ( writePDB
                              , FrameHeader(..)
                              ) where
 
-import Bio.Motions.Types
 import Bio.Motions.PDB.Internal
 import Bio.Motions.Representation.Dump
 

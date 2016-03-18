@@ -8,6 +8,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults #-}
 module Bio.Motions.PDB.Read ( readPDB
                             ) where
 
