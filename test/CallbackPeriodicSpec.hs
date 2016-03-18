@@ -13,7 +13,7 @@ import Data.Proxy
 import GHC.TypeLits
 import Test.Hspec
 
-newtype SimpleCallback (n :: Nat) = SimpleCallback { runSimpleCallback :: Int }
+newtype SimpleCallback (n :: Nat) = SimpleCallback Int
     deriving (Show, Eq, Num)
 
 instance Callback 'Pre (SimpleCallback n) where

@@ -12,7 +12,6 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Periodic
 import Data.Proxy
 import Language.Haskell.TH
-import Language.Haskell.TH.Syntax
 
 -- |Finds all callbacks with the given 'Mode' and creates a list of
 -- their 'CallbackType's.

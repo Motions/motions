@@ -10,6 +10,8 @@ Portability : unportable
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Callback.StandardScore(StandardScore) where
 
 import Bio.Motions.Types

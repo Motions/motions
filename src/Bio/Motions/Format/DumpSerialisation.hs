@@ -6,6 +6,7 @@ Stability   : experimental
 Portability : unportable
 -}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Format.DumpSerialisation where
 
 import qualified Data.Vector.Unboxed as U

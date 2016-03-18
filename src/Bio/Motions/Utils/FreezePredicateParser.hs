@@ -5,7 +5,7 @@ License     : Apache
 Stability   : experimental
 Portability : portable
 -}
-
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Utils.FreezePredicateParser(freezePredicateParser) where
 
 import Bio.Motions.Types
@@ -44,7 +44,7 @@ term = between (char '(') (char ')') expr <|> do
     chainPredicate <- rangeOrWildcard
     let chainOk x = chainPredicate $ x ^. beadChain
     option chainOk $ do
-        char ':'
+        void $ char ':'
         indexPredicate <- rangeOrWildcard
         let indexOk x = indexPredicate $ x ^. beadIndexOnChain
         pure $ (&&) <$> chainOk <*> indexOk
@@ -56,7 +56,7 @@ valueOrRange :: Parser (Int -> Bool)
 valueOrRange = do
     lower <- integer
     option (== lower) $ do
-        char '-'
+        void $ char '-'
         upper <- integer
         pure $ (&&) <$> (lower <=) <*> (<= upper)
 

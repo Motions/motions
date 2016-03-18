@@ -11,6 +11,7 @@ Portability : unportable
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Callback.GyrationRadius(GyrationRadius(..)) where
 
 import Bio.Motions.Types

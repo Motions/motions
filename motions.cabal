@@ -42,7 +42,7 @@ library
                        Bio.Motions.PDB.Internal,
                        Bio.Motions.BED,
                        Bio.Motions.Engine,
-                       Bio.Motions.ProtoStream
+                       Bio.Motions.ProtoStream,
                        Bio.Motions.StateInitialisation
   other-modules:       Bio.Motions.Format.Proto.Callback,
                        Bio.Motions.Format.Proto.Callback.Type,
@@ -77,6 +77,7 @@ library
                        hprotoc >= 2.1.12 && < 2.2.1
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -Wall
 
 executable motions
   main-is:             Motions.hs
@@ -89,7 +90,7 @@ executable motions
                        split >=0.2 && <0.3,
                        motions
   default-language:    Haskell2010
-  ghc-options:         -pgml c++
+  ghc-options:         -pgml c++ -Wall
   if os(osx)
     extra-libraries:   cprotostream_static
   else
@@ -118,7 +119,8 @@ test-suite spec
                        hspec-smallcheck >=0.4 && <0.5
     default-language:  Haskell2010
     hs-source-dirs:    test
-    other-modules:     BasicSpec,
+    other-modules:     SpecDiscover,
+                       BasicSpec,
                        BEDSpec,
                        PDBSpec,
                        DumpSpec,
@@ -128,7 +130,7 @@ test-suite spec
                        LoadTestCallbacks,
                        CallbackDiscoverSpec,
                        CallbackPeriodicSpec
-    ghc-options:       -pgml c++
+    ghc-options:       -pgml c++ -Wall
     if os(osx)
       extra-libraries: cprotostream_static
     else

@@ -10,6 +10,7 @@ Portability : unportable
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Bio.Motions.Engine where
 
@@ -36,8 +37,8 @@ import Data.Maybe
 data SimulationState repr score = SimulationState
     { repr :: repr
     , score :: score
-    , preCallbackResults :: [CallbackResult Pre]
-    , postCallbackResults :: [CallbackResult Post]
+    , preCallbackResults :: [CallbackResult 'Pre]
+    , postCallbackResults :: [CallbackResult 'Post]
     , stepCounter :: Int
     , frameCounter :: Int
     }
