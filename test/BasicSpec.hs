@@ -4,12 +4,12 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TupleSections #-}
-
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
-
 module BasicSpec where
 
-import LoadTestCallbacks
+import LoadTestCallbacks()
 
 import Test.Hspec
 import Test.Hspec.QuickCheck
@@ -35,12 +35,9 @@ import Control.Lens
 import Data.Maybe
 import Data.MonoTraversable
 import Data.Proxy
-import qualified Data.Map.Strict as M
-import qualified Data.Vector.Unboxed as U
 import Linear
 
-import GHC.TypeLits
-
+shouldAlmostBe :: (Fractional a, Ord a, Show a) => a -> a -> Expectation
 x `shouldAlmostBe` y = abs (x - y) `shouldSatisfy` (< 1e-7)
 
 instance MonadRandom m => MonadRandom (PropertyM m) where

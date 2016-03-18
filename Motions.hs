@@ -13,6 +13,7 @@ Portability : unportable
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Main where
 
@@ -39,7 +40,7 @@ import Data.Proxy
 import Data.Maybe
 import Data.List
 
-import LoadCallbacks
+import LoadCallbacks()
 
 data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]

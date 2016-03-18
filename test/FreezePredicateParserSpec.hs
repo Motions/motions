@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 module FreezePredicateParserSpec where
 
 import Bio.Motions.Types
@@ -10,7 +11,6 @@ import Data.Either
 import Text.Parsec
 import Test.Hspec
 import Test.Hspec.SmallCheck
-import Test.SmallCheck
 
 run :: String -> Either ParseError FreezePredicate
 run = parse freezePredicateParser "<test>"
@@ -28,6 +28,7 @@ prop description (run -> Right parsed) predicate =
     it description . property $ \(chain, index) ->
         parsed (makeBeadSignature chain index) == predicate chain index
 
+{-# ANN correctSpec "HLint: ignore Use ||" #-}
 correctSpec :: Spec
 correctSpec = do
     context "when parsing an empty file" $

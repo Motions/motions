@@ -1,11 +1,8 @@
 module Main where
 
-import Test.Hspec
 import Test.Hspec.Runner
-import Test.Hspec.Formatters
 import Test.Hspec.Formatters.Jenkins (xmlFormatter)
 
-import System.IO
 import System.Exit
 import System.Environment
 import Control.Monad

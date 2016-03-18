@@ -5,7 +5,7 @@ License     : Apache
 Stability   : experimental
 Portability : unportable
 -}
-
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 module Bio.Motions.Representation.Common where
 
 import Control.Monad

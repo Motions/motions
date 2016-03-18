@@ -31,9 +31,9 @@ dump = Dump
             ]
           ]
     }
-    where
-      [bi0, bi1] = map BinderType [0, 1]
-      (ev0, ev1) = ([1, 0], [0, 1000])
+  where
+    [bi0, bi1] = map BinderType [0, 1]
+    (ev0, ev1) = ([1, 0], [0, 1000])
 
 move :: Move
 move = Move
