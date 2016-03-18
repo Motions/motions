@@ -10,7 +10,7 @@
 
 module CallbackSpec where
 
-import LoadTestCallbacks
+import LoadTestCallbacks()
 
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
@@ -40,10 +40,10 @@ testDiscover discovered pList = it "discovers them correctly" $
     discoveredNames = [callbackName t | CallbackType t <- discovered]
     expectedNames = callbackNames (proxy# :: Proxy# mode) pList
 
-preCallbacks :: [CallbackType Pre]
+preCallbacks :: [CallbackType 'Pre]
 preCallbacks = $(allCallbacks Pre)
 
-postCallbacks :: [CallbackType Post]
+postCallbacks :: [CallbackType 'Post]
 postCallbacks = $(allCallbacks Post)
 
 spec :: Spec

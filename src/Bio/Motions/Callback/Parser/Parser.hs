@@ -19,6 +19,8 @@ Portability : unportable
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds #-}
 module Bio.Motions.Callback.Parser.Parser
     ( CallbackFrequency(..)
     , AtomType(..)
@@ -81,8 +83,8 @@ data Nat where
 --
 -- 'Node' 'n' keeps a natural number that is guaranteed to be less than 'n'.
 data Node (n :: Nat) where
-    FirstNode :: Node (Succ n)
-    NextNode :: Node n -> Node (Succ n)
+    FirstNode :: Node ('Succ n)
+    NextNode :: Node n -> Node ('Succ n)
 
 -- |Convert runtime natural 'Int's to type-level naturals.
 class ToNode (n :: Nat) where
@@ -91,10 +93,10 @@ class ToNode (n :: Nat) where
     toNode :: Int -> Maybe (Node n)
 
 -- |No non-negative 'Int' is smaller than 'Zero'
-instance ToNode Zero where
+instance ToNode 'Zero where
     toNode _ = Nothing
 
-instance ToNode n => ToNode (Succ n) where
+instance ToNode n => ToNode ('Succ n) where
     toNode 0 = Just FirstNode
     toNode n | n < 0 = Nothing
     toNode n = NextNode <$> toNode (n - 1)
@@ -176,7 +178,7 @@ tryNatsBelow :: forall c limit r. (TryNatsBelow c limit)
     -- ^Its return value iff the 'Int' provided is non-negative and less than 'limit',
     -- Nothing otherwise.
 tryNatsBelow _ n f
-    | n >= 0 = tryNatsBelow' (proxy# :: Proxy# '(Zero, limit, c)) n f
+    | n >= 0 = tryNatsBelow' (proxy# :: Proxy# '( 'Zero, limit, c)) n f
     | otherwise = Nothing
 
 -- | See 'tryNatsBelow'.
@@ -196,14 +198,14 @@ class TryNatsBelow' c (limit :: Nat) (acc :: Nat) where
 type TryNatsBelow c limit = TryNatsBelow' c limit 'Zero
 
 -- |@n < 'Zero'@ -- absurd.
-instance TryNatsBelow' c Zero acc where
+instance TryNatsBelow' c 'Zero acc where
     tryNatsBelow' _ _ _ = Nothing
 
 -- | @(n + 1) + 'acc' == n + ('Succ' 'acc')@ and @(n + 1) < ('Succ' 'limit')@ iff @n < 'limit'@,
 -- i.e. "move" one +1 from the term-level 'Int' to the type-level 'Nat'.
-instance (c acc, TryNatsBelow' c limit (Succ acc)) => TryNatsBelow' c (Succ limit) acc where
+instance (c acc, TryNatsBelow' c limit ('Succ acc)) => TryNatsBelow' c ('Succ limit) acc where
     tryNatsBelow' _ 0 run = Just $ run (proxy# :: Proxy# acc)
-    tryNatsBelow' _ n run = tryNatsBelow' (proxy# :: Proxy# '(Succ acc, limit, c)) (n - 1) run
+    tryNatsBelow' _ n run = tryNatsBelow' (proxy# :: Proxy# '( 'Succ acc, limit, c)) (n - 1) run
 
 -- |'EC' with its arguments flipped.
 class EC c n a => ECc c a n
