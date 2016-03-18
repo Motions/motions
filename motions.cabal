@@ -76,6 +76,7 @@ library
                        hprotoc >= 2.1.12 && < 2.2.1
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -Wall -fno-warn-name-shadowing -fno-warn-type-defaults
 
 executable motions
   main-is:             Motions.hs
@@ -88,7 +89,7 @@ executable motions
                        split >=0.2 && <0.3,
                        motions
   default-language:    Haskell2010
-  ghc-options:         -pgml c++
+  ghc-options:         -pgml c++ -Wall -Wall -fno-warn-name-shadowing -fno-warn-type-defaults
   if os(osx)
     extra-libraries:   cprotostream_static
   else
@@ -117,7 +118,8 @@ test-suite spec
                        hspec-smallcheck >=0.4 && <0.5
     default-language:  Haskell2010
     hs-source-dirs:    test
-    other-modules:     BasicSpec,
+    other-modules:     SpecDiscover,
+                       BasicSpec,
                        BEDSpec,
                        PDBSpec,
                        DumpSpec,
@@ -126,7 +128,7 @@ test-suite spec
                        FreezePredicateParserSpec,
                        LoadTestCallbacks,
                        CallbackSpec
-    ghc-options:       -pgml c++
+    ghc-options:       -pgml c++  -Wall -fno-warn-name-shadowing -fno-warn-type-defaults
     if os(osx)
       extra-libraries: cprotostream_static
     else

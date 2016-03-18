@@ -15,17 +15,11 @@ import Bio.Motions.Utils.Parsec
 
 import qualified Control.Applicative as A
 import Control.Monad.State
-import Control.Monad.Random hiding (fromList)
-import Control.Monad.Trans.Maybe
-import Control.Monad.Except
-import Data.Maybe
 import Text.Parsec
 import Text.Parsec.ByteString
 import Foreign.Marshal.Utils(fromBool)
 import qualified Data.Map as M
-import qualified Data.Vector.Unboxed as U
 
-import Text.Read
 import GHC.Exts (fromList)
 
 -- |Represents a binding site
@@ -47,29 +41,29 @@ parseBEDs ::
   -- ^ Locations of BED files
   -> IO [[EnergyVector]]
 parseBEDs resolution lengths fileNames = do
-  parses <- zipWithM (parseFromFile . parseBED) [0..] fileNames
-  beds <- concat <$> mapM (either (ioError . userError . show) return) parses
-  let newLengths = map (`divCeil` resolution) lengths
-  let bsInfos = map (applyResolution resolution) beds
-  return $ collect (length fileNames) newLengths bsInfos
+    parses <- zipWithM (parseFromFile . parseBED) [0..] fileNames
+    beds <- concat <$> mapM (either (ioError . userError . show) return) parses
+    let newLengths = map (`divCeil` resolution) lengths
+    let bsInfos = map (applyResolution resolution) beds
+    return $ collect (length fileNames) newLengths bsInfos
 
 -- |Parses a single BED file
 parseBED :: Int -> Parser [BindingSiteInfo]
 parseBED bsType = do
-  optional $ string "Track" >> manyTill anyChar endOfLine
-  endBy (line bsType) endOfLine
+    optional $ string "Track" >> manyTill anyChar endOfLine
+    endBy (line bsType) endOfLine
 
 -- |Parses one line of BED
 line :: Int -> Parser BindingSiteInfo
 line bsType = do
-  bsChain <- chromosome
-  tab
-  bsFrom <- int
-  tab
-  bsTo <- int
-  unless (bsFrom <= bsTo) $ fail "Binding site ends before it begins"
-  optional (tab >> manyTill anyChar (lookAhead endOfLine))
-  return BindingSiteInfo{..}
+    bsChain <- chromosome
+    void tab
+    bsFrom <- int
+    void tab
+    bsTo <- int
+    unless (bsFrom <= bsTo) $ fail "Binding site ends before it begins"
+    optional (tab >> manyTill anyChar (lookAhead endOfLine))
+    return BindingSiteInfo{..}
 
 -- |Parses BED 'chromosome' column
 chromosome :: Parser Int
@@ -78,7 +72,7 @@ chromosome = optional (string "chr") >> (\x -> x-1) A.<$> int
 -- |Groups nucleotides according to the resolution parameter
 applyResolution :: Int -> BindingSiteInfo -> BindingSiteInfo
 applyResolution resolution x@BindingSiteInfo{..} =
-  x {bsFrom = bsFrom `div` resolution, bsTo = bsTo `div` resolution}
+    x {bsFrom = bsFrom `div` resolution, bsTo = bsTo `div` resolution}
 
 -- |Ceil of a quotient
 divCeil :: (Integral a) => a -> a -> a
@@ -88,7 +82,7 @@ divCeil x y = fromBool (x `mod` y > 0) + div x y
 -- in the simulation
 collect :: Int -> [Int] -> [BindingSiteInfo] -> [[EnergyVector]]
 collect typesCount lengths bsInfos =
-  [[fromList [M.findWithDefault 0 (chr, pos, bsType) dict
+    [[fromList [M.findWithDefault 0 (chr, pos, bsType) dict
       | bsType <- [0..typesCount - 1]] | pos <- [0..chrLen - 1]] | (chr, chrLen) <- zip [0..] lengths]
   where
     expandBsInfos = concat [map (bsChain,,bsType) [bsFrom..bsTo] | BindingSiteInfo{..} <- bsInfos]
