@@ -18,8 +18,9 @@ import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
-import Bio.Motions.PDB.Write
-import Bio.Motions.PDB.Meta
+import Bio.Motions.Output
+import Bio.Motions.PDB.Backend
+import Bio.Motions.Format.Handle
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.FreezePredicateParser
@@ -40,7 +41,7 @@ data SimulationState repr score = SimulationState
     , preCallbackResults :: [CallbackResult 'Pre]
     , postCallbackResults :: [CallbackResult 'Post]
     , stepCounter :: Int
-    , frameCounter :: Int
+    {-, frameCounter :: Int-}
     }
 
 -- |Describes how the simulation should run.
@@ -92,41 +93,26 @@ step = runMaybeT $ do
     factor :: Double
     factor = 2
 
-pushPDBStep :: _ => Handle -> PDBMeta -> m ()
-pushPDBStep handle pdbMeta = do
-    st@SimulationState{..} <- get
-    dump <- removeLamins <$> makeDump repr
-    let frameHeader = StepHeader { headerSeqNum = frameCounter
-                                 , headerStep = stepCounter
-                                 , headerTitle = "chromosome;bonds=" ++ show score
-                                 }
-    liftIO $ writePDB handle frameHeader pdbMeta dump >> hPutStrLn handle "END"
-    put st { frameCounter = frameCounter + 1 }
-  where
-    removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
-    notLamin b = b ^. binderType /= laminType
 
-pushPDBLamins :: _ => Handle -> PDBMeta -> m ()
-pushPDBLamins handle pdbMeta = do
-    SimulationState{..} <- get
-    dump <- filterLamins <$> makeDump repr
-    liftIO $ writePDB handle LaminHeader pdbMeta dump >> hPutStrLn handle "END"
-  where
-    filterLamins d = Dump { dumpBinders = filter isLamin $ dumpBinders d, dumpChains = [] }
-    isLamin b = b ^. binderType == laminType
-
-stepAndWrite :: _ => Handle -> Maybe Handle -> Bool -> PDBMeta -> m ()
-stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
+stepAndWrite :: _ => Handle -> b -> Bool -> m ()
+stepAndWrite callbacksHandle backend verbose = do
     move' <- step
     case move' of
-      Just move -> do   --TODO will use this in another commit
+      Just move -> do
         writeCallbacks callbacksHandle verbose
-        case pdbHandle of
-            Just handle -> pushPDBStep handle pdbMeta
-            Nothing -> pure ()
+        push <- liftIO $ getNextPush backend
+        case push of
+            {-PushDump f -> pushPDBStep handle pdbMeta-}
+            PushDump f -> getDump >>= liftIO . f
+            PushMove f -> liftIO $ f move
+            DoNothing -> pure ()
       Nothing -> pure ()
-
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
+
+    where getDump = gets repr >>= \x -> removeLamins <$> makeDump x
+          removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
+          notLamin b = b ^. binderType /= laminType
+
 
 writeCallbacks :: _ => Handle -> Bool -> m ()
 writeCallbacks handle verbose = do
@@ -157,13 +143,6 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
         Nothing -> pure freezeNothing
     repr :: repr <- loadDump dump freezePredicate
 
-    let evs = nub . map dumpBeadEV . concat . dumpChains $ dump
-        bts = nub . map (^. binderType) . dumpBinders $ dump
-        chs = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
-        mkMeta = if simplePDB then mkSimplePDBMeta else mkPDBMeta
-        pdbMeta = fromMaybe (error pdbError) $ mkMeta evs bts chs
-        pdbMetaFile = pdbFile ++ ".meta"
-        pdbLaminFile = pdbFile ++ ".lamin"
 
     requestedCallbacks <- liftIO $ lines <$> readFile requestedCallbacksFile
     let (enabledPreCallbacks, remainingCallbacks) = filterCallbacks allPreCallbacks requestedCallbacks
@@ -177,21 +156,19 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
     let stepCounter = 0
         frameCounter = 0
         st = SimulationState{..}
+        outputPrefix = pdbFile -- lolhack
+        simulationName = ""
+        simulationDescription = ""
+        chainNames = []
+        outSettings = OutputSettings{..}
+    backend <- liftIO $ openPDBOutput outSettings dump simplePDB
 
     let callbacksHandle = stdout
-    pdbHandle <- liftIO $ openFile pdbFile WriteMode
-    pdbLaminHandle <- liftIO $ openFile pdbLaminFile WriteMode
     st' <- flip execStateT st $ do
-        pushPDBLamins pdbLaminHandle pdbMeta
-        when writeIntermediatePDB $ pushPDBStep pdbHandle pdbMeta
-        replicateM_ numSteps $ stepAndWrite callbacksHandle
-            (guard writeIntermediatePDB >> Just pdbHandle) verboseCallbacks pdbMeta
-        unless writeIntermediatePDB $ pushPDBStep pdbHandle pdbMeta
-    liftIO $ hClose pdbHandle
-    liftIO $ hClose pdbLaminHandle
-    liftIO $ withFile pdbMetaFile WriteMode $ \h -> writePDBMeta h pdbMeta
+        {-pushPDBLamins pdbLaminHandle pdbMeta-}
+        {-when writeIntermediatePDB $ pushPDBStep pdbHandle pdbMeta-}
+        replicateM_ numSteps $ stepAndWrite callbacksHandle backend verboseCallbacks
+        {-[>unless writeIntermediatePDB $ pushPDBStep pdbHandle pdbMeta<]-}
 
     let SimulationState{..} = st'
     makeDump repr
-  where
-    pdbError = "The PDB format can't handle this number of different beads, binders or chains."
