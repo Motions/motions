@@ -7,6 +7,8 @@ Portability : unportable
  -}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Bio.Motions.Representation.Dump where
 
 import Bio.Motions.Common
@@ -14,6 +16,8 @@ import Bio.Motions.Types
 import Control.Lens
 import Control.Monad
 import Control.Monad.State.Strict
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 -- |A subset of 'BeadInfo'.
 --
@@ -25,14 +29,14 @@ data DumpBeadInfo = DumpBeadInfo
     { dumpBeadPosition :: Vec3
     , dumpBeadEV :: EnergyVector
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic, NFData)
 
 -- |Represents a dump of the simulation state
 data Dump = Dump
     { dumpBinders :: [BinderInfo] -- ^ A list of binders
     , dumpChains :: [[DumpBeadInfo]] -- ^ A list of chains, each represented as a list of beads
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Generic, NFData)
 
 dumpIndexedChains :: Dump -> [[BeadInfo]]
 dumpIndexedChains = addIndices . dumpChains
