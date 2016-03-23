@@ -17,6 +17,9 @@ verbose-callbacks: True
 # The mapping won't be a bijection if used with 3 or more binder types. Not recommended.
 simple-pdb-output: False
 
+# Use binary output format.
+binary-output: True
+
 # A list of enabled callback names.
 # Builtin callback names: "Standard Score", "Gyration Radius" (without quotes).
 enabled-callbacks:

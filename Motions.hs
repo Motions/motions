@@ -66,11 +66,12 @@ data InitialisationSettings = InitialisationSettings
     } deriving Generic
 
 data RunSettings' = RunSettings'
-    { pdbFile :: FilePath
+    { outputPrefix :: FilePath
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
     , verboseCallbacks :: Bool
     , simplePDB :: Bool
+    , binaryOutput :: Bool
     , requestedCallbacks :: [String]
     , freezeFile :: Maybe FilePath
     } deriving Generic
@@ -91,6 +92,7 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("writeIntermediatePDB", "write-intermediate-frames")
             , ("verboseCallbacks", "verbose-callbacks")
             , ("simplePDB", "simple-pdb-output")
+            , ("binaryOutput", "binary-output")
             , ("requestedCallbacks", "enabled-callbacks")
             , ("freezeFile", "freeze-file")
             , ("generateSettings", "generate")
