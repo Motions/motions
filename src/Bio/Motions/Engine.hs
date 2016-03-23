@@ -17,8 +17,9 @@ import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
-import Bio.Motions.PDB.Write
-import Bio.Motions.PDB.Meta
+import Bio.Motions.Output
+import Bio.Motions.PDB.Backend
+import Bio.Motions.Format.Handle
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.FreezePredicateParser
@@ -91,42 +92,28 @@ step = runMaybeT $ do
     factor :: Double
     factor = 2
 
-pushPDBStep :: _ => Handle -> PDBMeta -> m ()
-pushPDBStep handle pdbMeta = do
-    st@SimulationState{..} <- get
-    dump <- removeLamins <$> makeDump repr
-    let frameHeader = StepHeader { headerSeqNum = frameCounter
-                                 , headerStep = stepCounter
-                                 , headerTitle = "chromosome;bonds=" ++ show score
-                                 }
-    liftIO $ writePDB handle frameHeader pdbMeta dump >> hPutStrLn handle "END"
-    put st { frameCounter = frameCounter + 1 }
-  where
-    removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
-    notLamin b = b ^. binderType /= laminType
 
-pushPDBLamins :: _ => Handle -> PDBMeta -> m ()
-pushPDBLamins handle pdbMeta = do
-    SimulationState{..} <- get
-    dump <- filterLamins <$> makeDump repr
-    liftIO $ writePDB handle LaminHeader pdbMeta dump >> hPutStrLn handle "END"
-  where
-    filterLamins d = Dump { dumpBinders = filter isLamin $ dumpBinders d, dumpChains = [] }
-    isLamin b = b ^. binderType == laminType
-
-stepAndWrite :: _ => Handle -> Maybe Handle -> Bool -> PDBMeta -> m ()
-stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
+stepAndWrite :: _ => Handle -> b -> Bool -> PDBMeta -> m ()
+stepAndWrite callbacksHandle backend verbose pdbMeta = do
     oldScore <- gets score
-    step -- TODO: do something with the move
+    move <- step -- TODO: do something with the move
     newScore <- gets score
 
     when (oldScore /= newScore) $ do
+        put st { frameCounter = frameCounter + 1 }
         writeCallbacks callbacksHandle verbose
-        case pdbHandle of
-            Just handle -> pushPDBStep handle pdbMeta
-            Nothing -> pure ()
-
+        push <- getNextPush backend
+        case push of
+            {-PushDump f -> pushPDBStep handle pdbMeta-}
+            PushDump f -> getDump >>= f
+            PushMove f -> f move
+            DoNothing -> pure ()
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
+
+    where getDump = removeLamins <$> makeDump <*> gets repr
+          removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
+          notLamin b = b ^. binderType /= laminType
+
 
 writeCallbacks :: _ => Handle -> Bool -> m ()
 writeCallbacks handle verbose = do
