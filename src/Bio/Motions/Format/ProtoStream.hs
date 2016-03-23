@@ -6,7 +6,7 @@ Stability   : experimental
 Portability : unportable
  -}
 {-# LANGUAGE ForeignFunctionInterface #-}
-module Bio.Motions.ProtoStream where
+module Bio.Motions.Format.ProtoStream where
 
 import Foreign.C.String
 import Foreign.C.Types
