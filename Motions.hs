@@ -66,11 +66,15 @@ data InitialisationSettings = InitialisationSettings
     } deriving Generic
 
 data RunSettings' = RunSettings'
-    { pdbFile :: FilePath
+    { outputPrefix :: FilePath
+    , simulationName :: String
+    , simulationDescription :: String
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
     , verboseCallbacks :: Bool
     , simplePDB :: Bool
+    , binaryOutput :: Bool
+    , framesPerKF :: Int
     , requestedCallbacks :: [String]
     , freezeFile :: Maybe FilePath
     } deriving Generic
@@ -86,11 +90,15 @@ genericParseJSON' :: (Generic a, GFromJSON (Rep a)) => Value -> J.Parser a
 genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = labelModifier }
   where
     labelModifier s = fromMaybe s $ lookup s assoc
-    assoc = [ ("pdbFile", "output-file")
+    assoc = [ ("simulationDescription", "description")
+            , ("simulationName", "name")
+            , ("outputPrefix", "output-prefix")
             , ("numSteps", "steps")
             , ("writeIntermediatePDB", "write-intermediate-frames")
             , ("verboseCallbacks", "verbose-callbacks")
             , ("simplePDB", "simple-pdb-output")
+            , ("binaryOutput", "binary-output")
+            , ("framesPerKF", "frames-per-keyframe")
             , ("requestedCallbacks", "enabled-callbacks")
             , ("freezeFile", "freeze-file")
             , ("generateSettings", "generate")

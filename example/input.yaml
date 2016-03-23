@@ -1,7 +1,15 @@
-# The name of the main PDB output file. It will contain frames with all the atoms except the lamins.
-# Two other files will be generated. One ".lamin" file containing one frame with the lamins
-# and one ".meta" file.
-output-file: out.pdb
+# Name of this simulation
+name: "Example simulation"
+
+# Description of this simulation
+description: "Example description"
+
+# Prefix of output file(s) path. For binary format, a single file <output-prefix>.bin will be written.
+# When using PDB, three files will be generated:
+#   * <output-prefix>.pdb - main PDB output file. It will contain frames with all the atoms except the lamins.
+#   * <output-prefix>-lamin.pdb - file containing one frame with the lamins
+#   * <output-prefix>.meta - PDB metadata
+output-prefix: example-out
 
 # The number of simulation steps, i. e. how many atom moves will be attempted.
 steps: 1000
@@ -16,6 +24,12 @@ verbose-callbacks: True
 # Generates different ("simple") mapping for energy vectors and binder types.
 # The mapping won't be a bijection if used with 3 or more binder types. Not recommended.
 simple-pdb-output: False
+
+# Use binary output format.
+binary-output: True
+
+# In binary output format, how many delta frames should be between full keyframes
+frames-per-keyframe: 1000
 
 # A list of enabled callback names.
 # Builtin callback names: "Standard Score", "Gyration Radius" (without quotes).
