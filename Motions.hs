@@ -66,11 +66,12 @@ data SimulationSettings = SimulationSettings
     }
 
 data RunSettings' = RunSettings'
-    { pdbFile :: FilePath
+    { outputPrefix :: FilePath
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
     , verboseCallbacks :: Bool
     , simplePDB :: Bool
+    , binaryOutput :: Bool
     , freezeFile :: Maybe FilePath
     , requestedCallbacksFile :: FilePath
     }
@@ -226,6 +227,9 @@ runSettingsParser = RunSettings'
         <> help "Output callback results in verbose format")
     <*> switch
         (long "simple-pdb")
+    <*> switch
+        (long "binary-format"
+        <> short 'b')
     <*> optional (strOption
         (long "freezefile"
         <> metavar "FREEZE_FILE"
