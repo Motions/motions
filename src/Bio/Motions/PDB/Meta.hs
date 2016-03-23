@@ -10,6 +10,8 @@ module Bio.Motions.PDB.Meta ( PDBMeta
                             , mkSimplePDBMeta
                             , writePDBMeta
                             , readPDBMeta
+                            --TODO hack for chainNames in Format.Handle
+                            , mapChains
                             ) where
 
 import Bio.Motions.Types
