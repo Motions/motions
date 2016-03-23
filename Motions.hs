@@ -65,7 +65,7 @@ data SimulationSettings = SimulationSettings
     }
 
 data RunSettings' = RunSettings'
-    { pdbFile :: FilePath
+    { outputPrefix :: FilePath
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
     , verboseCallbacks :: Bool
