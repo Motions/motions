@@ -144,6 +144,7 @@ data Expr c n a where
     EChromoIx :: (EC c n '[Int]) => Node n -> Expr c n Int
 
     EBelongs  :: (EC c n '[Bool]) => Node n -> AtomType -> Expr c n Bool
+    EEnergy   :: (EC c n '[Int]) => Node n -> Node n -> Expr c n Int
 
 -- |An alias, for simplicity.
 type Parser a = Parsec String () a
@@ -307,6 +308,7 @@ instance EC c n '[Int, Double] => Parseable c n Int where
           <|> (reserved "INT" >> parens int)
           <|> (reserved "MIN" >> parens (EMin <$> expr <* comma <*> expr))
           <|> (reserved "MAX" >> parens (EMax <$> expr <* comma <*> expr))
+          <|> (reserved "ENERGY" >> parens (EEnergy <$> constant <* comma <*> constant))
             where
               int =   try expr
                   <|> EInt <$> (expr :: Parser (Expr c n Double))
@@ -398,7 +400,7 @@ dslDef = javaStyle
          , P.reservedNames = ["AND", "OR", "NOT", "DIST", "INT", "GR", "ATOM_INDEX", "CHAIN_INDEX",
                              "CHROMOSOME", "MIN", "MAX", "BELONGS", "X", "BEAD", "BINDER", "CALLBACK",
                              "EVERY", "ACCEPTED", "NODES", "WHERE", "COMPUTE", "SUM", "PRODUCT", "LIST",
-                             "BEAD_BINDING_TO", "LAMIN"]
+                             "BEAD_BINDING_TO", "LAMIN", "ENERGY"]
          }
 
 -- |The token parser.

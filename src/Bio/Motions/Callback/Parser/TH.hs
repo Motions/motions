@@ -294,6 +294,11 @@ eval EvalCtx{..} (EChromoIx node) = [||
         Bead b -> b ^. beadIndexOnChain
         _ -> -1
     ||]
+eval EvalCtx{..} (EEnergy lhs rhs) = [||
+    energyBetween
+        (access lhs $$(evalCtxArgs))
+        (access rhs $$(evalCtxArgs))
+    ||]
 
 instance Lift AtomType where
     lift (AtomTypeBeadBindingTo cls)   = [| AtomTypeBeadBindingTo cls |]

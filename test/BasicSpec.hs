@@ -235,6 +235,10 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
                 res :: THCallback "count-lamins" <- runCallback repr
                 res `shouldBe` THCallback 2
 
+            it "has the correct score" $ \repr -> do
+                res :: THCallback "score" <- runCallback repr
+                res `shouldBe` THCallback 1002
+
     testAfterBeadMove :: SpecWith repr
     testAfterBeadMove = do
         it "reports the old location to be empty" $ \repr -> do
@@ -279,6 +283,10 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
             it "has the correct count-lamins" $ \repr -> do
                 res :: THCallback "count-lamins" <- updateCallback repr (THCallback 2) beadMove
                 res `shouldBe` THCallback 2
+
+            it "has the correct score" $ \repr -> do
+                res :: THCallback "score" <- updateCallback repr (THCallback 1002) beadMove
+                res `shouldBe` THCallback 2002
 
         context "when generating a move"
             testGenerateMove

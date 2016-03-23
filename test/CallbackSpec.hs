@@ -65,4 +65,5 @@ spec = context "the callback discovery" $ do
              , THCallback "list-11"
              , THCallback "prod-binders-beads"
              , THCallback "sum-11"
+             , THCallback "score"
              ])
