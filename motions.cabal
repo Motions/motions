@@ -40,9 +40,12 @@ library
                        Bio.Motions.PDB.Write,
                        Bio.Motions.PDB.Read,
                        Bio.Motions.PDB.Internal,
+                       Bio.Motions.PDB.Backend,
                        Bio.Motions.BED,
                        Bio.Motions.Engine,
-                       Bio.Motions.ProtoStream,
+                       Bio.Motions.Output,
+                       Bio.Motions.Format.ProtoStream
+                       Bio.Motions.Format.Handle
                        Bio.Motions.StateInitialisation
   other-modules:       Bio.Motions.Format.Proto.Callback,
                        Bio.Motions.Format.Proto.Callback.Type,
