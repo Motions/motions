@@ -9,12 +9,16 @@ Portability : unportable
 module Bio.Motions.Callback.Discover where
 
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Periodic
 import Data.Proxy
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax
 
 -- |Finds all callbacks with the given 'Mode' and creates a list of
 -- their 'CallbackType's.
+--
+-- If 'CalbackPeriod' is defined for a callback, the corresponding
+-- 'Periodic' callback is returned in place of the base callback.
 --
 -- Note: this function should be run (in a splice) when instances of
 -- all defined callbacks are in scope. In particular, when a callback
@@ -28,6 +32,10 @@ allCallbacks mode = do
         Pre -> 'Pre
         Post -> 'Post
     insts <- reifyInstances ''Callback [mode', VarT name]
-    listE [mkCallbackType t | InstanceD _ (AppT _ t) _ <- insts]
+    listE [mkCallbackType t | InstanceD [] (AppT _ t) _ <- insts]
   where
-    mkCallbackType t = [| CallbackType (Proxy :: Proxy $(pure t)) |]
+    mkCallbackType t = do
+        periodic <- isInstance ''CallbackPeriod [t]
+        let typ | periodic = [t| Periodic $(pure t) |]
+                | otherwise = pure t
+        [| CallbackType (Proxy :: Proxy $(typ)) |]
