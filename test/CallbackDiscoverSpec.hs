@@ -7,8 +7,7 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
-
-module CallbackSpec where
+module CallbackDiscoverSpec(spec) where
 
 import LoadTestCallbacks
 
@@ -17,6 +16,7 @@ import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.GyrationRadius
 import Bio.Motions.Callback.Parser.TH
 import Bio.Motions.Callback.Discover
+import Bio.Motions.Callback.Periodic
 import Data.Proxy
 import GHC.Exts
 import Test.Hspec
@@ -52,6 +52,7 @@ spec = context "the callback discovery" $ do
         testDiscover preCallbacks (proxy# :: Proxy#
             '[ StandardScore
              , GyrationRadius
+             , Periodic EmptyCallback
              ])
 
     context "when discovering post-callbacks" $
