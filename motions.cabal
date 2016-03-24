@@ -33,6 +33,7 @@ library
                        Bio.Motions.Callback.StandardScore,
                        Bio.Motions.Callback.Parser.Parser,
                        Bio.Motions.Callback.Parser.TH,
+                       Bio.Motions.Callback.Periodic,
                        Bio.Motions.Types,
                        Bio.Motions.Common,
                        Bio.Motions.PDB.Meta,
@@ -125,7 +126,8 @@ test-suite spec
                        StateInitialisationSpec,
                        FreezePredicateParserSpec,
                        LoadTestCallbacks,
-                       CallbackSpec
+                       CallbackDiscoverSpec,
+                       CallbackPeriodicSpec
     ghc-options:       -pgml c++
     if os(osx)
       extra-libraries: cprotostream_static
