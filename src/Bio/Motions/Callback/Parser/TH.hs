@@ -30,6 +30,7 @@ import Language.Haskell.TH.Syntax
 
 import Bio.Motions.Callback.Class hiding (CallbackResult)
 import Bio.Motions.Callback.Parser.Parser
+import Bio.Motions.Callback.Periodic
 import Bio.Motions.Representation.Class
 import Bio.Motions.Types
 import Bio.Motions.Common
@@ -105,7 +106,7 @@ type LiftsN = Both ForEachKNodes LiftProxy
 -- |Creates Template Haskell declarations from a suitable 'ParsedCallback'.
 createCallback :: forall n a. (ForEachKNodes n, LiftProxy a, LiftProxy n)
     => ParsedCallback LiftsA n a -> Q [Dec]
-createCallback ParsedCallback{..} = concat <$> sequence [common, monoid, callback]
+createCallback ParsedCallback{..} = concat <$> sequence [common, frequency, monoid, callback]
   where
     name = litT $ strTyLit callbackName
     ev x = eval EvalCtx
@@ -130,6 +131,13 @@ createCallback ParsedCallback{..} = concat <$> sequence [common, monoid, callbac
                     mempty
             {-# INLINE runTHCallback #-}
         |]
+
+    (presentedName, frequency) = case callbackFrequency of
+        EveryNAcceptedFrames 1 -> (callbackName, pure [])
+        EveryNAcceptedFrames n -> ('_' : callbackName, [d|
+            type instance CallbackPeriod (THCallback $(name)) = $(litT . numTyLit $ fromIntegral n)
+            |])
+        EveryNFrames _ -> error "EveryNFrames is not supported"
 
     monoid = case callbackResult of
         CallbackSum _ -> [d|
@@ -158,7 +166,7 @@ createCallback ParsedCallback{..} = concat <$> sequence [common, monoid, callbac
     callback = case callbackResult of
         CallbackSum _ -> [d|
             instance Callback 'Post (THCallback $(name)) where
-                callbackName _ = $(lift callbackName)
+                callbackName _ = $(lift presentedName)
 
                 runCallback = forEachKNodes <*> runTHCallback
                 {-# INLINE runCallback #-}
