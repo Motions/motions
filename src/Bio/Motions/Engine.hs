@@ -25,7 +25,7 @@ import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.FreezePredicateParser
 import Text.Parsec.String
 
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Random
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
@@ -35,12 +35,12 @@ import Data.List
 import Data.Maybe
 
 data SimulationState repr score = SimulationState
-    { repr :: repr
-    , score :: score
-    , preCallbackResults :: [CallbackResult 'Pre]
-    , postCallbackResults :: [CallbackResult 'Post]
-    , stepCounter :: Int
-    , frameCounter :: Int
+    { repr :: !repr
+    , score :: !score
+    , preCallbackResults :: ![CallbackResult 'Pre]
+    , postCallbackResults :: ![CallbackResult 'Post]
+    , stepCounter :: !Int
+    , frameCounter :: !Int
     }
 
 -- |Describes how the simulation should run.
