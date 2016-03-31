@@ -14,7 +14,7 @@ import Bio.Motions.Types
 import Bio.Motions.Utils.Parsec
 
 import qualified Control.Applicative as A
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Random hiding (fromList)
 import Control.Monad.Trans.Maybe
 import Control.Monad.Except

@@ -8,7 +8,7 @@ Portability : unportable
 
 module Bio.Motions.Utils.RepetitionGuard where
 
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 
 -- |Transforms a 'Monad' 'm' into a monad that limits the number of 'nextRep's
