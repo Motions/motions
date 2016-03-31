@@ -24,8 +24,10 @@ import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.FreezePredicateParser
 import Text.Parsec.String
 
-import Control.Monad.State
-import Control.Monad.Random
+import Control.Monad.State.Strict
+--import qualified Control.Monad.Random as MR
+import Crypto.Random.Types
+import Crypto.Number.Generate
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import System.IO
@@ -34,12 +36,12 @@ import Data.List
 import Data.Maybe
 
 data SimulationState repr score = SimulationState
-    { repr :: repr
-    , score :: score
-    , preCallbackResults :: [CallbackResult Pre]
-    , postCallbackResults :: [CallbackResult Post]
-    , stepCounter :: Int
-    , frameCounter :: Int
+    { repr :: !repr
+    , score :: !score
+    , preCallbackResults :: ![CallbackResult Pre]
+    , postCallbackResults :: ![CallbackResult Post]
+    , stepCounter :: !Int
+    , frameCounter :: !Int
     }
 
 -- |Describes how the simulation should run.
@@ -74,7 +76,7 @@ step = runMaybeT $ do
 
     let delta = fromIntegral $ newScore - score
     unless (delta >= 0) $ do
-        r <- getRandomR (0, 1)
+        r <- ((/1000000.0) . fromIntegral) <$> lift (generateMax 1000000)
         guard $ r < exp (delta * factor)
 
     (newRepr, _) <- performMove move repr

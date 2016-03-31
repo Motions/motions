@@ -13,7 +13,14 @@ module Bio.Motions.Common where
 
 import Bio.Motions.Types
 import Control.Lens
+import Crypto.Random.Types
+import Crypto.Number.Generate
 import qualified Data.Vector.Unboxed as U
+import Control.Monad.Trans.Maybe
+import Control.Monad.Trans
+import Control.Monad.State as LS
+import Control.Monad.State.Strict as SS
+import System.Random.Shuffle(shuffle)
 
 laminType :: BinderType
 laminType = BinderType 0
@@ -23,6 +30,24 @@ doesNotBind = U.all (== 0) . getEnergyVector
 
 bindsWithLamins :: EnergyVector -> Bool
 bindsWithLamins = (/= 0) . (U.! getBinderType laminType) . getEnergyVector
+
+instance MonadRandom m => MonadRandom (MaybeT m) where
+    getRandomBytes = lift . getRandomBytes
+
+instance MonadRandom m => MonadRandom (LS.StateT s m) where
+    getRandomBytes = lift . getRandomBytes
+
+instance MonadRandom m => MonadRandom (SS.StateT s m) where
+    getRandomBytes = lift . getRandomBytes
+
+shuffleM :: (MonadRandom m) => [a] -> m [a]
+shuffleM elements
+    | null elements = return []
+    | otherwise     = fmap (shuffle elements . fmap fromIntegral) (rseqM $ fromIntegral (length elements - 1))
+        where
+            rseqM :: (MonadRandom m) => Integer -> m [Integer]
+            rseqM 0 = return []
+            rseqM i = liftM2 (:) (generateBetween 0 i) (rseqM (i - 1))
 
 -- |Represents the energy between two objects, e.g. atoms
 class HaveEnergyBetween x y where

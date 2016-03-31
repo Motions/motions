@@ -22,7 +22,9 @@ import Bio.Motions.Representation.Dump
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Random
+--import Control.Monad.Random
+import Crypto.Number.Generate
+import Crypto.Random.Types
 import Data.List
 import Data.IORef
 import Data.Maybe
@@ -151,7 +153,8 @@ makeDump' repr = do
 -- |An 'f'-polymorphic implementation of 'generateMive' for 'ChainRepresentation f'.
 generateMove' :: _ => ChainRepresentation f -> m Move
 generateMove' repr@ChainRepresentation{..} = do
-    moveBinder <- getRandom
+    movI <- generateMax 1
+    let moveBinder = if movI == 0 then False else True
     if moveBinder then
         pick moveableBinders binders []
     else
@@ -178,7 +181,7 @@ generateMove' repr@ChainRepresentation{..} = do
 -- |Picks a random element from a 'DS.IsSequence', assuming that its indices form
 -- a continuous range from 0 to @'olength' s - 1@.
 getRandomElement :: (MonadRandom m, DS.IsSequence s, DS.Index s ~ Int) => s -> m (Element s)
-getRandomElement s = DS.unsafeIndex s <$> getRandomR (0, olength s - 1)
+getRandomElement s = (DS.unsafeIndex s . fromIntegral) <$> ({-# SCC getr #-} generateBetween 0 (fromIntegral $ olength s - 1))
 
 -- |The pairs of local neighbours of a bead
 localNeighbours :: (Wrapper m f, Wrapper m f')

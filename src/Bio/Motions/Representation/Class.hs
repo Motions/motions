@@ -15,7 +15,8 @@ import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 
 import Control.Applicative
-import Control.Monad.Random
+--import Control.Monad.Random
+import Crypto.Random.Types
 import Data.MonoTraversable
 
 

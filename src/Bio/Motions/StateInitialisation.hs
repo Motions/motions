@@ -12,14 +12,16 @@ module Bio.Motions.StateInitialisation where
 
 import Control.Lens
 import Control.Monad
-import Control.Monad.Random
+--import Control.Monad.Random
+import Crypto.Random.Types
+import Crypto.Number.Generate
 import Data.List
 import qualified Data.Map.Strict as M
 import Data.Maybe
 import qualified Data.Vector as V
 import GHC.Exts(groupWith, sortWith)
 import Linear
-import System.Random.Shuffle
+{-import System.Random.Shuffle-}
 
 import Bio.Motions.Common
 import Bio.Motions.Types
@@ -123,7 +125,8 @@ getRandomFreePosition :: (MonadRandom m) =>
 getRandomFreePosition r space = go
   where
     go = do
-        [x, y, z] <- replicateM 3 $ getRandomR (-r, r)
+        let r' = fromIntegral r
+        [x, y, z] <- replicateM 3 $ fmap fromIntegral $ generateBetween (-r') r'
         let ans = V3 x y z
         if M.member ans space || quadrance ans > r^2
         then nextRep >> go
