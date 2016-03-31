@@ -13,7 +13,7 @@ import Bio.Motions.Common
 import Bio.Motions.Types
 import Control.Lens
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 
 -- |A subset of 'BeadInfo'.
 --

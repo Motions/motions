@@ -14,7 +14,7 @@ import Bio.Motions.Types
 import Bio.Motions.Utils.Parsec
 
 import qualified Control.Applicative as A
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Text.Parsec
 import Text.Parsec.ByteString
 import Foreign.Marshal.Utils(fromBool)

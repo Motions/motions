@@ -56,7 +56,7 @@ class Show cb => Callback (mode :: Mode) cb | cb -> mode where
 
 -- |An existential wrapper around a 'Callback''s result.
 data CallbackResult mode where
-    CallbackResult :: Callback mode cb => cb -> CallbackResult mode
+    CallbackResult :: Callback mode cb => !cb -> CallbackResult mode
 
 -- |An existential wrapper around a 'Callback''s type.
 data CallbackType mode where
