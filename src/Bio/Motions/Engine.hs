@@ -117,15 +117,14 @@ pushPDBLamins handle pdbMeta = do
 
 stepAndWrite :: _ => Handle -> Maybe Handle -> Bool -> PDBMeta -> m ()
 stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
-    oldScore <- gets score
-    step -- TODO: do something with the move
-    newScore <- gets score
-
-    when (oldScore /= newScore) $ do
+    move' <- step
+    case move' of
+      Just move -> do   --TODO will use this in another commit
         writeCallbacks callbacksHandle verbose
         case pdbHandle of
             Just handle -> pushPDBStep handle pdbMeta
             Nothing -> pure ()
+      Nothing -> pure ()
 
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
 
