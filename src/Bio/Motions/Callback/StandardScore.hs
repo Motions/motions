@@ -23,6 +23,7 @@ import Data.List
 import Data.MonoTraversable
 import Data.Foldable
 import Linear
+import Data.Profunctor.Unsafe
 
 {- |
 Represents the standard score function, i.e. the sum over all contacts of the binding energy
@@ -54,11 +55,13 @@ instance Callback 'Pre StandardScore where
         atFrom <- energyToMany repr fromAtom . neighbours $ fromAtom ^. position
         atTo <- energyToMany repr fromAtom . delete moveFrom $ neighbours moveTo
         pure $ prev - atFrom + atTo
+    {-# INLINEABLE updateCallback #-}
 
 -- |Returns the score between an object and the atom placed on the specified position.
 energyTo :: (Functor m, ReadRepresentation m repr, HaveEnergyBetween obj Atom) =>
     repr -> obj -> Vec3 -> m StandardScore
-energyTo repr obj pos = StandardScore . energyBetween obj <$> getAtomAt pos repr
+energyTo repr obj pos = StandardScore #. energyBetween obj <$> getAtomAt pos repr
+{-# INLINE energyTo #-}
 
 -- |Returns the total score between an object (e.g. an atom) and the atoms placed on the
 -- specified positions.
@@ -66,10 +69,12 @@ energyToMany :: (Applicative m, ReadRepresentation m repr,
     HaveEnergyBetween obj Atom, Traversable t) =>
     repr -> obj -> t Vec3 -> m StandardScore
 energyToMany repr obj poss = fold <$> traverse (energyTo repr obj) poss
+{-# INLINE energyToMany #-}
 
 -- |Returns the neighbours of a given position
 neighbours :: Vec3 -> [Vec3]
 neighbours x = (x ^+^) <$> ([id, negated] <*> basis)
+{-# INLINE neighbours #-}
 
 -- |Returns the total score for beads belonging to a particular chain.
 chainScore :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m StandardScore
