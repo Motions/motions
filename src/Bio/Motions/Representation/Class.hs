@@ -14,7 +14,6 @@ import Bio.Motions.Types
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 
-import Control.Applicative
 import Control.Monad.Random
 import Data.MonoTraversable
 
@@ -30,8 +29,8 @@ class ReadRepresentation m repr => Representation m repr where
     -- |Saves the current state in a 'Dump'
     makeDump :: repr -> m Dump
 
-    -- |Generates a random valid 'Move' or 'empty'.
-    generateMove :: (MonadRandom m, Alternative m) => repr -> m Move
+    -- |Generates a random valid 'Move' or 'Nothing'.
+    generateMove :: MonadRandom m => repr -> m (Maybe Move)
 
     -- |Applies a 'Move' to the state
     performMove :: Move -> repr -> m (repr, [BinderChange])
