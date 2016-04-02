@@ -140,8 +140,13 @@ run simulationSettings initialisationSettings = do
     -- TODO: do something with the dump?
     pure ()
 
+{-# SPECIALISE E.simulate :: RandomGen gen => E.RunSettings IOChainRepresentation StandardScore -> Dump -> RandT gen IO Dump #-}
 runSimulation :: RandomGen gen => SimulationSettings -> Dump -> RandT gen IO Dump
-runSimulation SimulationSettings{..} = runScore runRepr runSettings
+runSimulation SimulationSettings{..}
+    | "IOChain2" <- reprName,
+      "StandardScore" <- scoreName =
+        E.simulate (mkRunSettings runSettings :: E.RunSettings IOChainRepresentation StandardScore)
+    | otherwise = runScore runRepr runSettings
   where
     RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
     RunRepr runRepr = fromMaybe (error "Invalid representation") $ lookup reprName reprMap
