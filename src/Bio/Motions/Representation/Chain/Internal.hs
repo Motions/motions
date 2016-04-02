@@ -74,10 +74,14 @@ instance MonadIO m => Wrapper m IORef where
 -- |Converts between 'Located f' and 'Located f''.
 relocate :: (Wrapper m f, Wrapper m f') => Located' f a -> m (Located' f' a)
 relocate (Located' p a) = unwrap p >>= fmap (flip Located' a) . wrap
+{-# INLINE[2] relocate #-}
+{-# RULES "relocate/pure" relocate = pure #-}
 
 -- |A type-constrained version of 'relocate'.
 retrieveLocated :: Wrapper m f => Located' f a -> m (Located a)
 retrieveLocated = relocate
+{-# INLINE[2] retrieveLocated #-}
+{-# RULES "retrieveLocated/pure" retrieveLocated = pure #-}
 
 instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
     getBinders ChainRepresentation{..} f = mapM retrieveLocated binders >>= f
@@ -110,11 +114,13 @@ instance Monad m => Representation m PureChainRepresentation where
       where
         atom = space repr M.! from
         space' = M.insert to (atom & position .~ to) . M.delete from $ space repr
+    --{-# INLINEABLE performMove #-}
 
 instance MonadIO m => Representation m IOChainRepresentation where
     loadDump = loadDump'
     makeDump = makeDump'
     generateMove = generateMove'
+    {-# INLINEABLE generateMove #-}
 
     performMove (MoveFromTo from to) repr = do
         liftIO $ writeIORef (atom ^. wrappedPosition) to
@@ -122,6 +128,7 @@ instance MonadIO m => Representation m IOChainRepresentation where
       where
         atom = space repr M.! from
         space' = M.insert to atom $ M.delete from $ space repr
+    {-# INLINEABLE performMove #-}
 
 -- |An 'f'-polymorphic implementation of 'loadDump' for 'ChainRepresentation f'.
 loadDump' :: _ => Dump -> FreezePredicate -> m (ChainRepresentation f)
@@ -176,11 +183,13 @@ generateMove' repr@ChainRepresentation{..} = do
         let m = Move pos d
         forM_ constraints $ \c -> c m x >>= guard . not
         pure m
+{-# INLINE generateMove' #-}
 
 -- |Picks a random element from a 'DS.IsSequence', assuming that its indices form
 -- a continuous range from 0 to @'olength' s - 1@.
 getRandomElement :: (MonadRandom m, DS.IsSequence s, DS.Index s ~ Int) => s -> m (Element s)
-getRandomElement s = DS.unsafeIndex s <$> getRandomR (0, olength s - 1)
+getRandomElement s = {-# SCC "getRandomElement" #-} (DS.unsafeIndex s <$> {-# SCC "getRandomR" #-} (getRandomR (0, olength s - 1)))
+{-# INLINE getRandomElement #-}
 
 -- |The pairs of local neighbours of a bead
 localNeighbours :: (Wrapper m f, Wrapper m f')
@@ -196,6 +205,7 @@ localNeighbours info repr = do
   where
     ix = info ^. beadIndexOnChain
     chain = getChain' repr $ info ^. beadChain
+{-# INLINE localNeighbours #-}
 
 illegalBeadMove :: Wrapper m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
 illegalBeadMove repr Move{..} bead = do
@@ -205,9 +215,11 @@ illegalBeadMove repr Move{..} bead = do
   where
     notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
+{-# INLINE illegalBeadMove #-}
 
 -- |Returns the chain with the specified index.
 getChain' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)
 getChain' ChainRepresentation{..} ix = V.slice b (e - b) beads
   where
     [b, e] = U.unsafeIndex chainIndices <$> [ix, ix + 1]
+{-# INLINE getChain' #-}
