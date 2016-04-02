@@ -81,12 +81,11 @@ mkRunSettings RunSettings'{..} = E.RunSettings{..}
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
 
-type Run' gen = RunSettings' -> Dump -> (RandT gen IO) Dump
-type Run gen score = Proxy score -> Run' gen
+type Run' = RunSettings' -> Dump -> IO Dump
+type Run score = Proxy score -> Run'
 
-newtype RunRepr = RunRepr { runRepr :: forall gen score. (RandomGen gen, Score score) => Run gen score }
-newtype RunScore = RunScore { runScore :: forall gen. RandomGen gen =>
-                                (forall score. Score score => Run gen score) -> Run' gen }
+newtype RunRepr = RunRepr { runRepr :: forall score. Score score => Run score }
+newtype RunScore = RunScore { runScore :: (forall score. Score score => Run score) -> Run' }
 
 reprMap :: [(String, RunRepr)]
 reprMap = [ ("PureChain", runPureChain)
@@ -133,15 +132,23 @@ run simulationSettings initialisationSettings = do
     when (simplePDB . runSettings $ simulationSettings) $
         print $ "Warning: when using --simple-pdb with 3 or more different binder types"
                 ++ " it won't be possible to use the resulting output as initial state later."
-    gen <- newStdGen
-    flip evalRandT gen $ do
-        dump <- load initialisationSettings
-        runSimulation simulationSettings dump
+    dump <- load initialisationSettings
+    runSimulation simulationSettings dump
     -- TODO: do something with the dump?
     pure ()
 
-runSimulation :: RandomGen gen => SimulationSettings -> Dump -> RandT gen IO Dump
-runSimulation SimulationSettings{..} = runScore runRepr runSettings
+{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> IO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> IO Dump #-}
+runSimulation :: SimulationSettings -> Dump -> IO Dump
+runSimulation SimulationSettings{..}
+    -- Make the GHC use the specialised dictionaries.
+    | "IOChain" <- reprName,
+      "StandardScore" <- scoreName =
+        E.simulate (mkRunSettings runSettings :: E.RunSettings IOChainRepresentation StandardScore)
+    | "PureChain" <- reprName,
+      "StandardScore" <- scoreName =
+        E.simulate (mkRunSettings runSettings :: E.RunSettings PureChainRepresentation StandardScore)
+    | otherwise = runScore runRepr runSettings
   where
     RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
     RunRepr runRepr = fromMaybe (error "Invalid representation") $ lookup reprName reprMap

@@ -9,9 +9,7 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
-{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 module Bio.Motions.Engine where
 
 import Bio.Motions.Types
@@ -65,21 +63,22 @@ data RunSettings repr score = RunSettings
     -- ^ List of requested callback names
     }
 
-step :: (MonadRandom m, MonadState (SimulationState repr score) m,
-         Representation (MaybeT m) repr, Score score) => m (Maybe Move)
+type SimT repr score = StateT (SimulationState repr score)
+
+step :: (MonadRandom m, Representation m repr, Score score) => SimT repr score m (Maybe Move)
 step = runMaybeT $ do
     st@SimulationState{..} <- get
-    move <- generateMove repr
-    newScore <- updateCallback repr score move
-    newPreCallbackResults <- mapM (updateCallbackResult repr move) preCallbackResults
+    move <- lift2 (generateMove repr) >>= maybe mzero pure
+    newScore <- lift2 $ updateCallback repr score move
+    newPreCallbackResults <- lift2 $ mapM (updateCallbackResult repr move) preCallbackResults
 
     let delta = fromIntegral $ newScore - score
     unless (delta >= 0) $ do
         r <- getRandomR (0, 1)
         guard $ r < exp (delta * factor)
 
-    (newRepr, _) <- performMove move repr
-    newPostCallbackResults <- mapM (updateCallbackResult newRepr move) postCallbackResults
+    (newRepr, _) <- lift2 $ performMove move repr
+    newPostCallbackResults <- lift2 $ mapM (updateCallbackResult newRepr move) postCallbackResults
 
     put st { repr = newRepr
            , score = newScore
@@ -92,10 +91,13 @@ step = runMaybeT $ do
     factor :: Double
     factor = 2
 
-pushPDBStep :: _ => Handle -> PDBMeta -> m ()
+    lift2 = lift . lift
+{-# INLINE step #-}
+
+pushPDBStep :: (Show score, MonadIO m, Representation m repr) => Handle -> PDBMeta -> SimT repr score m ()
 pushPDBStep handle pdbMeta = do
     st@SimulationState{..} <- get
-    dump <- removeLamins <$> makeDump repr
+    dump <- removeLamins <$> lift (makeDump repr)
     let frameHeader = StepHeader { headerSeqNum = frameCounter
                                  , headerStep = stepCounter
                                  , headerTitle = "chromosome;bonds=" ++ show score
@@ -106,16 +108,17 @@ pushPDBStep handle pdbMeta = do
     removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
     notLamin b = b ^. binderType /= laminType
 
-pushPDBLamins :: _ => Handle -> PDBMeta -> m ()
+pushPDBLamins :: (MonadIO m, Representation m repr) => Handle -> PDBMeta -> SimT repr score m ()
 pushPDBLamins handle pdbMeta = do
     SimulationState{..} <- get
-    dump <- filterLamins <$> makeDump repr
+    dump <- filterLamins <$> lift (makeDump repr)
     liftIO $ writePDB handle LaminHeader pdbMeta dump >> hPutStrLn handle "END"
   where
     filterLamins d = Dump { dumpBinders = filter isLamin $ dumpBinders d, dumpChains = [] }
     isLamin b = b ^. binderType == laminType
 
-stepAndWrite :: _ => Handle -> Maybe Handle -> Bool -> PDBMeta -> m ()
+stepAndWrite :: (MonadRandom m, Representation m repr, Score score, MonadIO m)
+    => Handle -> Maybe Handle -> Bool -> PDBMeta -> SimT repr score m ()
 stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
     oldScore <- gets score
     step -- TODO: do something with the move
@@ -128,8 +131,9 @@ stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
             Nothing -> pure ()
 
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
+{-# INLINE stepAndWrite #-}
 
-writeCallbacks :: _ => Handle -> Bool -> m ()
+writeCallbacks :: MonadIO m => Handle -> Bool -> SimT repr score m ()
 writeCallbacks handle verbose = do
     preStr <- fmap resultStr <$> gets preCallbackResults
     postStr <- fmap resultStr <$> gets postCallbackResults
@@ -151,7 +155,8 @@ filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
     m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
     (found, notFound) = partition (`M.member` m) req
 
-simulate :: _ => RunSettings repr score -> Dump -> m Dump
+simulate :: (Score score, Representation m repr, MonadIO m, MonadRandom m)
+    => RunSettings repr score -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score) dump = do
     freezePredicate <- case freezeFile of
         Just file -> liftIO (parseFromFile freezePredicateParser file) >>= either (fail . show) pure
@@ -196,3 +201,4 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
     makeDump repr
   where
     pdbError = "The PDB format can't handle this number of different beads, binders or chains."
+{-# INLINEABLE simulate #-}
