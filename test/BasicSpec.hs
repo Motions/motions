@@ -30,7 +30,6 @@ import Bio.Motions.Representation.Dump
 import Control.Monad
 import Control.Monad.Random
 import Control.Monad.Trans
-import Control.Monad.Trans.Maybe
 import Control.Lens
 import Data.Maybe
 import Data.MonoTraversable
@@ -347,10 +346,9 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
                 BinderSig binder -> assert $ binder ^. binderType /= laminType
                 BeadSig bead -> assert . not . freezePredicate $ bead ^. beadSignature
       where
-        prepareMoves repr = (repr,) . catMaybes <$>
-            (replicateM 1000 . runMaybeT $ generateMove repr)
+        prepareMoves repr = (repr,) . catMaybes <$> replicateM 1000 (generateMove repr)
         getAtoms (repr, moves) = forM moves $ flip getAtomAt repr . moveFrom
-        genMove repr = runMaybeT (generateMove repr) >>= maybe (stop rejected) pure
+        genMove repr = generateMove repr >>= maybe (stop rejected) pure
 
 spec :: Spec
 spec = do

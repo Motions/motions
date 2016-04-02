@@ -53,6 +53,7 @@ class Show cb => Callback (mode :: Mode) cb | cb -> mode where
     default updateCallback :: (Monad m, ReadRepresentation m repr, mode ~ 'Post)
         => repr -> cb -> Move -> m cb
     updateCallback repr _ _ = runCallback repr
+    {-# INLINEABLE updateCallback #-}
 
 -- |An existential wrapper around a 'Callback''s result.
 data CallbackResult mode where
@@ -69,16 +70,19 @@ getCallbackName _ = callbackName (Proxy :: Proxy cb)
 getCallbackResult :: forall m repr mode. (Monad m, ReadRepresentation m repr) =>
     repr -> CallbackType mode -> m (CallbackResult mode)
 getCallbackResult repr (CallbackType (_ :: Proxy cb)) = CallbackResult <$> (runCallback repr :: m cb)
+{-# INLINEABLE getCallbackResult #-}
 
 -- |Runs all 'Callback's in a list and returns the list of results.
 getCallbackResults :: (Traversable t, Monad m, ReadRepresentation m repr) =>
     repr -> t (CallbackType mode) -> m (t (CallbackResult mode))
 getCallbackResults = traverse . getCallbackResult
+{-# INLINEABLE getCallbackResults #-}
 
 -- |Updates a 'Callback''s result in a monad after a move.
 updateCallbackResult :: (Monad m, ReadRepresentation m repr) =>
     repr -> Move -> CallbackResult mode -> m (CallbackResult mode)
 updateCallbackResult repr move (CallbackResult cb) = CallbackResult <$> updateCallback repr cb move
+{-# INLINEABLE updateCallbackResult #-}
 
 -- |An alias for a particularily important class of callbacks, viz. score functions.
 -- TODO: better serializability constraint
