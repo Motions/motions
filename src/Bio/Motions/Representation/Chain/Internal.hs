@@ -25,6 +25,8 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Random
+import Control.Monad.Trans
+import Control.Monad.Trans.Maybe
 import Data.List
 import Data.IORef
 import Data.Maybe
@@ -159,7 +161,7 @@ makeDump' repr = do
         }
 
 -- |An 'f'-polymorphic implementation of 'generateMive' for 'ChainRepresentation f'.
-generateMove' :: _ => ChainRepresentation f -> m Move
+generateMove' :: _ => ChainRepresentation f -> m (Maybe Move)
 generateMove' repr@ChainRepresentation{..} = do
     moveBinder <- getRandom
     if moveBinder then
@@ -172,7 +174,7 @@ generateMove' repr@ChainRepresentation{..} = do
         => ixs -- ^The sequence of moveable atoms' indices
         -> s -- ^The sequence of atoms
         -> t (Move -> Element s -> m Bool) -- ^A 'Traversable' of additional move constraints
-        -> m Move
+        -> m (Maybe Move)
     pick ixs xs constraints = do
         ix <- getRandomElement ixs
         let x = DS.unsafeIndex xs ix
@@ -180,10 +182,11 @@ generateMove' repr@ChainRepresentation{..} = do
         r <- retrieveLocated x
         let pos = r ^. position
             pos' = pos + d
-        guard $ not $ M.member pos' space
-        let m = Move pos d
-        forM_ constraints $ \c -> c m x >>= guard . not
-        pure m
+        runMaybeT $ do
+            guard . not $ M.member pos' space
+            let m = Move pos d
+            forM_ constraints $ \c -> lift (c m x) >>= guard . not
+            pure m
     {-# INLINE pick #-}
 {-# INLINE generateMove' #-}
 

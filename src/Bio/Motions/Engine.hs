@@ -26,7 +26,6 @@ import Bio.Motions.Utils.FreezePredicateParser
 import Text.Parsec.String
 
 import Control.Monad.State.Strict
-import Control.Monad.Morph
 import Control.Monad.Random
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
@@ -68,21 +67,20 @@ data RunSettings repr score = RunSettings
 
 type SimT repr score = StateT (SimulationState repr score)
 
-step :: (MonadRandom m, Representation m repr, Representation (MaybeT m) repr,
-         Score score) => SimT repr score m (Maybe Move)
+step :: (MonadRandom m, Representation m repr, Score score) => SimT repr score m (Maybe Move)
 step = runMaybeT $ do
     st@SimulationState{..} <- get
-    move <- hoist lift $ generateMove repr
-    newScore <- lift . lift $ updateCallback repr score move
-    newPreCallbackResults <- lift . lift $ mapM (updateCallbackResult repr move) preCallbackResults
+    move <- lift2 (generateMove repr) >>= maybe mzero pure
+    newScore <- lift2 $ updateCallback repr score move
+    newPreCallbackResults <- lift2 $ mapM (updateCallbackResult repr move) preCallbackResults
 
     let delta = fromIntegral $ newScore - score
     unless (delta >= 0) $ do
         r <- getRandomR (0, 1)
         guard $ r < exp (delta * factor)
 
-    (newRepr, _) <- lift . lift $ performMove move repr
-    newPostCallbackResults <- lift . lift $ mapM (updateCallbackResult newRepr move) postCallbackResults
+    (newRepr, _) <- lift2 $ performMove move repr
+    newPostCallbackResults <- lift2 $ mapM (updateCallbackResult newRepr move) postCallbackResults
 
     put st { repr = newRepr
            , score = newScore
@@ -94,6 +92,8 @@ step = runMaybeT $ do
   where
     factor :: Double
     factor = 2
+
+    lift2 = lift . lift
 {-# INLINE step #-}
 
 pushPDBStep :: _ => Handle -> PDBMeta -> SimT repr score m ()
@@ -156,7 +156,7 @@ filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
     m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
     (found, notFound) = partition (`M.member` m) req
 
-simulate :: (Score score, Representation m repr, Representation (MaybeT m) repr, MonadIO m, MonadRandom m)
+simulate :: (Score score, Representation m repr, MonadIO m, MonadRandom m)
     => RunSettings repr score -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score) dump = do
     freezePredicate <- case freezeFile of
