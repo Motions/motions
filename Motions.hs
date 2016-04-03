@@ -81,12 +81,11 @@ mkRunSettings RunSettings'{..} = E.RunSettings{..}
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
 
-type Run' gen = RunSettings' -> Dump -> (RandT gen IO) Dump
-type Run gen score = Proxy score -> Run' gen
+type Run' = RunSettings' -> Dump -> IO Dump
+type Run score = Proxy score -> Run'
 
-newtype RunRepr = RunRepr { runRepr :: forall gen score. (RandomGen gen, Score score) => Run gen score }
-newtype RunScore = RunScore { runScore :: forall gen. RandomGen gen =>
-                                (forall score. Score score => Run gen score) -> Run' gen }
+newtype RunRepr = RunRepr { runRepr :: forall score. Score score => Run score }
+newtype RunScore = RunScore { runScore :: (forall score. Score score => Run score) -> Run' }
 
 reprMap :: [(String, RunRepr)]
 reprMap = [ ("PureChain", runPureChain)
@@ -133,16 +132,14 @@ run simulationSettings initialisationSettings = do
     when (simplePDB . runSettings $ simulationSettings) $
         print $ "Warning: when using --simple-pdb with 3 or more different binder types"
                 ++ " it won't be possible to use the resulting output as initial state later."
-    gen <- newStdGen
-    flip evalRandT gen $ do
-        dump <- load initialisationSettings
-        runSimulation simulationSettings dump
+    dump <- load initialisationSettings
+    runSimulation simulationSettings dump
     -- TODO: do something with the dump?
     pure ()
 
-{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> RandT StdGen IO Dump #-}
-{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> RandT StdGen IO Dump #-}
-runSimulation :: SimulationSettings -> Dump -> RandT StdGen IO Dump
+{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> IO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> IO Dump #-}
+runSimulation :: SimulationSettings -> Dump -> IO Dump
 runSimulation SimulationSettings{..}
     | "IOChain2" <- reprName,
       "StandardScore" <- scoreName =
