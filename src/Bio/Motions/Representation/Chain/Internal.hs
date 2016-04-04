@@ -76,14 +76,14 @@ instance MonadIO m => Wrapper m IORef where
 -- |Converts between 'Located f' and 'Located f''.
 relocate :: (Wrapper m f, Wrapper m f') => Located' f a -> m (Located' f' a)
 relocate (Located' p a) = unwrap p >>= fmap (flip Located' a) . wrap
-{-# INLINE[2] relocate #-}
-{-# RULES "relocate/pure" relocate = pure #-}
+{-# INLINE relocate #-}
+--{-# RULES "relocate/pure" relocate = pure #-}
 
 -- |A type-constrained version of 'relocate'.
 retrieveLocated :: Wrapper m f => Located' f a -> m (Located a)
 retrieveLocated = relocate
-{-# INLINE[2] retrieveLocated #-}
-{-# RULES "retrieveLocated/pure" retrieveLocated = pure #-}
+{-# INLINE retrieveLocated #-}
+--{-# RULES "retrieveLocated/pure" retrieveLocated = pure #-}
 
 instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
     getBinders ChainRepresentation{..} f = mapM retrieveLocated binders >>= f
