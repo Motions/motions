@@ -17,6 +17,7 @@ module Bio.Motions.Callback.StandardScore(StandardScore) where
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
 import Bio.Motions.Representation.Class
 import Control.Lens
 import Data.List
@@ -31,6 +32,9 @@ distance.
  -}
 newtype StandardScore = StandardScore Int
     deriving (Eq, Ord, Num, Integral, Enum, Real)
+
+instance CallbackSerialisable StandardScore where
+    serialiseCallback name (StandardScore i) = serialiseCallback name i
 
 instance Show StandardScore where
     show (StandardScore i) = show i
