@@ -15,12 +15,14 @@ module Bio.Motions.Callback.StandardScore(StandardScore) where
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
 import Bio.Motions.Representation.Class
 import Control.Lens
 import Data.List
 import Data.MonoTraversable
 import Data.Foldable
 import Linear
+import Text.ProtocolBuffers.TextMessage
 
 {- |
 Represents the standard score function, i.e. the sum over all contacts of the binding energy
@@ -30,8 +32,12 @@ distance.
 newtype StandardScore = StandardScore Int
     deriving (Eq, Ord, Num, Integral, Enum, Real)
 
+instance CallbackSerialisable StandardScore where
+    serialiseCallback name (StandardScore i) = serialiseInt name i
+    prettyPrintCallback (StandardScore i) = show i
+
 instance Show StandardScore where
-    show (StandardScore i) = show i
+  show (StandardScore i) = show i
 
 instance Monoid StandardScore where
     mempty = 0
