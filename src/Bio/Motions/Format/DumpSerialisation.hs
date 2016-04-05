@@ -6,9 +6,11 @@ Stability   : experimental
 Portability : unportable
 -}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Format.DumpSerialisation where
 
+import Data.Maybe
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Sequence as S
 import Linear
@@ -17,6 +19,7 @@ import Text.ProtocolBuffers.Basic
 import qualified Bio.Motions.Format.Proto.Header as ProtoHeader
 import qualified Bio.Motions.Format.Proto.Keyframe as ProtoKeyframe
 import qualified Bio.Motions.Format.Proto.Keyframe.Binder as ProtoBinder
+import qualified Bio.Motions.Format.Proto.Callback as ProtoCallback
 import Bio.Motions.Format.Proto.Delta
 import Bio.Motions.Format.Proto.Keyframe.Chain
 import Bio.Motions.Format.Proto.Point
@@ -25,12 +28,16 @@ import Bio.Motions.Format.Proto.Header.ChainDescription.BeadDescription
 import Bio.Motions.Format.Proto.Header.ChainDescription
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Types
+import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
 
-serialiseMove :: Move -> Delta
-serialiseMove Move{..} = Delta
+type Callbacks = ([CallbackResult 'Pre], [CallbackResult 'Post])
+
+serialiseMove :: Move -> Callbacks -> Delta
+serialiseMove Move{..} cbs = Delta
     { from = Just $ makePoint moveFrom
     , disp = Just $ makePoint moveDiff
-    , callbacks = S.fromList [] -- TODO Serialisation of callbacks
+    , callbacks = S.fromList $ serialiseCallbacks cbs
     }
 
 getHeader :: String -> String -> [String] -> Dump -> ProtoHeader.Header
@@ -41,11 +48,11 @@ getHeader simulationName simulationDescription chainNames Dump{..} = ProtoHeader
     , chains = S.fromList $ zipWith headerSerialiseChain chainNames dumpChains
     }
 
-getKeyframe :: Dump -> ProtoKeyframe.Keyframe
-getKeyframe Dump{..} = ProtoKeyframe.Keyframe
+getKeyframe :: Dump -> Callbacks -> ProtoKeyframe.Keyframe
+getKeyframe Dump{..} cbs = ProtoKeyframe.Keyframe
     { binders = S.fromList $ serialiseBinders dumpBinders
     , chains = S.fromList $ map keyframeSerialiseChain dumpChains
-    , callbacks = S.fromList [] --TODO Serialisation of callbacks
+    , callbacks = S.fromList $ serialiseCallbacks cbs
     }
 
 headerSerialiseChain :: String -> [DumpBeadInfo] -> ChainDescription
@@ -74,3 +81,8 @@ serialiseEnergyVector (EnergyVector ev) =
 makePoint :: Vec3 -> Point
 makePoint p = Point{..}
     where V3 x y z = Just . fromIntegral <$> p
+
+serialiseCallbacks :: Callbacks -> [ProtoCallback.Callback]
+serialiseCallbacks (a, b) = catMaybes (ser a ++ ser b)
+  where
+    ser = map (\(CallbackResult x) -> serialiseCallback (getCallbackName x) x)

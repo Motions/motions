@@ -23,11 +23,13 @@ library
                        Bio.Motions.Representation.Dump,
                        Bio.Motions.Format.DumpDeserialisation,
                        Bio.Motions.Format.DumpSerialisation,
+                       Bio.Motions.Format.Proto.Delta,
                        Bio.Motions.Utils.FreezePredicateParser,
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Utils.Parsec,
                        Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,
+                       Bio.Motions.Callback.Serialisation,
                        Bio.Motions.Callback.Discover,
                        Bio.Motions.Callback.GyrationRadius,
                        Bio.Motions.Callback.StandardScore,
@@ -53,8 +55,7 @@ library
                        Bio.Motions.Format.Proto.Keyframe,
                        Bio.Motions.Format.Proto.Keyframe.Binder,
                        Bio.Motions.Format.Proto.Keyframe.Chain,
-                       Bio.Motions.Format.Proto.Point,
-                       Bio.Motions.Format.Proto.Delta
+                       Bio.Motions.Format.Proto.Point
   -- other-extensions:
   build-depends:       base >=4.8 && <4.9,
                        vector >=0.11 && <0.12,
@@ -124,7 +125,7 @@ test-suite spec
                        BEDSpec,
                        PDBSpec,
                        DumpSpec,
-                       DumpSerializationSpec,
+                       DumpSerialisationSpec,
                        StateInitialisationSpec,
                        FreezePredicateParserSpec,
                        LoadTestCallbacks,
