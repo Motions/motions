@@ -7,6 +7,7 @@
 module CallbackPeriodicSpec(spec) where
 
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
 import Bio.Motions.Callback.Periodic
 import Bio.Motions.Representation.Class
 import Data.Proxy
@@ -15,6 +16,10 @@ import Test.Hspec
 
 newtype SimpleCallback (n :: Nat) = SimpleCallback Int
     deriving (Show, Eq, Num)
+
+instance CallbackSerialisable (SimpleCallback a) where
+    serialiseCallback = undefined
+    prettyPrintCallback _ = "SimpleCallback"
 
 instance Callback 'Pre (SimpleCallback n) where
     callbackName _ = "_SimpleCallback"
