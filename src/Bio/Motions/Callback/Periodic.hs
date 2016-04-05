@@ -19,6 +19,7 @@ module Bio.Motions.Callback.Periodic
     ) where
 
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
 import Data.Proxy
 import GHC.TypeLits
 
@@ -36,6 +37,10 @@ data Periodic cb = PeriodicValue { periodicValue :: !cb }
 instance Show cb => Show (Periodic cb) where
     show (PeriodicValue v) = show v
     show _ = "---"
+
+instance CallbackSerialisable cb => CallbackSerialisable (Periodic cb) where
+    serialiseCallback name (PeriodicValue v) = serialiseCallback name v
+    serialiseCallback _ _ = Nothing
 
 -- | Note: The leading '_' is dropped from the base callback's name, if present.
 instance (Callback mode cb, KnownNat (CallbackPeriod cb), CmpNat 0 (CallbackPeriod cb) ~ 'LT)
