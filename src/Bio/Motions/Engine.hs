@@ -134,6 +134,7 @@ writeCallbacks handle verbose = do
     postStr <- fmap resultStr <$> gets postCallbackResults
     liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
   where
+    --TODO?
     resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
 

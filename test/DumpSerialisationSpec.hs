@@ -1,15 +1,25 @@
-{-#LANGUAGE OverloadedLists #-}
-
-module DumpSerializationSpec where
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE DataKinds #-}
+module DumpSerialisationSpec where
 
 import Test.Hspec
 import Linear
+import Data.Maybe
+import Data.Foldable
 
 import Bio.Motions.Format.DumpDeserialisation
 import Bio.Motions.Format.DumpSerialisation
+import Bio.Motions.Format.Proto.Delta
 
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Types
+
+import Bio.Motions.Callback.GyrationRadius
+import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
+import Bio.Motions.Callback.Periodic
+
+import SimpleCallback
 
 dump :: Dump
 dump = Dump
@@ -44,12 +54,22 @@ move = Move
 spec :: Spec
 spec = context "when serialising and deserialising dumps and moves" $ do
     let h = getHeader "a" "b" ["x", "y", "z"] dump
-        kf = getKeyframe dump
+        kf = getKeyframe dump ([], [])
     let Just dumpAgain = deserialiseDump h kf
 
     it "should return the same dump" $
         dump `shouldBe` dumpAgain
-    let delta = serialiseMove move
+    let delta = serialiseMove move ([], [])
     let Just moveAgain = deserialiseMove delta
-    it "shoudl return the same move" $
+    it "should return the same move" $
         move `shouldBe` moveAgain
+    let serialisedCallbacks =
+          toList $ callbacks $ serialiseMove move
+              ([CallbackResult $ GyrationRadius [10.1, 2.2]
+               , CallbackResult (PeriodicWait 1 :: (Periodic (SimpleCallback 42)))
+               , CallbackResult $ PeriodicValue (SimpleCallback 10 :: (SimpleCallback 41))]
+              ,[])
+    let serialisedCallbacksOK = map fromJust [serialiseCallback "SimpleCallback" (10::Int),
+                                              serialiseCallback "Gyration Radius" ([10.1, 2.2]::[Double])]
+    it "should return serialised callbacks" $
+        serialisedCallbacks `shouldMatchList` serialisedCallbacksOK
