@@ -19,6 +19,7 @@ module Bio.Motions.Callback.Class where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
+import Bio.Motions.Callback.Serialisation
 
 import Data.Proxy
 
@@ -27,8 +28,7 @@ data Mode = Pre  -- ^Such a callback will be fired before a move is made
           | Post -- ^Such a callback will be fired after a move is made
 
 -- |Represents a callback
---
-class Show cb => Callback (mode :: Mode) cb | cb -> mode where
+class (Show cb, CallbackSerialisable cb) => Callback (mode :: Mode) cb | cb -> mode where
     -- |A human-readable name of the callback.
     callbackName :: proxy cb -> String
 
