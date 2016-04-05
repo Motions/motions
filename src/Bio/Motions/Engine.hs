@@ -17,6 +17,7 @@ module Bio.Motions.Engine where
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
+import Bio.Motions.Callback.Serialisation
 import Bio.Motions.Callback.Class
 import Bio.Motions.PDB.Write
 import Bio.Motions.PDB.Meta
@@ -134,7 +135,8 @@ writeCallbacks handle verbose = do
     postStr <- fmap resultStr <$> gets postCallbackResults
     liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
   where
-    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
+    --TODO?
+    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ prettyPrintCallback cb
     separator = if verbose then "\n" else " "
 
 -- |Parses a list of callback names

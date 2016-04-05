@@ -28,6 +28,7 @@ library
                        Bio.Motions.Utils.Parsec,
                        Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,
+                       Bio.Motions.Callback.Serialisation,
                        Bio.Motions.Callback.Discover,
                        Bio.Motions.Callback.GyrationRadius,
                        Bio.Motions.Callback.StandardScore,
