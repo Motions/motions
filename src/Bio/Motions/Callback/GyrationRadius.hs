@@ -17,6 +17,7 @@ module Bio.Motions.Callback.GyrationRadius(GyrationRadius(..)) where
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
 import Bio.Motions.Representation.Class
 import Control.Lens
 import Control.Monad
@@ -30,6 +31,10 @@ radius of a chain is the average parwise distance of its beads.
 -}
 newtype GyrationRadius = GyrationRadius [Double]
     deriving Eq
+
+instance CallbackSerialisable GyrationRadius where
+    serialiseCallback name (GyrationRadius rs) = serialiseListDouble name rs
+    prettyPrintCallback (GyrationRadius rs) = show rs
 
 instance Show GyrationRadius where
     show (GyrationRadius rs) = show rs

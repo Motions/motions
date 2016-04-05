@@ -15,6 +15,7 @@
 module LoadTestCallbacks where
 
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
 import Bio.Motions.Callback.Parser.TH
 import Bio.Motions.Callback.Periodic
 
@@ -57,6 +58,10 @@ import Bio.Motions.Callback.Periodic
 
 data EmptyCallback
 deriving instance Show EmptyCallback
+
+instance CallbackSerialisable EmptyCallback where
+    serialiseCallback _ = error $ "Empty Callback"
+    prettyPrintCallback _ = "Empty Callback"
 
 instance Callback 'Pre EmptyCallback where
     callbackName _ = "_empty"

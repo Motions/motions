@@ -44,12 +44,12 @@ move = Move
 spec :: Spec
 spec = context "when serialising and deserialising dumps and moves" $ do
     let h = getHeader "a" "b" ["x", "y", "z"] dump
-        kf = getKeyframe dump
+        kf = getKeyframe dump ([],[])
     let Just dumpAgain = deserialiseDump h kf
 
     it "should return the same dump" $
         dump `shouldBe` dumpAgain
-    let delta = serialiseMove move
+    let delta = serialiseMove move ([],[])
     let Just moveAgain = deserialiseMove delta
-    it "shoudl return the same move" $
+    it "should return the same move" $
         move `shouldBe` moveAgain
