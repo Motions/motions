@@ -29,16 +29,13 @@ import Bio.Motions.StateInitialisation
 import Bio.Motions.PDB.Read
 import Bio.Motions.PDB.Meta
 import qualified Bio.Motions.Engine as E
+import Bio.Motions.Utils.Random
 
 import System.IO
 import Control.Monad.IO.Class
-import Control.Monad.Random
 import Control.Monad
 import qualified Data.Vector.Unboxed as U
 import Options.Applicative
-import Data.Proxy
-import Data.Maybe
-import Data.List
 
 import LoadCallbacks()
 
@@ -81,39 +78,17 @@ mkRunSettings RunSettings'{..} = E.RunSettings{..}
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
 
-type Run' = RunSettings' -> Dump -> IO Dump
-type Run score = Proxy score -> Run'
-
-newtype RunRepr = RunRepr { runRepr :: forall score. Score score => Run score }
-newtype RunScore = RunScore { runScore :: (forall score. Score score => Run score) -> Run' }
-
-reprMap :: [(String, RunRepr)]
-reprMap = [ ("PureChain", runPureChain)
-          , ("IOChain", runIOChain)
-          ]
-  where
-    runPureChain = RunRepr $ \(_ :: _ score) rs ->
-        E.simulate (mkRunSettings rs :: E.RunSettings PureChainRepresentation score)
-    runIOChain = RunRepr $ \(_ :: _ score) rs ->
-        E.simulate (mkRunSettings rs :: E.RunSettings IOChainRepresentation score)
-
-scoreMap :: [(String, RunScore)]
-scoreMap = [ ("StandardScore", runStandardScore)
-           ]
-  where
-    runStandardScore = RunScore $ \run -> run (Proxy :: Proxy StandardScore)
-
 loadInts :: FilePath -> IO [Int]
 loadInts path = withFile path ReadMode $ fmap (map read . words) . hGetLine
 
-load :: (MonadIO m, MonadRandom m) => InitialisationSettings -> m Dump
+load :: (MonadIO m) => InitialisationSettings -> m Dump
 load (Generate GenerateSettings{..}) = do
     chainLengths <- liftIO $ loadInts chainLengthsFile
     energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
     bindersCounts <- liftIO $ loadInts bindersCountsFile
     let evLength = U.length . getEnergyVector . head . head $ energyVectors
     when (evLength /= length bindersCounts + 1) $ error binderErrorMsg
-    maybeDump <- initialise initAttempts radius bindersCounts energyVectors
+    maybeDump <- liftIO $ initialise initAttempts radius bindersCounts energyVectors
     case maybeDump of
       Nothing -> error "Failed to initialise"
       Just dump -> pure dump
@@ -137,21 +112,20 @@ run simulationSettings initialisationSettings = do
     -- TODO: do something with the dump?
     pure ()
 
-{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> IO Dump #-}
-{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> IO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> WithRandom IO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> WithRandom IO Dump #-}
+
+{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> MWCIO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> MWCIO Dump #-}
 runSimulation :: SimulationSettings -> Dump -> IO Dump
-runSimulation SimulationSettings{..}
+runSimulation SimulationSettings{..} dump
     -- Make the GHC use the specialised dictionaries.
     | "IOChain" <- reprName,
       "StandardScore" <- scoreName =
-        E.simulate (mkRunSettings runSettings :: E.RunSettings IOChainRepresentation StandardScore)
+        withMWCIO (E.simulate (mkRunSettings runSettings :: E.RunSettings IOChainRepresentation StandardScore) dump)
     | "PureChain" <- reprName,
       "StandardScore" <- scoreName =
-        E.simulate (mkRunSettings runSettings :: E.RunSettings PureChainRepresentation StandardScore)
-    | otherwise = runScore runRepr runSettings
-  where
-    RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
-    RunRepr runRepr = fromMaybe (error "Invalid representation") $ lookup reprName reprMap
+        withMWCIO (E.simulate (mkRunSettings runSettings :: E.RunSettings PureChainRepresentation StandardScore) dump)
 
 main :: IO ()
 main = uncurry run =<< execParser
@@ -241,20 +215,15 @@ simulationParser = SimulationSettings
     <$> runSettingsParser
     <*> strOption
         (long "representation"
-        <> value defaultRepr
+        <> value "IOChain"
         <> showDefault
-        <> help ("The representation used through the simulation, one of the following: " ++ reprs))
+        <> help ("The representation used through the simulation, one of the following: IOChain, PureChain"))
     <*> strOption
         (long "score"
-        <> value defaultScore
+        <> value "StandardScore"
         <> showDefault
-        <> help ("The score function used through the simulation, one of the following: " ++ scores))
-  where
-    defaultRepr = fst . head $ reprMap
-    defaultScore = fst . head $ scoreMap
-    reprs = showKeys reprMap
-    scores = showKeys scoreMap
-    showKeys = intercalate ", " . map fst
+        <> help ("The score function used through the simulation, one of the following: StandardScore"))
 
 parser :: Parser (SimulationSettings, InitialisationSettings)
 parser = (,) <$> simulationParser <*> initialisationParser
+
