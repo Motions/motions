@@ -1,0 +1,7 @@
+EV [0,0] aad
+EV [0,1] aab
+EV [1,0] aaa
+EV [2,0] aac
+BT 0 Baa
+BT 1 Bab
+CH 0 a
