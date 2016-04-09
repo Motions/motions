@@ -1,0 +1,28 @@
+output-file: out.pdb
+steps: 50000
+write-intermediate-frames: False
+verbose-callbacks: False
+simple-pdb-output: False
+enabled-callbacks:
+    - Standard Score
+# representation: IOChain
+# score: StandardScore
+
+generate:
+    bed-files:
+        - feat0.bed
+        - feat1.bed
+    chain-lengths:
+        - 100
+        - 20
+    binders-counts:
+        - 50
+    radius: 10
+    resolution: 10
+    initialisation-attempts: 1000
+
+# load:
+#     pdb-files:
+#         - in.pdb
+#         - in.pdb.lamin
+#     meta-file: in.pdb.meta
