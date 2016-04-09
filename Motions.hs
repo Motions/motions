@@ -5,6 +5,8 @@ License     : Apache
 Stability   : experimental
 Portability : unportable
  -}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -35,35 +37,33 @@ import Control.Monad.IO.Class
 import Control.Monad.Random
 import Control.Monad
 import qualified Data.Vector.Unboxed as U
-import Options.Applicative
+import Options.Applicative as O
 import Data.Proxy
 import Data.Maybe
-import Data.List
+import Data.Yaml
+import Data.Aeson.Types as J
+import GHC.Generics
 
 import LoadCallbacks()
 
 data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]
-    , chainLengthsFile :: FilePath
-    , bindersCountsFile :: FilePath
+    , chainLengths :: [Int]
+    , bindersCounts :: [Int]
     , radius :: Int
     , resolution :: Int
     , initAttempts :: Int
-    }
+    } deriving Generic
 
 data LoadStateSettings = LoadStateSettings
     { pdbFiles :: [FilePath]
     , metaFile :: FilePath
-    }
+    } deriving Generic
 
-data InitialisationSettings = Generate GenerateSettings
-                            | Load LoadStateSettings
-
-data SimulationSettings = SimulationSettings
-    { runSettings :: RunSettings'
-    , reprName :: String
-    , scoreName :: String
-    }
+data InitialisationSettings = InitialisationSettings
+    { generateSettings :: Maybe GenerateSettings
+    , loadStateSettings :: Maybe LoadStateSettings
+    } deriving Generic
 
 data RunSettings' = RunSettings'
     { pdbFile :: FilePath
@@ -71,9 +71,57 @@ data RunSettings' = RunSettings'
     , writeIntermediatePDB :: Bool
     , verboseCallbacks :: Bool
     , simplePDB :: Bool
+    , requestedCallbacks :: [String]
     , freezeFile :: Maybe FilePath
-    , requestedCallbacksFile :: FilePath
+    } deriving Generic
+
+data Settings = Settings
+    { runSettings :: RunSettings'
+    , reprName :: String
+    , scoreName :: String
+    , initialisationSettings :: InitialisationSettings
     }
+
+genericParseJSON' :: (Generic a, GFromJSON (Rep a)) => Value -> J.Parser a
+genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = labelModifier }
+  where
+    labelModifier s = fromMaybe s $ lookup s assoc
+    assoc = [ ("pdbFile", "output-file")
+            , ("numSteps", "steps")
+            , ("writeIntermediatePDB", "write-intermediate-frames")
+            , ("verboseCallbacks", "verbose-callbacks")
+            , ("simplePDB", "simple-pdb-output")
+            , ("requestedCallbacks", "enabled-callbacks")
+            , ("freezeFile", "freeze-file")
+            , ("generateSettings", "generate")
+            , ("loadStateSettings", "load")
+            , ("bedFiles", "bed-files")
+            , ("chainLengths", "chain-lengths")
+            , ("bindersCounts", "binders-counts")
+            , ("initAttempts", "initialisation-attempts")
+            , ("pdbFiles", "pdb-files")
+            , ("metaFile", "meta-file")
+            ]
+
+instance FromJSON GenerateSettings where
+    parseJSON = genericParseJSON'
+
+instance FromJSON LoadStateSettings where
+    parseJSON = genericParseJSON'
+
+instance FromJSON InitialisationSettings where
+    parseJSON = genericParseJSON'
+
+instance FromJSON RunSettings' where
+    parseJSON = genericParseJSON'
+
+instance FromJSON Settings where
+    parseJSON v@(Object v') = Settings <$> parseJSON v
+                                       <*> v' .:? "representation" .!= "IOChain"
+                                       <*> v' .:? "score" .!= "StandardScore"
+                                       <*> parseJSON v
+    parseJSON invalid = typeMismatch "Object" invalid
+
 
 mkRunSettings :: RunSettings' -> E.RunSettings repr score
 mkRunSettings RunSettings'{..} = E.RunSettings{..}
@@ -108,146 +156,55 @@ loadInts :: FilePath -> IO [Int]
 loadInts path = withFile path ReadMode $ fmap (map read . words) . hGetLine
 
 load :: (MonadIO m, MonadRandom m) => InitialisationSettings -> m Dump
-load (Generate GenerateSettings{..}) = do
-    chainLengths <- liftIO $ loadInts chainLengthsFile
-    energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
-    bindersCounts <- liftIO $ loadInts bindersCountsFile
-    let evLength = U.length . getEnergyVector . head . head $ energyVectors
-    when (evLength /= length bindersCounts + 1) $ error binderErrorMsg
-    maybeDump <- initialise initAttempts radius bindersCounts energyVectors
-    case maybeDump of
-      Nothing -> error "Failed to initialise"
-      Just dump -> pure dump
-  where
-    binderErrorMsg = "The number of different binder types must be the same as the number of chain features \
-                      \ (BED files) minus one (the lamin feature)."
-load (Load LoadStateSettings{..}) = liftIO $ do
-    meta <- either (error . ("Meta file read error: " ++)) pure =<< withFile metaFile ReadMode readPDBMeta
-    pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
-    dump <- either (error . ("PDB read error: " ++)) pure =<< readPDB pdbHandles meta
-    mapM_ hClose pdbHandles
-    pure dump
+load InitialisationSettings{..} =
+    case (generateSettings, loadStateSettings) of
+      (Nothing, Nothing) ->
+          error "The state initialisation method (\"generate\" or \"load\") was not specified."
+      (Just _, Just _) ->
+          error "Both \"generate\" and \"load\" methods provided. Choose one."
+      (_, Just LoadStateSettings{..}) -> liftIO $ do
+          meta <- either (error . ("Meta file read error: " ++)) pure =<< withFile metaFile ReadMode readPDBMeta
+          pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
+          dump <- either (error . ("PDB read error: " ++)) pure =<< readPDB pdbHandles meta
+          mapM_ hClose pdbHandles
+          pure dump
+      (Just GenerateSettings{..}, _) -> do
+          energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
+          let evLength = U.length . getEnergyVector . head . head $ energyVectors
+          when (evLength /= length bindersCounts + 1)
+            $ error "The number of different binder types must be the same as the number of chain \
+                     \ features (BED files) minus one (the lamin feature)."
+          maybeDump <- initialise initAttempts radius bindersCounts energyVectors
+          case maybeDump of
+            Nothing -> error "Failed to initialise."
+            Just dump -> pure dump
 
-run :: SimulationSettings -> InitialisationSettings -> IO ()
-run simulationSettings initialisationSettings = do
-    when (simplePDB . runSettings $ simulationSettings) $
-        print $ "Warning: when using --simple-pdb with 3 or more different binder types"
-                ++ " it won't be possible to use the resulting output as initial state later."
+run :: Settings -> IO ()
+run Settings{..} = do
+    when (simplePDB runSettings) $
+        putStrLn "Warning: when using \"simple-pdb-output: True\" with 3 or more different binder types \
+                  \ it won't be possible to use the resulting output as initial state later."
     gen <- newStdGen
-    flip evalRandT gen $ do
+    _ <- flip evalRandT gen $ do
         dump <- load initialisationSettings
-        runSimulation simulationSettings dump
+        runScore runRepr runSettings dump
     -- TODO: do something with the dump?
     pure ()
-
-runSimulation :: RandomGen gen => SimulationSettings -> Dump -> RandT gen IO Dump
-runSimulation SimulationSettings{..} = runScore runRepr runSettings
   where
     RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
     RunRepr runRepr = fromMaybe (error "Invalid representation") $ lookup reprName reprMap
 
 main :: IO ()
-main = uncurry run =<< execParser
-    (info (helper <*> parser)
-          (fullDesc <> progDesc "Perform a MCMC simulation of chromatin movements"))
+main = do
+    configFile <- execParser
+                    (info (helper <*> inputFileParser)
+                          (fullDesc <> progDesc "Perform a MCMC simulation of chromatin movements"))
+    config <- decodeFileEither configFile
+    either (error . show) run config
 
-initialisationParser :: Parser InitialisationSettings
-initialisationParser = subparser
-    $  command "generate" (info (helper <*> (Generate <$> generateParser))
-        (progDesc "Generate an initial random state"))
-    <> command "load" (info (helper <*> (Load <$> loadParser))
-        (progDesc "Load initial state from PDB files"))
-    <> metavar "INITIALISE-COMMAND"
-
-generateParser :: Parser GenerateSettings
-generateParser = GenerateSettings
-    <$> some (strArgument $ metavar "BED files...")
-    <*> strOption
-        (long "lengthsfile"
-        <> short 'l'
-        <> metavar "CHAIN-LENGTHS-FILE"
-        <> help "File containing chain lengths - integers separated with spaces")
-    <*> strOption
-        (long "bindersfile"
-        <> short 'b'
-        <> metavar "BINDERS-COUNTS-FILE"
-        <> help "File containing counts of binders of different types (excluding lamin) \
-                 \ - integers separated with spaces")
-    <*> option auto
-        (long "radius"
-        <> short 'r'
-        <> metavar "RADIUS"
-        <> help "Radius of the bounding sphere after applying resolution")
-    <*> option auto
-        (long "resolution"
-        <> short 'x'
-        <> metavar "RESOLUTION"
-        <> help "Simulation resolution - chain molecules per bead")
-    <*> option auto
-        (long "num-attempts"
-        <> short 'n'
-        <> metavar "INIT-ATTEMPTS"
-        <> help "Number of state initialization attempts")
-
-loadParser :: Parser LoadStateSettings
-loadParser = LoadStateSettings
-    <$> some (strArgument $ metavar "PDB files...")
-    <*> strOption
-        (long "metafile"
-        <> short 'm'
-        <> metavar "PDB-META-FILE"
-        <> help "File containing meta information about PDB-state conversion")
-
-runSettingsParser :: Parser RunSettings'
-runSettingsParser = RunSettings'
-    <$> strOption
-        (long "outputfile"
-        <> short 'o'
-        <> metavar "PDB-OUTPUT-FILE")
-    <*> option auto
-        (long "steps"
-        <> short 's'
-        <> metavar "NUM-STEPS"
-        <> help "Number of simulation steps")
-    <*> switch
-        (long "intermediate-states"
-        <> short 'i'
-        <> help "Write intermediate states to PDB file")
-    <*> switch
-        (long "verbose-callbacks"
-        <> short 'v'
-        <> help "Output callback results in verbose format")
-    <*> switch
-        (long "simple-pdb")
-    <*> optional (strOption
-        (long "freezefile"
-        <> metavar "FREEZE_FILE"
-        <> help "File containing the ranges of frozen beads' indices"))
-    <*> strOption
-        (long "callbacks"
-         <> short 'c'
-         <> metavar "CALLBACKS"
-         <> help "File containing a newline-separated list of enabled callback names")
-
-simulationParser :: Parser SimulationSettings
-simulationParser = SimulationSettings
-    <$> runSettingsParser
-    <*> strOption
-        (long "representation"
-        <> value defaultRepr
-        <> showDefault
-        <> help ("The representation used through the simulation, one of the following: " ++ reprs))
-    <*> strOption
-        (long "score"
-        <> value defaultScore
-        <> showDefault
-        <> help ("The score function used through the simulation, one of the following: " ++ scores))
-  where
-    defaultRepr = fst . head $ reprMap
-    defaultScore = fst . head $ scoreMap
-    reprs = showKeys reprMap
-    scores = showKeys scoreMap
-    showKeys = intercalate ", " . map fst
-
-parser :: Parser (SimulationSettings, InitialisationSettings)
-parser = (,) <$> simulationParser <*> initialisationParser
+inputFileParser :: O.Parser FilePath
+inputFileParser = strOption
+                  (long "config"
+                  <> short 'c'
+                  <> metavar "YAML-CONFIG-FILE"
+                  <> help "File containing the configuration necessary to run the simulation.")
