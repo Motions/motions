@@ -49,6 +49,26 @@ Or simply execute it from the directory containing the executable (the path may 
     cd .stack-work/dist/x86_64-linux/Cabal-1.22.4.0/build/motions/
     ./motions
 
+The simulation requires a config file in the `YAML format`_. Example input is provided in the
+"example" directory. The "input.yaml" file contains short descriptions of all the parameters.
+You can run the example like this::
+
+    cd example
+    stack exec -- motions -c input.yaml
+
+There are two essentially different ways of configuring the simulation. You can either
+use Motions to generate the initial state randomly or you can load the initial state from a set of files.
+Each method corresponds to an entry in the YAML file: "generate" and "load".
+Exactly one of these entries must be provided.
+The following sections describe each method.
+
+The output of the simulation is given in the `PDB (Protein Data Bank) format`_.
+Two PDB files are generated: one contains the lamin binders, the other contains the rest of the output.
+One additional ".meta" file is generated. Its description is given in the "using PDB as input" section.
+
+.. _YAML format: http://yaml.org/
+.. _PDB (Protein Data Bank) format: http://www.wwpdb.org/documentation/file-format
+
 Running with randomly generated state
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -56,15 +76,17 @@ The first way of running Motions is to let it generate a random initial state an
 
 Motions supports simulation of multiple chains. Each chain bead has an associated energy vector
 which describes how strongly the chain interacts with various binders present inside the cell nucleus.
-The descriptions of chains are given using:
+
+The descriptions of chains and binders are given using:
 
 1. Files in the `BED format`_ to describe the different chain features
    that will later be translated to energy vectors.
-2. One file containing lengths of chains given by a line of integers
-   separated with spaces.
-3. The simulation resolution given by a command line argument.
+2. A list of lengths (integers) of the chains.
+3. The simulation resolution.
+4. The radius of the cell.
+5. A list of numbers (integers) of binders of each type *excluding lamins*.
 
-Example input containing chain descriptions:
+Example description:
 
 1. File "feat0.bed"::
 
@@ -79,13 +101,21 @@ Example input containing chain descriptions:
        chr1	10	19
        chr1	30	39
 
-3. File "lengths"::
+3. One length (of the "chr1" chain)::
 
        100
 
-4. The resolution command line argument::
+4. The resolution::
 
        10
+
+5. The radius::
+
+       10
+
+6. One number - the number of binders corresponding to the "feat1.bed" file::
+
+       1000
 
 For now we only use the required BED fields and we assume that chromosome names have
 the form "chrX" or "X", where X is a number, for example "chr5".
@@ -111,49 +141,45 @@ The cell nucleus contains binders (floating binders and lamins) which interact w
 Energy vectors are used to determine how each bead interacts with binders of different types.
 The number of different binder types is equal to the length of an energy vector
 (which is equal to the number of chain features).
+
 At least one type of binder - the lamin - is always present in the simulation. That means
 there always has to be at least one BED file even if it's empty (which means no bead
 interacts with lamins).
 
-The numbers of binders of each type (excluding lamins) are given in a file.
-Example file "binders"::
-
-    50
-
-describes that there are 50 binders of type 1 corresponding to the second entry of an energy vector
-(type 0 is the lamin type; it correspnds to the first entry of an energy vector). Following the example,
-the bead numbered 2 will interact with lamins with strength 2 and won't interact with the other 50 binders,
-but the bead numbered 1 won't interact with lamins and will interact with the other 50 binders with strength 1.
-
-Run::
-
-    stack exec -- motions --help
-
-To get a detailed description of the arguments.
-
-An example run would be::
-
-    stack exec -- motions -o out -c callbacks -s 100000 -i generate feat0.bed feat1.bed -l lengths -b binders -r 10 -x 10 -n 1000
-
-Where "callbacks" is a file containing the names of the enabled callbacks, separated by newlines.
-Builtin callbacks' names: "Standard Score", "Gyration Radius" (without quotes).
-
-The output of the simulation is given in the `PDB (Protein Data Bank) format`_.
-How each energy vector, binder and chain is mapped to a string in the PDB format is described in a ".meta"
-file created together with the output file.
+The example input describes that there are 1000 binders of type 1 corresponding to the second entry
+of an energy vector (type 0 is the lamin type; it correspnds to the first entry of an energy vector).
+The bead numbered 2 will interact with lamins with strength 2 and won't interact with the other
+1000 binders, but the bead numbered 1 won't interact with lamins and will interact with the other
+1000 binders with strength 1.
 
 .. _BED format: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
-.. _PDB (Protein Data Bank) format: http://www.wwpdb.org/documentation/file-format
 
 Running the simulation using PDB files as input
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The other way is to provide PDB files from which the initial state will be loaded along with a ".meta"
-file as described in the previous section.
-
-An example run would be::
-
-    stack exec -- motions -o out -c callbacks -s 100000 -i load in.pdb in_lamins.pdb in.meta
-
-Where the in.pdb file contains atoms strictly inside the cell nucleus and in_lamins.pdb contains lamins.
+The other way is to provide a list of PDB files from which the initial state will be loaded
+along with a ".meta" file.
 If a provided PDB file contains multiple frames, the first frame will be used as initial state.
+
+The ".meta" file describes how each energy vector, binder and chain occuring in the simulation
+is mapped to a string in the PDB format. For example the "residue name" column in a PDB file contains
+strings that correspond to energy vectors and binder types.
+The simulation generates a ".meta" file each time it is run and it can be used later
+to resume the simulation.
+Each line in a ".meta" file is one of the following:
+
+1. An energy vector entry which maps a list of natural numbers to a string of length 3, for example::
+
+       EV [0,1] aab
+
+2. A binder type entry which maps a natural number to a string of length 3, for example::
+
+       BT 0 Baa
+
+3. A chain identifier entry which maps a natural number to a single character, for example::
+
+       CH 0 a
+
+The resulting mapping must be a bijection if you want to use a ".meta" file as input.
+
+Example PDB files together with a suitable ".meta" file are provided in the "example" directory.

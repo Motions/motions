@@ -59,7 +59,7 @@ data RunSettings repr score = RunSettings
     -- ^ List of all available pre-callbacks' types
     , allPostCallbacks :: [CallbackType 'Post]
     -- ^ List of all available post-callbacks' types
-    , requestedCallbacksFile :: FilePath
+    , requestedCallbacks :: [String]
     -- ^ List of requested callback names
     }
 
@@ -170,7 +170,6 @@ simulate (RunSettings{..} :: RunSettings repr score) dump = do
         pdbMetaFile = pdbFile ++ ".meta"
         pdbLaminFile = pdbFile ++ ".lamin"
 
-    requestedCallbacks <- liftIO $ lines <$> readFile requestedCallbacksFile
     let (enabledPreCallbacks, remainingCallbacks) = filterCallbacks allPreCallbacks requestedCallbacks
         (enabledPostCallbacks, remainingCallbacks') = filterCallbacks allPostCallbacks remainingCallbacks
     unless (null remainingCallbacks') . error $

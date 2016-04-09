@@ -1,0 +1,69 @@
+# The name of the main PDB output file. It will contain frames with all the atoms except the lamins.
+# Two other files will be generated. One ".lamin" file containing one frame with the lamins
+# and one ".meta" file.
+output-file: out.pdb
+
+# The number of simulation steps, i. e. how many atom moves will be attempted.
+steps: 1000
+
+# Whether to write intermediate simulation steps to the main PDB file. If True every accepted move will
+# generate a frame in the PDB file. If False only the last frame will be written.
+write-intermediate-frames: False
+
+# Whether to print callback names (prints only the results if False).
+verbose-callbacks: True
+
+# Generates different ("simple") mapping for energy vectors and binder types.
+# The mapping won't be a bijection if used with 3 or more binder types. Not recommended.
+simple-pdb-output: False
+
+# A list of enabled callback names.
+# Builtin callback names: "Standard Score", "Gyration Radius" (without quotes).
+enabled-callbacks:
+    - Standard Score
+
+# The used internal representation.
+# representation: IOChain
+
+# The used score function.
+# score: StandardScore
+
+# A file containing the description of frozen atoms.
+# freeze-file:
+
+# Description for random initial state generation. Comment out this section if you want
+# to load the initial state from PDB files.
+generate:
+    # The description of different chain features, each feature corresponding to a BED file.
+    bed-files:
+        - feat0.bed
+        - feat1.bed
+
+    # Lengths of the chains.
+    chain-lengths:
+        - 100
+
+    # Numbers of binders of each type excluding lamins. Each type corresponds to a BED file provided above
+    # starting the second (if exists). The first file corresponds to the lamin type.
+    binders-counts:
+        - 1000
+
+    # The radius of the cell in which the simulation takes place.
+    radius: 10
+
+    # The resolution used to convert BED files to chains.
+    resolution: 10
+
+    # Used internally to limit the number of failed attempts when generating a random initial state.
+    # Try a higher value if the initialisation fails too often.
+    initialisation-attempts: 10000
+
+# Description for loading the initial state from PDB and ".meta" files.
+# load:
+#     # The list of PDB files containing the atoms.
+#     pdb-files:
+#         - in.pdb
+#         - in.pdb.lamin
+#
+#     # The ".meta" file.
+#     meta-file: in.pdb.meta
