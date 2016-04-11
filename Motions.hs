@@ -31,10 +31,10 @@ import Bio.Motions.StateInitialisation
 import Bio.Motions.PDB.Read
 import Bio.Motions.PDB.Meta
 import qualified Bio.Motions.Engine as E
+import Bio.Motions.Utils.Random
 
 import System.IO
 import Control.Monad.IO.Class
-import Control.Monad.Random
 import Control.Monad
 import qualified Data.Vector.Unboxed as U
 import Options.Applicative as O
@@ -122,7 +122,6 @@ instance FromJSON Settings where
                                        <*> parseJSON v
     parseJSON invalid = typeMismatch "Object" invalid
 
-
 mkRunSettings :: RunSettings' -> E.RunSettings repr score
 mkRunSettings RunSettings'{..} = E.RunSettings{..}
   where
@@ -141,9 +140,9 @@ reprMap = [ ("PureChain", runPureChain)
           ]
   where
     runPureChain = RunRepr $ \(_ :: _ score) rs ->
-        E.simulate (mkRunSettings rs :: E.RunSettings PureChainRepresentation score)
+        runWithRandom . E.simulate (mkRunSettings rs :: E.RunSettings PureChainRepresentation score)
     runIOChain = RunRepr $ \(_ :: _ score) rs ->
-        E.simulate (mkRunSettings rs :: E.RunSettings IOChainRepresentation score)
+        runWithRandom . E.simulate (mkRunSettings rs :: E.RunSettings IOChainRepresentation score)
 
 scoreMap :: [(String, RunScore)]
 scoreMap = [ ("StandardScore", runStandardScore)
@@ -151,7 +150,7 @@ scoreMap = [ ("StandardScore", runStandardScore)
   where
     runStandardScore = RunScore $ \run -> run (Proxy :: Proxy StandardScore)
 
-load :: (MonadIO m, MonadRandom m) => InitialisationSettings -> m Dump
+load :: (MonadIO m) => InitialisationSettings -> m Dump
 load InitialisationSettings{..} =
     case (generateSettings, loadStateSettings) of
       (Nothing, Nothing) ->
@@ -170,22 +169,24 @@ load InitialisationSettings{..} =
           when (evLength /= length bindersCounts + 1)
             $ error "The number of different binder types must be the same as the number of chain \
                      \ features (BED files) minus one (the lamin feature)."
-          maybeDump <- initialise initAttempts radius bindersCounts energyVectors
+          maybeDump <- liftIO $ initialise initAttempts radius bindersCounts energyVectors
           case maybeDump of
             Nothing -> error "Failed to initialise."
             Just dump -> pure dump
 
-{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> IO Dump #-}
-{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> IO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> WithRandom IO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> WithRandom IO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> MWCIO Dump #-}
+{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> MWCIO Dump #-}
 runSimulation :: Settings -> Dump -> IO Dump
 runSimulation Settings{..}
     -- Make the GHC use the specialised dictionaries.
     | "IOChain" <- reprName,
-      "StandardScore" <- scoreName =
-        E.simulate (mkRunSettings runSettings :: E.RunSettings IOChainRepresentation StandardScore)
+      "StandardScore" <- scoreName = runMWCIO . E.simulate
+        (mkRunSettings runSettings :: E.RunSettings IOChainRepresentation StandardScore)
     | "PureChain" <- reprName,
-      "StandardScore" <- scoreName =
-        E.simulate (mkRunSettings runSettings :: E.RunSettings PureChainRepresentation StandardScore)
+      "StandardScore" <- scoreName = runMWCIO . E.simulate
+        (mkRunSettings runSettings :: E.RunSettings PureChainRepresentation StandardScore)
     | otherwise = runScore runRepr runSettings
   where
     RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
