@@ -1,0 +1,96 @@
+{- |
+Module      : Bio.Motions.Utils.Random
+Description : A unified random number generator interface.
+License     : Apache
+Stability   : experimental
+Portability : unportable
+-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+module Bio.Motions.Utils.Random
+    ( MonadRandom
+    , getRandom
+    , getRandomR
+    , MonadRandomForAll
+    , WithRandom
+    , runWithRandom
+    , MWCIO
+    , runMWCIO
+    ) where
+
+import Data.Profunctor.Unsafe
+import Control.Monad.Primitive
+import Control.Monad.Trans
+import qualified Control.Monad.Random as CMR
+import GHC.Exts
+import qualified System.Random.MWC as MWC
+import System.IO.Unsafe
+
+-- |A 'Monad' which supports generation of (pseud)random numbers.
+class Monad m => MonadRandom m where
+    -- |The constraint that has to be satisfy for the monad to generate a random value of a
+    -- particular type.
+    type MonadRandomConstraint m :: * -> Constraint
+
+    -- |Generates a random value.
+    getRandom :: MonadRandomConstraint m a => m a
+
+    -- |Generates a random value in the given range.
+    getRandomR :: MonadRandomConstraint m a => (a, a) -> m a
+
+-- |Ensures that the 'MonadRandomConstraint' 'm' is satisfied for all 'types'.
+type family ConstraintForAll types m :: Constraint where
+    ConstraintForAll '[] m = ()
+    ConstraintForAll (t ': ts) m = (MonadRandomConstraint m t, MonadRandomForAll ts m)
+
+-- |A convenient constraint-wrapper ensuring that 'm' is able to generate all the 'types'.
+type MonadRandomForAll types m = (MonadRandom m, ConstraintForAll types m)
+
+-- |Uses 'Control.Monad.Random' as the underlying random number generator.
+newtype WithRandom m a = WithRandom { runWithRandom :: m a }
+    deriving (Functor, Applicative, Monad, MonadIO)
+
+instance MonadTrans WithRandom where
+    lift = WithRandom
+    {-# INLINE lift #-}
+
+instance CMR.MonadRandom m => MonadRandom (WithRandom m) where
+    type MonadRandomConstraint (WithRandom m) = CMR.Random
+
+    getRandom = WithRandom CMR.getRandom
+    {-# INLINE getRandom #-}
+
+    getRandomR = WithRandom #. CMR.getRandomR
+    {-# INLINE getRandomR #-}
+
+-- |Unfortunately, GHC is not able to desugar SPECIALISE rules on functions which carry the
+-- 'MWC.Gen' using reflection, so as a workaround -- a single global 'MWC.GenIO' is used.
+-- May be thread-unsafe.
+mwcGenIO :: MWC.GenIO
+mwcGenIO = unsafePerformIO MWC.createSystemRandom
+{-# NOINLINE mwcGenIO #-}
+
+-- |Uses 'System.Random.MWC' as the underlying random number generator.
+newtype MWCIO a = MWCIO { runMWCIO :: IO a }
+    deriving (Functor, Applicative, Monad, MonadIO)
+
+instance PrimMonad MWCIO where
+    type PrimState MWCIO = PrimState IO
+    primitive = MWCIO #. primitive
+    {-# INLINE primitive #-}
+
+instance MonadRandom MWCIO where
+    type MonadRandomConstraint MWCIO = MWC.Variate
+
+    getRandom = MWC.uniform mwcGenIO
+    {-# INLINE getRandom #-}
+
+    getRandomR = flip MWC.uniformR mwcGenIO
+    {-# INLINE getRandomR #-}
