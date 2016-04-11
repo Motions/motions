@@ -9,6 +9,8 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE ConstraintKinds #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Engine where
 
@@ -21,10 +23,10 @@ import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.FreezePredicateParser
+import Bio.Motions.Utils.Random
 import Text.Parsec.String
 
 import Control.Monad.State.Strict
-import Control.Monad.Random
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import System.IO
@@ -64,8 +66,9 @@ data RunSettings repr score = RunSettings
     }
 
 type SimT repr score = StateT (SimulationState repr score)
+type RandomRepr m repr = (Generates (Double ': ReprRandomTypes m repr) m, Representation m repr)
 
-step :: (MonadRandom m, Representation m repr, Score score) => SimT repr score m (Maybe Move)
+step :: (RandomRepr m repr, Score score) => SimT repr score m (Maybe Move)
 step = runMaybeT $ do
     st@SimulationState{..} <- get
     move <- lift2 (generateMove repr) >>= maybe mzero pure
@@ -73,7 +76,7 @@ step = runMaybeT $ do
 
     let delta = fromIntegral $ score' - score
     unless (delta >= 0) $ do
-        r <- getRandomR (0, 1)
+        r <- lift2 $ getRandomR (0, 1)
         guard $ r < exp (delta * factor)
 
     st' <- lift2 $ do
@@ -117,7 +120,7 @@ pushPDBLamins handle pdbMeta = do
     filterLamins d = Dump { dumpBinders = filter isLamin $ dumpBinders d, dumpChains = [] }
     isLamin b = b ^. binderType == laminType
 
-stepAndWrite :: (MonadRandom m, Representation m repr, Score score, MonadIO m)
+stepAndWrite :: (RandomRepr m repr, Score score, MonadIO m)
     => Handle -> Maybe Handle -> Bool -> PDBMeta -> SimT repr score m ()
 stepAndWrite callbacksHandle pdbHandle verbose pdbMeta = do
     move' <- step
@@ -154,7 +157,7 @@ filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
     m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
     (found, notFound) = partition (`M.member` m) req
 
-simulate :: (Score score, Representation m repr, MonadIO m, MonadRandom m)
+simulate :: (Score score, RandomRepr m repr, MonadIO m)
     => RunSettings repr score -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score) dump = do
     freezePredicate <- case freezeFile of

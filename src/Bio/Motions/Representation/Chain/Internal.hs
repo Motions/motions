@@ -11,6 +11,7 @@ Portability : unportable
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE DataKinds #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
@@ -21,10 +22,10 @@ import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Utils.Random
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Random
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import Data.List
@@ -99,6 +100,8 @@ instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
     {-# INLINE getAtomAt #-}
 
 instance Monad m => Representation m PureChainRepresentation where
+    type ReprRandomTypes m PureChainRepresentation = '[Int, Bool]
+
     loadDump = loadDump'
     makeDump = makeDump'
     generateMove = generateMove'
@@ -120,6 +123,8 @@ instance Monad m => Representation m PureChainRepresentation where
     {-# INLINEABLE performMove #-}
 
 instance MonadIO m => Representation m IOChainRepresentation where
+    type ReprRandomTypes m IOChainRepresentation = '[Int, Bool]
+
     loadDump = loadDump'
     makeDump = makeDump'
     generateMove = generateMove'
@@ -192,7 +197,7 @@ generateMove' repr@ChainRepresentation{..} = do
 
 -- |Picks a random element from a 'DS.IsSequence', assuming that its indices form
 -- a continuous range from 0 to @'olength' s - 1@.
-getRandomElement :: (MonadRandom m, DS.IsSequence s, DS.Index s ~ Int) => s -> m (Element s)
+getRandomElement :: (Generates '[Int] m, DS.IsSequence s, DS.Index s ~ Int) => s -> m (Element s)
 getRandomElement s = DS.unsafeIndex s <$> {-# SCC "getRandomR" #-} (getRandomR (0, olength s - 1))
 {-# INLINE getRandomElement #-}
 
