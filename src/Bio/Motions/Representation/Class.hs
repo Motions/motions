@@ -8,13 +8,14 @@ Portability : unportable
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
 module Bio.Motions.Representation.Class where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Utils.Random
 
-import Control.Monad.Random
 import Data.MonoTraversable
 
 
@@ -23,6 +24,9 @@ import Data.MonoTraversable
 -- 'm' denotes a 'Monad' (or 'Applicative') in which the
 -- simulation takes place
 class ReadRepresentation m repr => Representation m repr where
+    -- |Types that the representation wants to be able to sample randomly in 'generateMove'.
+    type ReprRandomTypes m repr :: [*]
+
     -- |Loads the state from a 'Dump'
     loadDump :: Dump -> FreezePredicate -> m repr
 
@@ -30,7 +34,8 @@ class ReadRepresentation m repr => Representation m repr where
     makeDump :: repr -> m Dump
 
     -- |Generates a random valid 'Move' or 'Nothing'.
-    generateMove :: MonadRandom m => repr -> m (Maybe Move)
+    generateMove :: Generates (ReprRandomTypes m repr) m
+        => repr -> m (Maybe Move)
 
     -- |Applies a 'Move' to the state
     performMove :: Move -> repr -> m (repr, [BinderChange])
