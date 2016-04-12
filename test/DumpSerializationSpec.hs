@@ -1,15 +1,51 @@
 {-#LANGUAGE OverloadedLists #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 
 module DumpSerializationSpec where
 
 import Test.Hspec
 import Linear
+import GHC.TypeLits
+import Data.Proxy
+import Data.Maybe
+import Data.Foldable
 
 import Bio.Motions.Format.DumpDeserialisation
 import Bio.Motions.Format.DumpSerialisation
+import Bio.Motions.Format.Proto.Delta
 
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Types
+
+import Bio.Motions.Callback.GyrationRadius
+import Bio.Motions.Callback.StandardScore
+import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Serialisation
+import Bio.Motions.Callback.Periodic
+
+
+newtype SimpleCallback (n :: Nat) = SimpleCallback Int
+    deriving (Show, Eq, Num)
+
+instance CallbackSerialisable (SimpleCallback a) where
+    serialiseCallback name (SimpleCallback x) = serialiseCallback name x
+
+instance Callback 'Pre (SimpleCallback n) where
+    callbackName _ = "_SimpleCallback"
+
+    runCallback _ = pure $ SimpleCallback 0
+
+    updateCallback _ (SimpleCallback n) _ = pure . SimpleCallback $ n + 1
+
+type instance CallbackPeriod (SimpleCallback n) = n
+
+
 
 dump :: Dump
 dump = Dump
@@ -53,3 +89,9 @@ spec = context "when serialising and deserialising dumps and moves" $ do
     let Just moveAgain = deserialiseMove delta
     it "should return the same move" $
         move `shouldBe` moveAgain
+    let serialisedCallbacks = toList $ callbacks $ serialiseMove move ([CallbackResult $ GyrationRadius [10.1, 2.2]
+                                                                       , CallbackResult (PeriodicWait 1 :: (Periodic (SimpleCallback 42)))
+                                                                       , CallbackResult $ PeriodicValue (SimpleCallback 10 :: (SimpleCallback 41))],[])
+    let serialisedCallbacksOK = map fromJust [serialiseInt "SimpleCallback" 10, serialiseListDouble "Gyration Radius" [10.1, 2.2]]
+    it "should return serialised callbacks" $
+        serialisedCallbacks `shouldMatchList` serialisedCallbacksOK

@@ -136,7 +136,7 @@ writeCallbacks handle verbose = do
     liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
   where
     --TODO?
-    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ prettyPrintCallback cb
+    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
 
 -- |Parses a list of callback names

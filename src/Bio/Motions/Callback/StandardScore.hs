@@ -34,8 +34,7 @@ newtype StandardScore = StandardScore Int
     deriving (Eq, Ord, Num, Integral, Enum, Real)
 
 instance CallbackSerialisable StandardScore where
-    serialiseCallback name (StandardScore i) = serialiseInt name i
-    prettyPrintCallback (StandardScore i) = show i
+    serialiseCallback name (StandardScore i) = serialiseCallback name i
 
 instance Show StandardScore where
     show (StandardScore i) = show i

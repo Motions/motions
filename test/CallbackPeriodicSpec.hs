@@ -18,8 +18,7 @@ newtype SimpleCallback (n :: Nat) = SimpleCallback Int
     deriving (Show, Eq, Num)
 
 instance CallbackSerialisable (SimpleCallback a) where
-    serialiseCallback = undefined
-    prettyPrintCallback _ = "SimpleCallback"
+    serialiseCallback name (SimpleCallback x) = serialiseCallback name x
 
 instance Callback 'Pre (SimpleCallback n) where
     callbackName _ = "_SimpleCallback"

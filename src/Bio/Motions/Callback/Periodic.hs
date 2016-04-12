@@ -40,9 +40,7 @@ instance Show cb => Show (Periodic cb) where
 
 instance CallbackSerialisable cb => CallbackSerialisable (Periodic cb) where
     serialiseCallback name (PeriodicValue v) = serialiseCallback name v
-    serialiseCallback name _ = error $  name ++ "not computed in this step"
-    prettyPrintCallback (PeriodicValue v) = prettyPrintCallback v
-    prettyPrintCallback _ = "---"
+    serialiseCallback _ _ = Nothing
 
 -- | Note: The leading '_' is dropped from the base callback's name, if present.
 instance (Callback mode cb, KnownNat (CallbackPeriod cb), CmpNat 0 (CallbackPeriod cb) ~ 'LT)

@@ -34,7 +34,6 @@ newtype GyrationRadius = GyrationRadius [Double]
 
 instance CallbackSerialisable GyrationRadius where
     serialiseCallback name (GyrationRadius rs) = serialiseListDouble name rs
-    prettyPrintCallback (GyrationRadius rs) = show rs
 
 instance Show GyrationRadius where
     show (GyrationRadius rs) = show rs

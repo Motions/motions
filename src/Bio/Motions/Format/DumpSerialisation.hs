@@ -10,6 +10,7 @@ Portability : unportable
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Format.DumpSerialisation where
 
+import Data.Maybe
 import qualified Data.Vector.Unboxed as U
 import qualified Data.Sequence as S
 import Linear
@@ -82,6 +83,7 @@ makePoint p = Point{..}
     where V3 x y z = Just . fromIntegral <$> p
 
 serialiseCallbacks :: Callbacks -> [ProtoCallback.Callback]
-serialiseCallbacks (a, b) = ser a ++ ser b
+serialiseCallbacks (a, b) = [ x | Just x <- (ser a ++ ser b) ]
   where
     ser = map (\(CallbackResult x) -> serialiseCallback (getCallbackName x) x)
+

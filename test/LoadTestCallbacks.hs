@@ -61,7 +61,6 @@ deriving instance Show EmptyCallback
 
 instance CallbackSerialisable EmptyCallback where
     serialiseCallback _ = error $ "Empty Callback"
-    prettyPrintCallback _ = "Empty Callback"
 
 instance Callback 'Pre EmptyCallback where
     callbackName _ = "_empty"
