@@ -40,6 +40,7 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Types
 import Bio.Motions.Common
 import Control.Lens
+import Control.Parallel.Strategies
 import Data.Foldable
 import Data.Maybe
 import Data.MonoTraversable
@@ -75,6 +76,7 @@ deriving instance Enum (THCallbackResult name) => Enum (THCallback name)
 deriving instance Real (THCallbackResult name) => Real (THCallback name)
 deriving instance Integral (THCallbackResult name) => Integral (THCallback name)
 deriving instance Read (THCallbackResult name) => Read (THCallback name)
+deriving instance NFData (THCallbackResult name) => NFData (THCallback name)
 
 instance Show (THCallbackResult name) => Show (THCallback name) where
     show = show . getTHCallback
@@ -329,18 +331,18 @@ instance Lift (Node n) where
 -- |A helper class used to iterate over fixed-width vectors
 -- of nodes.
 class ForEachKNodes (n :: Nat) where
-    forEachKNodes :: (Monoid r, ReadRepresentation m repr, Monad m)
+    forEachKNodes :: (NFData r, Monoid r, ReadRepresentation m repr, Monad m)
         => repr -> (Vec n Atom -> m r) -> m r
 
-    forEachKNodesContaining :: (Monoid r, ReadRepresentation m repr, Monad m)
+    forEachKNodesContaining :: (NFData r, Monoid r, ReadRepresentation m repr, Monad m)
         => Atom -> repr -> (Vec ('Succ n) Atom -> m r) -> m r
 
 -- |The base case.
 instance ForEachKNodes 'Zero where
-    forEachKNodes _ fun = fun Nil
+    forEachKNodes _ fun = (withStrategy $ rparWith rdeepseq) <$> (fun Nil)
     {-# INLINE forEachKNodes #-}
 
-    forEachKNodesContaining atom _ fun = fun $ atom ::: Nil
+    forEachKNodesContaining atom _ fun = (withStrategy $ rparWith rdeepseq) <$> (fun $ atom ::: Nil)
     {-# INLINE forEachKNodesContaining #-}
 
 -- |The recursive case.
