@@ -51,10 +51,10 @@ type Vec3 = V3 Int
 
 -- |Represents the immutable information about a particular bead
 data BeadSignature = BeadSignature
-    { _beadEV :: !EnergyVector -- ^ The energy vector of the bead
-    , _beadAtomIndex :: !Int -- ^ The global index of this bead
-    , _beadChain :: !Int -- ^ The index of the chain this bead belongs to
-    , _beadIndexOnChain :: !Int -- ^ The index on the chain
+    { _beadEV :: {-# UNPACK #-} !EnergyVector -- ^ The energy vector of the bead
+    , _beadAtomIndex :: {-# UNPACK #-} !Int -- ^ The global index of this bead
+    , _beadChain :: {-# UNPACK #-} !Int -- ^ The index of the chain this bead belongs to
+    , _beadIndexOnChain :: {-# UNPACK #-} !Int -- ^ The index on the chain
     }
     deriving (Eq, Show)
 makeClassy ''BeadSignature
@@ -71,8 +71,8 @@ makeClassy ''BinderSignature
 -- The location is wrapped inside a type constructor 'f',
 -- so that e.g. mutable references could be used.
 data Located' f a = Located'
-    { _wrappedPosition :: !(f Vec3)
-    , _located  :: a
+    { _wrappedPosition :: {-# UNPACK #-} !(f Vec3)
+    , _located  :: {-# UNPACK #-} !a
     }
     deriving Functor
 makeLenses ''Located'

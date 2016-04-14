@@ -10,6 +10,7 @@ Portability : unportable
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Callback.StandardScore(StandardScore) where
@@ -50,11 +51,13 @@ instance Callback 'Pre StandardScore where
         numChains <- getNumberOfChains repr
         fold <$> traverse (chainScore repr) [0..numChains - 1]
 
-    updateCallback repr prev (MoveFromTo moveFrom moveTo) = do
-        Just fromAtom <- getAtomAt moveFrom repr
-        atFrom <- energyToMany repr fromAtom . neighbours $ fromAtom ^. position
-        atTo <- energyToMany repr fromAtom . delete moveFrom $ neighbours moveTo
-        pure $ prev - atFrom + atTo
+    updateCallback repr prev (MoveFromTo moveFrom moveTo) = getAtomAt' moveFrom repr go
+      where
+        go (Just fromAtom) = do
+            pos <- unwrap $ fromAtom ^. wrappedPosition
+            atFrom <- energyToMany repr fromAtom $ neighbours pos
+            atTo <- energyToMany repr fromAtom . delete moveFrom $ neighbours moveTo
+            pure $ prev - atFrom + atTo
     {-# INLINEABLE updateCallback #-}
 
 -- |Returns the score between an object and the atom placed on the specified position.
@@ -77,8 +80,10 @@ neighbours x = (x ^+^) <$> ([id, negated] <*> basis)
 {-# INLINE neighbours #-}
 
 -- |Returns the total score for beads belonging to a particular chain.
-chainScore :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m StandardScore
-chainScore repr idx = getChain repr idx $ ofoldlM combine mempty
+chainScore :: forall m repr. (Monad m, ReadRepresentation m repr) => repr -> Int -> m StandardScore
+chainScore repr idx = getChain' repr idx $ ofoldlM combine mempty
   where
-    combine acc beadInfo = mappend acc <$>
-        energyToMany repr (asAtom beadInfo) (neighbours $ beadInfo ^. position)
+    combine :: forall f. (Wrapper m f) => StandardScore -> BeadInfo' f -> m StandardScore
+    combine acc beadInfo = do
+        pos <- unwrap $ beadInfo ^. wrappedPosition
+        mappend acc <$> energyToMany repr (asAtom' beadInfo :: Atom' f) (neighbours pos)
