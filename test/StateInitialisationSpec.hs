@@ -5,7 +5,7 @@ import Data.Maybe
 import Test.Hspec
 import Control.Lens
 import Control.Monad.Random
-import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as M
 
 import Bio.Motions.Common
 import Bio.Motions.StateInitialisation
