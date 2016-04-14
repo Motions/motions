@@ -10,13 +10,13 @@ module Bio.Motions.Representation.Common where
 
 import Control.Monad
 import Control.Lens
-import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as M
 import qualified Data.Vector as V
 import Linear
 
 import Bio.Motions.Types
 
-type Space' f = M.Map Vec3 (Atom' f)
+type Space' f = M.HashMap Vec3 (Atom' f)
 type Space = Space' Identity
 
 -- |A predicate used to determine whether a bead should be frozen
