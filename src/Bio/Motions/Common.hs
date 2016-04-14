@@ -13,6 +13,8 @@ module Bio.Motions.Common where
 
 import Bio.Motions.Types
 import Control.Lens
+import Control.Monad.IO.Class
+import Data.IORef
 import qualified Data.Vector.Unboxed as U
 
 laminType :: BinderType
@@ -30,7 +32,7 @@ class HaveEnergyBetween x y where
     energyBetween :: x -> y -> Energy
 
 instance HaveEnergyBetween EnergyVector BinderType where
-    energyBetween (EnergyVector vec) (BinderType idx) = vec U.! idx
+    energyBetween (EnergyVector vec) (BinderType idx) = U.unsafeIndex vec idx
     {-# INLINE energyBetween #-}
 
 instance HaveEnergyBetween BeadSignature BinderSignature where
@@ -47,11 +49,11 @@ instance HaveEnergyBetween AtomSignature AtomSignature where
     energyBetween _ _ = 0
     {-# INLINE energyBetween #-}
 
-instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween (Located x) y where
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween (Located' f x) y where
     energyBetween x = energyBetween (x ^. located)
     {-# INLINE energyBetween #-}
 
-instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Located y) where
+instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Located' f y) where
     energyBetween x y = energyBetween x (y ^. located)
     {-# INLINE energyBetween #-}
 
@@ -69,6 +71,10 @@ instance {-# INCOHERENT #-} HaveEnergyBetween x y => HaveEnergyBetween x (Maybe 
 position :: Lens' (Located a) Vec3
 position = wrappedPosition . _Wrapping Identity
 {-# INLINE position #-}
+
+unwrappedPosition :: Wrapper m f => Located' f a -> m Vec3
+unwrappedPosition = unwrap . _wrappedPosition
+{-# INLINE unwrappedPosition #-}
 
 class AsAtom' f a where
     asAtom' :: a -> Atom' f
@@ -91,3 +97,34 @@ asAtom = asAtom'
 {-# INLINE asAtom #-}
 
 type AsAtom a = AsAtom' Identity a
+
+-- |Used to wrap and unwrap 'f'.
+--
+-- See 'relocate'.
+class Monad m => Wrapper m f where
+    unwrap :: f a -> m a
+    wrap :: a -> m (f a)
+
+instance Monad m => Wrapper m Identity where
+    unwrap = pure . runIdentity
+    {-# INLINE unwrap #-}
+    wrap = pure . Identity
+    {-# INLINE wrap #-}
+
+instance MonadIO m => Wrapper m IORef where
+    unwrap = liftIO . readIORef
+    {-# INLINE unwrap #-}
+    wrap = liftIO . newIORef
+    {-# INLINE wrap #-}
+
+-- |Converts between 'Located f' and 'Located f''.
+relocate :: (Wrapper m f, Wrapper m f') => Located' f a -> m (Located' f' a)
+relocate (Located' p a) = unwrap p >>= fmap (flip Located' a) . wrap
+{-# INLINE[2] relocate #-}
+{-# RULES "relocate/pure" relocate = pure #-}
+
+-- |A type-constrained version of 'relocate'.
+retrieveLocated :: Wrapper m f => Located' f a -> m (Located a)
+retrieveLocated = relocate
+{-# INLINE[2] retrieveLocated #-}
+{-# RULES "retrieveLocated/pure" retrieveLocated = pure #-}

@@ -55,49 +55,27 @@ data ChainRepresentation f = ChainRepresentation
 type PureChainRepresentation = ChainRepresentation Identity
 type IOChainRepresentation = ChainRepresentation IORef
 
--- |Used to wrap and unwrap 'f'.
---
--- See 'relocate'.
-class Monad m => Wrapper m f where
-    unwrap :: f a -> m a
-    wrap :: a -> m (f a)
-
-instance Monad m => Wrapper m Identity where
-    unwrap = pure . runIdentity
-    {-# INLINE unwrap #-}
-    wrap = pure . Identity
-    {-# INLINE wrap #-}
-
-instance MonadIO m => Wrapper m IORef where
-    unwrap = liftIO . readIORef
-    {-# INLINE unwrap #-}
-    wrap = liftIO . newIORef
-    {-# INLINE wrap #-}
-
--- |Converts between 'Located f' and 'Located f''.
-relocate :: (Wrapper m f, Wrapper m f') => Located' f a -> m (Located' f' a)
-relocate (Located' p a) = unwrap p >>= fmap (flip Located' a) . wrap
-{-# INLINE[2] relocate #-}
-{-# RULES "relocate/pure" relocate = pure #-}
-
--- |A type-constrained version of 'relocate'.
-retrieveLocated :: Wrapper m f => Located' f a -> m (Located a)
-retrieveLocated = relocate
-{-# INLINE[2] retrieveLocated #-}
-{-# RULES "retrieveLocated/pure" retrieveLocated = pure #-}
-
 instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
+    getBinders' ChainRepresentation{..} f = f binders
+    {-# INLINE getBinders' #-}
+
     getBinders ChainRepresentation{..} f = mapM retrieveLocated binders >>= f
     {-# INLINE getBinders #-}
 
     getNumberOfChains ChainRepresentation{..} = pure $ U.length chainIndices - 1
     {-# INLINE getNumberOfChains #-}
 
-    getChain repr ix f = mapM retrieveLocated (getChain' repr ix) >>= f
+    getChain' repr ix f = f $ getChain'' repr ix
+    {-# INLINE getChain' #-}
+
+    getChain repr ix f = mapM retrieveLocated (getChain'' repr ix) >>= f
     {-# INLINE getChain #-}
 
     getAtomAt pos ChainRepresentation{..} = pure $ Located pos . (^. located) <$> M.lookup pos space
     {-# INLINE getAtomAt #-}
+
+    getAtomAt' pos ChainRepresentation{..} f = f $ M.lookup pos space
+    {-# INLINE getAtomAt' #-}
 
 instance Monad m => Representation m PureChainRepresentation where
     type ReprRandomTypes m PureChainRepresentation = '[Int, Bool]
@@ -159,7 +137,7 @@ loadDump' Dump{..} isFrozen = do
 makeDump' :: _ => ChainRepresentation f -> m Dump
 makeDump' repr = do
     relBinders <- mapM relocate (V.toList $ binders repr)
-    relChains <- mapM (mapM relocate . V.toList . getChain' repr) [0..U.length (chainIndices repr) - 2]
+    relChains <- mapM (mapM relocate . V.toList . getChain'' repr) [0..U.length (chainIndices repr) - 2]
     pure Dump
         { dumpBinders = relBinders
         , dumpChains = (dropIndices <$>) <$> relChains
@@ -184,9 +162,8 @@ generateMove' repr@ChainRepresentation{..} = do
         ix <- getRandomElement ixs
         let x = DS.unsafeIndex xs ix
         d <- getRandomElement legalMoves
-        r <- retrieveLocated x
-        let pos = r ^. position
-            pos' = pos + d
+        pos <- unwrappedPosition x
+        let pos' = pos + d
         runMaybeT $ do
             guard . not $ M.member pos' space
             let m = Move pos d
@@ -203,24 +180,23 @@ getRandomElement s = DS.unsafeIndex s <$> {-# SCC "getRandomR" #-} (getRandomR (
 
 -- |The pairs of local neighbours of a bead
 localNeighbours :: (Wrapper m f, Wrapper m f')
-    => BeadInfo' f -> ChainRepresentation f' -> m [(Vec3, Vec3)]
-localNeighbours info repr = do
-    neighbours <- sequence $ catMaybes
-          [ fmap retrieveLocated  $  chain V.!? (ix - 1)
-          ,      retrieveLocated <$> Just info
-          , fmap retrieveLocated  $  chain V.!? (ix + 1)
+    => BeadInfo' f -> Vec3 -> ChainRepresentation f' -> m [(Vec3, Vec3)]
+localNeighbours info pos repr = do
+    positions <- sequence $ catMaybes
+          [ unwrappedPosition <$> chain V.!? (ix - 1)
+          , Just (pure pos)
+          , unwrappedPosition <$> chain V.!? (ix + 1)
           ]
-    let positions = view position <$> neighbours
     pure $ zip positions (tail positions)
   where
     ix = info ^. beadIndexOnChain
-    chain = getChain' repr $ info ^. beadChain
+    chain = getChain'' repr $ info ^. beadChain
 {-# INLINE localNeighbours #-}
 
 illegalBeadMove :: Wrapper m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
 illegalBeadMove repr Move{..} bead = do
-    bead' <- retrieveLocated bead
-    pairs <- localNeighbours (bead' & position +~ moveDiff) repr
+    pos <- unwrappedPosition bead
+    pairs <- localNeighbours bead (pos + moveDiff) repr
     pure $ any (uncurry notOk) pairs
   where
     notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
@@ -228,8 +204,8 @@ illegalBeadMove repr Move{..} bead = do
 {-# INLINE illegalBeadMove #-}
 
 -- |Returns the chain with the specified index.
-getChain' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)
-getChain' ChainRepresentation{..} ix = V.slice b (e - b) beads
+getChain'' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)
+getChain'' ChainRepresentation{..} ix = V.slice b (e - b) beads
   where
     [b, e] = U.unsafeIndex chainIndices <$> [ix, ix + 1]
-{-# INLINE getChain' #-}
+{-# INLINE getChain'' #-}

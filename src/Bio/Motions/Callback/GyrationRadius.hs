@@ -53,8 +53,8 @@ instance Callback 'Pre GyrationRadius where
 -- |Computes the gyration radius of the given chain
 gyrationRadius :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m Double
 gyrationRadius repr chainIndex = do
-    sumOfDistances <- getChain repr chainIndex $ return . sumOfDistances
-    chainLength <- getChain repr chainIndex $ return . fromIntegral . olength
+    sumOfDistances <- getChain' repr chainIndex sumOfDistances
+    chainLength <- getChain' repr chainIndex $ return . fromIntegral . olength
     return $ sumOfDistances / countPairs chainLength
 
 -- |Computes the change of gyration radius in the moved chain
@@ -67,21 +67,27 @@ gyrationRadiusChange :: (Monad m, ReadRepresentation m repr) =>
   -- ^Index of the chain to be moved
   -> m Double
 gyrationRadiusChange Move{..} repr movedChainIndex = do
-    toSubtract <- getChain repr movedChainIndex $ return . distancesToAll moveFrom
-    toAdd <- getChain repr movedChainIndex $ return . distancesToAll (moveFrom + moveDiff)
+    toSubtract <- getChain' repr movedChainIndex $ distancesToAll moveFrom
+    toAdd <- getChain repr movedChainIndex $ distancesToAll (moveFrom + moveDiff)
     let diffLen = sqrt $ fromIntegral $ quadrance moveDiff
-    chainLength <- getChain repr movedChainIndex $ return . fromIntegral . olength
+    chainLength <- getChain' repr movedChainIndex $ return . fromIntegral . olength
     return $ (toAdd - diffLen - toSubtract) / countPairs chainLength
 
 -- |Computes the sum of distances between all pairs of atoms in the given chain
-sumOfDistances :: (MonoTraversable c, Element c ~ Located a) => c -> Double
-sumOfDistances chain = ofoldl' go 0 chain / 2.0
-  where go result bead = result + distancesToAll (bead ^. position) chain
+sumOfDistances :: (MonoTraversable c, Element c ~ Located' f a, Wrapper m f) => c -> m Double
+sumOfDistances chain = (/2) <$> ofoldlM go 0 chain
+  where
+    go result bead = do
+        pos <- unwrappedPosition bead
+        (result +) <$> distancesToAll pos chain
 
 -- |Computes the sum of distances between the given position and all atoms in the given chain
-distancesToAll :: (MonoTraversable c, Element c ~ Located a) => Vec3 -> c -> Double
-distancesToAll start = ofoldl' go 0
-  where go result bead = result + sqrt (fromIntegral $ qd (bead ^. position) start)
+distancesToAll :: (MonoTraversable c, Element c ~ Located' f a, Wrapper m f) => Vec3 -> c -> m Double
+distancesToAll start = ofoldlM go 0
+  where
+    go result bead = do
+        pos <- unwrappedPosition bead
+        pure $ result + sqrt (fromIntegral $ qd pos start)
 
 -- |Number of pairs
 countPairs :: (Fractional a) => a -> a
