@@ -184,9 +184,8 @@ generateMove' repr@ChainRepresentation{..} = do
         ix <- getRandomElement ixs
         let x = DS.unsafeIndex xs ix
         d <- getRandomElement legalMoves
-        r <- retrieveLocated x
-        let pos = r ^. position
-            pos' = pos + d
+        pos <- unwrap $ x ^. wrappedPosition
+        let pos' = pos + d
         runMaybeT $ do
             guard . not $ M.member pos' space
             let m = Move pos d
@@ -203,14 +202,13 @@ getRandomElement s = DS.unsafeIndex s <$> {-# SCC "getRandomR" #-} (getRandomR (
 
 -- |The pairs of local neighbours of a bead
 localNeighbours :: (Wrapper m f, Wrapper m f')
-    => BeadInfo' f -> ChainRepresentation f' -> m [(Vec3, Vec3)]
-localNeighbours info repr = do
-    neighbours <- sequence $ catMaybes
-          [ fmap retrieveLocated  $  chain V.!? (ix - 1)
-          ,      retrieveLocated <$> Just info
-          , fmap retrieveLocated  $  chain V.!? (ix + 1)
+    => BeadInfo' f -> Vec3 -> ChainRepresentation f' -> m [(Vec3, Vec3)]
+localNeighbours info pos repr = do
+    positions <- sequence $ catMaybes
+          [ fmap (unwrap . view wrappedPosition) $ chain V.!? (ix - 1)
+          , Just (pure pos)
+          , fmap (unwrap . view wrappedPosition) $ chain V.!? (ix + 1)
           ]
-    let positions = view position <$> neighbours
     pure $ zip positions (tail positions)
   where
     ix = info ^. beadIndexOnChain
@@ -219,8 +217,8 @@ localNeighbours info repr = do
 
 illegalBeadMove :: Wrapper m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
 illegalBeadMove repr Move{..} bead = do
-    bead' <- retrieveLocated bead
-    pairs <- localNeighbours (bead' & position +~ moveDiff) repr
+    pos <- unwrap $ bead ^. wrappedPosition
+    pairs <- localNeighbours bead (pos + moveDiff) repr
     pure $ any (uncurry notOk) pairs
   where
     notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
