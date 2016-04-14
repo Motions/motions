@@ -33,7 +33,7 @@ import Data.IORef
 import Data.Maybe
 import Data.MonoTraversable
 import qualified Data.Sequences as DS
-import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as M
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Linear

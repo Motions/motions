@@ -14,7 +14,7 @@ module Bio.Motions.StateInitialisation where
 import Control.Lens
 import Control.Monad
 import Control.Monad.Random
-import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as M
 import qualified Data.Vector as V
 import GHC.Exts(groupWith, sortWith)
 import Linear
