@@ -38,8 +38,8 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Linear
 
-data ChainRepresentation f = ChainRepresentation
-    { space :: !(Space' f)
+data ChainRepresentation f space = ChainRepresentation
+    { space :: !(space (Atom' f))
     , binders :: !(V.Vector (BinderInfo' f))
     , moveableBinders :: !(U.Vector Int)
     -- ^ Indices (in the 'binders' vector) of the binders that may be moved.
@@ -52,8 +52,8 @@ data ChainRepresentation f = ChainRepresentation
     -- with an additional @'V.length' 'beads'@ at the end -- see 'getChain''.
     }
 
-type PureChainRepresentation = ChainRepresentation Identity
-type IOChainRepresentation = ChainRepresentation IORef
+type PureChainRepresentation = ChainRepresentation Identity (M.HashMap Vec3)
+type IOChainRepresentation = ChainRepresentation IORef (M.HashMap Vec3)
 
 -- |Used to wrap and unwrap 'f'.
 --
@@ -86,7 +86,7 @@ retrieveLocated = relocate
 {-# INLINE[2] retrieveLocated #-}
 {-# RULES "retrieveLocated/pure" retrieveLocated = pure #-}
 
-instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
+instance (Wrapper m f, SpaceLike m space) => ReadRepresentation m (ChainRepresentation f space) where
     getBinders ChainRepresentation{..} f = mapM retrieveLocated binders >>= f
     {-# INLINE getBinders #-}
 
@@ -96,7 +96,7 @@ instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
     getChain repr ix f = mapM retrieveLocated (getChain' repr ix) >>= f
     {-# INLINE getChain #-}
 
-    getAtomAt pos ChainRepresentation{..} = pure $ Located pos . (^. located) <$> M.lookup pos space
+    getAtomAt pos ChainRepresentation{..} = fmap (Located pos . (^. located)) <$> mlookup pos space
     {-# INLINE getAtomAt #-}
 
 instance Monad m => Representation m PureChainRepresentation where
@@ -139,24 +139,25 @@ instance MonadIO m => Representation m IOChainRepresentation where
     {-# INLINEABLE performMove #-}
 
 -- |An 'f'-polymorphic implementation of 'loadDump' for 'ChainRepresentation f'.
-loadDump' :: _ => Dump -> FreezePredicate -> m (ChainRepresentation f)
+loadDump' :: _ => Dump -> FreezePredicate -> m (ChainRepresentation f space)
 loadDump' Dump{..} isFrozen = do
     relBinders <- mapM relocate dumpBinders
     relBeads <- mapM relocate (concat chains)
+    space' <- mfromList $ zipWith convert relBinders dumpBinders ++ zipWith convert relBeads (concat chains)
     pure ChainRepresentation
         { binders = V.fromList relBinders
         , moveableBinders = U.fromList [i | (i, b) <- zip [0..] relBinders, b ^. binderType /= laminType]
         , beads = V.fromList relBeads
         , moveableBeads = U.fromList [i | (i, b) <- zip [0..] relBeads, not . isFrozen $ b ^. beadSignature]
         , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
-        , space = M.fromList $ zipWith convert relBinders dumpBinders ++ zipWith convert relBeads (concat chains)
+        , space = space'
         }
   where
     chains = addIndices dumpChains
     convert new old = (old ^. position, asAtom' new)
 
 -- |An 'f'-polymorphic implementation of 'makeDump' for 'ChainRepresentation f'.
-makeDump' :: _ => ChainRepresentation f -> m Dump
+makeDump' :: _ => ChainRepresentation f space -> m Dump
 makeDump' repr = do
     relBinders <- mapM relocate (V.toList $ binders repr)
     relChains <- mapM (mapM relocate . V.toList . getChain' repr) [0..U.length (chainIndices repr) - 2]
@@ -166,7 +167,7 @@ makeDump' repr = do
         }
 
 -- |An 'f'-polymorphic implementation of 'generateMive' for 'ChainRepresentation f'.
-generateMove' :: _ => ChainRepresentation f -> m (Maybe Move)
+generateMove' :: _ => ChainRepresentation f space -> m (Maybe Move)
 generateMove' repr@ChainRepresentation{..} = do
     moveBinder <- getRandom
     if moveBinder then
@@ -188,7 +189,7 @@ generateMove' repr@ChainRepresentation{..} = do
         let pos = r ^. position
             pos' = pos + d
         runMaybeT $ do
-            guard . not $ M.member pos' space
+            guard . not =<< mmember pos' space
             let m = Move pos d
             forM_ constraints $ \c -> lift (c m x) >>= guard . not
             pure m
@@ -203,7 +204,7 @@ getRandomElement s = DS.unsafeIndex s <$> {-# SCC "getRandomR" #-} (getRandomR (
 
 -- |The pairs of local neighbours of a bead
 localNeighbours :: (Wrapper m f, Wrapper m f')
-    => BeadInfo' f -> ChainRepresentation f' -> m [(Vec3, Vec3)]
+    => BeadInfo' f -> ChainRepresentation f' space -> m [(Vec3, Vec3)]
 localNeighbours info repr = do
     neighbours <- sequence $ catMaybes
           [ fmap retrieveLocated  $  chain V.!? (ix - 1)
@@ -217,19 +218,30 @@ localNeighbours info repr = do
     chain = getChain' repr $ info ^. beadChain
 {-# INLINE localNeighbours #-}
 
-illegalBeadMove :: Wrapper m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
+illegalBeadMove :: (Wrapper m f, SpaceLike m space) => ChainRepresentation f space -> Move -> BeadInfo' f -> m Bool
 illegalBeadMove repr Move{..} bead = do
     bead' <- retrieveLocated bead
     pairs <- localNeighbours (bead' & position +~ moveDiff) repr
-    pure $ any (uncurry notOk) pairs
+    anyM (uncurry notOk) pairs
   where
-    notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
+    notOk b1 b2
+        | wrongQd (qd b1 b2) = pure False
+        | otherwise = intersectsChain (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
 {-# INLINE illegalBeadMove #-}
 
 -- |Returns the chain with the specified index.
-getChain' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)
+getChain' :: ChainRepresentation f space -> Int -> V.Vector (BeadInfo' f)
 getChain' ChainRepresentation{..} ix = V.slice b (e - b) beads
   where
     [b, e] = U.unsafeIndex chainIndices <$> [ix, ix + 1]
 {-# INLINE getChain' #-}
+
+anyM :: Monad m => (a -> m Bool) -> [a] -> m Bool
+anyM _ [] = pure False
+anyM f (x:xs) = do
+    fx <- f x
+    if fx
+    then pure True
+    else anyM f xs
+{-# INLINEABLE anyM #-}

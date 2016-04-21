@@ -1,1 +1,8 @@
 resolver: nightly-2016-04-09
+
+extra-deps:
+    - hashtables-1.2.1.0
+
+flags:
+    hashtables:
+        sse42: ON
