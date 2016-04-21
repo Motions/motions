@@ -108,7 +108,7 @@ addChain chainNo indOnChain glInd start space (ev:evs) = do
     let targets = [target | move <- moves,
                             let target = move + start,
                             not $ target `M.member` space,
-                            not $ intersectsChain space start target]
+                            not . runIdentity $ intersectsChain space start target]
     let newSpace = M.insert start (asAtom $ BeadInfo start ev glInd chainNo indOnChain) space
     msum . map (\m -> addChain chainNo (indOnChain + 1) (glInd + 1) m newSpace evs) $ targets
 
