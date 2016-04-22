@@ -42,8 +42,22 @@ enabled-callbacks:
 # The used score function.
 # score: StandardScore
 
-# A file containing the description of frozen atoms.
-# freeze-file:
+# A predicate determining whether a bead should be frozen or not.
+# Grammar:
+#
+#   expr ::= literal | literal,expr
+#   literal ::= term | !literal
+#   term ::= (expr) | rangeOrWildcard | rangeOrWildcard:rangeOrWildcard
+#   rangeOrWildcard = * | integer | integer-integer
+#
+# "!" denotes negation, "," denotes alternative, "*" matches everything.
+#
+# Examples:
+#
+#   - "2:1-100,9" freezes beads from 1 to 100 on the chain 2, and also the whole chain 9
+#   - "*:0" freezes the 0th bead of every chain
+#   - "!(4,5)" freezes everything except for chains 4 and 5
+# freeze-predicate: "1:1-100,2:*"
 
 # Description for random initial state generation. Comment out this section if you want
 # to load the initial state from PDB files.
