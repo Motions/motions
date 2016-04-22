@@ -19,8 +19,6 @@ import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 import Bio.Motions.Output
-import Bio.Motions.PDB.Backend
-import Bio.Motions.Format.Handle
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.FreezePredicateParser
@@ -35,27 +33,17 @@ import Control.Lens
 import Data.List
 
 data SimulationState repr score = SimulationState
-    { repr :: !repr
-    , score :: !score
-    , preCallbackResults :: ![CallbackResult 'Pre]
-    , postCallbackResults :: ![CallbackResult 'Post]
-    , stepCounter :: !Int
+    { sRepr :: !repr
+    , sScore :: !score
+    , sPreCallbackResults :: ![CallbackResult 'Pre]
+    , sPostCallbackResults :: ![CallbackResult 'Post]
+    , sStepCounter :: !Int
     }
 
 -- |Describes how the simulation should run.
-data RunSettings repr score = RunSettings
-    { outputPrefix :: FilePath
-    -- ^ Prefix of output file(s)
-    , simulationName :: String
-    , simulationDescription :: String
-    , numSteps :: Int
+data RunSettings repr score backend = RunSettings
+    { numSteps :: Int
     -- ^ Number of simulation steps.
-    , binaryOutput :: Bool
-    -- ^ Use binary format for output
-    , framesPerKF :: Int
-    -- ^ Number of frames per keyframe in binary format
-    , writeIntermediatePDB :: Bool
-    -- ^ Whether to write intermediate PDB frames.
     , verboseCallbacks :: Bool
     -- ^ Enable verbose callback output.
     , simplePDB :: Bool
@@ -68,6 +56,7 @@ data RunSettings repr score = RunSettings
     -- ^ List of all available post-callbacks' types
     , requestedCallbacks :: [String]
     -- ^ List of requested callback names
+    , outputBackend :: backend
     }
 
 type SimT repr score = StateT (SimulationState repr score)
@@ -76,24 +65,23 @@ type RandomRepr m repr = (Generates (Double ': ReprRandomTypes m repr) m, Repres
 step :: (RandomRepr m repr, Score score) => SimT repr score m (Maybe Move)
 step = runMaybeT $ do
     st@SimulationState{..} <- get
-    move <- lift2 (generateMove repr) >>= maybe mzero pure
-    score' <- lift2 $ updateCallback repr score move
+    move <- lift2 (generateMove sRepr) >>= maybe mzero pure
+    sScore' <- lift2 $ updateCallback sRepr sScore move
 
-    let delta = fromIntegral $ score' - score
+    let delta = fromIntegral $ sScore' - sScore
     unless (delta >= 0) $ do
         r <- lift2 $ getRandomR (0, 1)
         guard $ r < exp (delta * factor)
 
-    st' <- lift2 $ do
-        preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
-        (repr', _) <- performMove move repr
-        postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
-        pure $ st { repr = repr'
-                  , score = score'
-                  , preCallbackResults = preCallbackResults'
-                  , postCallbackResults = postCallbackResults'
+    put <=< lift2 $ do
+        sPreCallbackResults' <- mapM (updateCallbackResult sRepr move) sPreCallbackResults
+        (sRepr', _) <- performMove move sRepr
+        sPostCallbackResults' <- mapM (updateCallbackResult sRepr' move) sPostCallbackResults
+        pure $ st { sRepr = sRepr'
+                  , sScore = sScore'
+                  , sPreCallbackResults = sPreCallbackResults'
+                  , sPostCallbackResults = sPostCallbackResults'
                   }
-    put st'
     pure move
   where
     factor :: Double
@@ -112,22 +100,22 @@ stepAndWrite callbacksHandle backend verbose = do
         writeCallbacks callbacksHandle verbose
         push <- liftIO $ getNextPush backend
         case push of
-            PushDump f -> getDump >>= liftIO . (\d -> f d stepCounter score)
+            PushDump f -> getDump >>= liftIO . (\d -> f d sStepCounter sScore)
             PushMove f -> liftIO $ f move
             DoNothing -> pure ()
       Nothing -> pure ()
-    modify $ \s -> s { stepCounter = stepCounter + 1 }
+    modify $ \s -> s { sStepCounter = sStepCounter + 1 }
 
   where
-    getDump = gets repr >>= fmap removeLamins . lift . makeDump
+    getDump = gets sRepr >>= fmap removeLamins . lift . makeDump
     removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
     notLamin b = b ^. binderType /= laminType
 {-# INLINE stepAndWrite #-}
 
 writeCallbacks :: MonadIO m => Handle -> Bool -> SimT repr score m ()
 writeCallbacks handle verbose = do
-    preStr <- fmap resultStr <$> gets preCallbackResults
-    postStr <- fmap resultStr <$> gets postCallbackResults
+    preStr <- fmap resultStr <$> gets sPreCallbackResults
+    postStr <- fmap resultStr <$> gets sPostCallbackResults
     liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
   where
     resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
@@ -146,42 +134,33 @@ filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
     m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
     (found, notFound) = partition (`M.member` m) req
 
-simulate :: (Score score, RandomRepr m repr, MonadIO m)
-    => RunSettings repr score -> Dump -> m Dump
-simulate (RunSettings{..} :: RunSettings repr score) dump = do
+simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend)
+    => RunSettings repr score backend -> Dump -> m Dump
+simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
     freezePredicate <- case freezeFile of
         Just file -> liftIO (parseFromFile freezePredicateParser file) >>= either (fail . show) pure
         Nothing -> pure freezeNothing
     repr :: repr <- loadDump dump freezePredicate
-
 
     let (enabledPreCallbacks, remainingCallbacks) = filterCallbacks allPreCallbacks requestedCallbacks
         (enabledPostCallbacks, remainingCallbacks') = filterCallbacks allPostCallbacks remainingCallbacks
     unless (null remainingCallbacks') . error $
         "Unrecognized callbacks: " ++ intercalate ", " remainingCallbacks'
 
-    score :: score <- runCallback repr
-    preCallbackResults <- getCallbackResults repr enabledPreCallbacks
-    postCallbackResults <- getCallbackResults repr enabledPostCallbacks
-    let stepCounter = 0
-        st = SimulationState{..}
-        outSettings = OutputSettings{..}
-    let pdb = liftIO $ openPDBOutput outSettings dump writeIntermediatePDB simplePDB
-        bin = liftIO $ openBinaryOutput framesPerKF outSettings dump
-    if binaryOutput then
-                    bin >>= sim st
-                    else
-                    pdb >>= sim st
-  where
-    sim st backend = do
-        let callbacksHandle = stdout
-        st' <- flip execStateT st $ do
-            replicateM_ numSteps $ stepAndWrite callbacksHandle backend verboseCallbacks
-            d <- gets (\SimulationState{repr = r} -> r) >>= lift . makeDump
-            stepC <- gets stepCounter
-            score' <- gets score
-            liftIO $ pushLastFrame backend d stepC score'
-        liftIO $ closeBackend backend
-        let SimulationState{..} = st'
-        makeDump repr
+    st <- do
+        sScore :: score <- runCallback repr
+        sPreCallbackResults <- getCallbackResults repr enabledPreCallbacks
+        sPostCallbackResults <- getCallbackResults repr enabledPostCallbacks
+        let sStepCounter = 0
+            sRepr = repr
+        pure SimulationState{..}
+
+    let callbacksHandle = stdout
+    st' <- flip execStateT st $ do
+        replicateM_ numSteps $ stepAndWrite callbacksHandle outputBackend verboseCallbacks
+        d <- gets sRepr >>= lift . makeDump
+        stepC <- gets sStepCounter
+        score' <- gets sScore
+        liftIO $ pushLastFrame outputBackend d stepC score'
+    makeDump $ sRepr st'
 {-# INLINEABLE simulate #-}
