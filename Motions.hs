@@ -27,7 +27,10 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Discover
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.GyrationRadius()
+import Bio.Motions.Format.Handle
 import Bio.Motions.StateInitialisation
+import Bio.Motions.Output
+import Bio.Motions.PDB.Backend
 import Bio.Motions.PDB.Read
 import Bio.Motions.PDB.Meta
 import qualified Bio.Motions.Engine as E
@@ -43,6 +46,7 @@ import Data.Maybe
 import Data.Yaml
 import Data.Aeson.Types as J
 import GHC.Generics
+import Specialise
 
 import LoadCallbacks()
 
@@ -130,33 +134,11 @@ instance FromJSON Settings where
                                        <*> parseJSON v
     parseJSON invalid = typeMismatch "Object" invalid
 
-mkRunSettings :: RunSettings' -> E.RunSettings repr score
-mkRunSettings RunSettings'{..} = E.RunSettings{..}
+mkRunSettings :: RunSettings' -> backend -> E.RunSettings repr score backend
+mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
   where
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
-
-type Run' = RunSettings' -> Dump -> IO Dump
-type Run score = Proxy score -> Run'
-
-newtype RunRepr = RunRepr { runRepr :: forall score. Score score => Run score }
-newtype RunScore = RunScore { runScore :: (forall score. Score score => Run score) -> Run' }
-
-reprMap :: [(String, RunRepr)]
-reprMap = [ ("PureChain", runPureChain)
-          , ("IOChain", runIOChain)
-          ]
-  where
-    runPureChain = RunRepr $ \(_ :: _ score) rs ->
-        runWithRandom . E.simulate (mkRunSettings rs :: E.RunSettings PureChainRepresentation score)
-    runIOChain = RunRepr $ \(_ :: _ score) rs ->
-        runWithRandom . E.simulate (mkRunSettings rs :: E.RunSettings IOChainRepresentation score)
-
-scoreMap :: [(String, RunScore)]
-scoreMap = [ ("StandardScore", runStandardScore)
-           ]
-  where
-    runStandardScore = RunScore $ \run -> run (Proxy :: Proxy StandardScore)
 
 load :: (MonadIO m) => InitialisationSettings -> m Dump
 load InitialisationSettings{..} =
@@ -182,23 +164,46 @@ load InitialisationSettings{..} =
             Nothing -> error "Failed to initialise."
             Just dump -> pure dump
 
-{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> WithRandom IO Dump #-}
-{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> WithRandom IO Dump #-}
-{-# SPECIALISE E.simulate :: E.RunSettings IOChainRepresentation StandardScore -> Dump -> MWCIO Dump #-}
-{-# SPECIALISE E.simulate :: E.RunSettings PureChainRepresentation StandardScore -> Dump -> MWCIO Dump #-}
+{-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
+{-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
+
 runSimulation :: Settings -> Dump -> IO Dump
-runSimulation Settings{..}
-    -- Make the GHC use the specialised dictionaries.
-    | "IOChain" <- reprName,
-      "StandardScore" <- scoreName = runMWCIO . E.simulate
-        (mkRunSettings runSettings :: E.RunSettings IOChainRepresentation StandardScore)
-    | "PureChain" <- reprName,
-      "StandardScore" <- scoreName = runMWCIO . E.simulate
-        (mkRunSettings runSettings :: E.RunSettings PureChainRepresentation StandardScore)
-    | otherwise = runScore runRepr runSettings
+runSimulation Settings{..} = dispatchScore
   where
-    RunScore runScore = fromMaybe (error "Invalid score") $ lookup scoreName scoreMap
-    RunRepr runRepr = fromMaybe (error "Invalid representation") $ lookup reprName reprMap
+    dispatchScore dump
+        | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore) dump
+        | otherwise = fail "Invalid score"
+    {-# INLINE dispatchScore #-}
+
+    dispatchRepr :: _ => _ score -> Dump -> IO Dump
+    dispatchRepr scoreProxy dump
+        | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation) dump
+        | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation) dump
+        | otherwise = fail "Invalid representation"
+    {-# INLINE dispatchRepr #-}
+
+    dispatchRandom :: _ => _ score -> _ repr -> Dump -> IO Dump
+    dispatchRandom scoreProxy reprProxy dump
+        | otherwise = dispatchBackend scoreProxy reprProxy runMWCIO dump
+    {-# INLINE dispatchRandom #-}
+
+    dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
+    dispatchBackend scoreProxy reprProxy random dump
+        | binaryOutput = do
+            backend <- openBinaryOutput framesPerKF outSettings dump
+            dispatchFinal scoreProxy reprProxy random backend dump
+        | otherwise = do
+            backend <- openPDBOutput outSettings dump writeIntermediatePDB simplePDB
+            dispatchFinal scoreProxy reprProxy random backend dump
+        where
+            RunSettings'{..} = runSettings
+            outSettings = OutputSettings{..}
+    {-# INLINE dispatchBackend #-}
+
+    dispatchFinal :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> backend -> Dump -> IO Dump
+    dispatchFinal (_ :: _ score) (_ :: _ repr) random backend dump =
+        random $ E.simulate (mkRunSettings runSettings backend :: E.RunSettings repr score _) dump
+    {-# INLINE dispatchFinal #-}
 
 run :: Settings -> IO ()
 run settings@Settings{..} = do
