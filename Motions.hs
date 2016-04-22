@@ -22,6 +22,7 @@ module Main where
 
 import Bio.Motions.Types
 import Bio.Motions.BED
+import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Chain
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Callback.Class
@@ -35,7 +36,9 @@ import Bio.Motions.PDB.Backend
 import Bio.Motions.PDB.Read
 import Bio.Motions.PDB.Meta
 import qualified Bio.Motions.Engine as E
+import Bio.Motions.Utils.FreezePredicateParser
 import Bio.Motions.Utils.Random
+import Text.Parsec as P
 
 import Control.Exception
 import System.IO
@@ -82,7 +85,7 @@ data RunSettings' = RunSettings'
     , binaryOutput :: Bool
     , framesPerKF :: Int
     , requestedCallbacks :: [String]
-    , freezeFile :: Maybe FilePath
+    , freezePredicateString :: Maybe String
     } deriving Generic
 
 data Settings = Settings
@@ -106,7 +109,7 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("binaryOutput", "binary-output")
             , ("framesPerKF", "frames-per-keyframe")
             , ("requestedCallbacks", "enabled-callbacks")
-            , ("freezeFile", "freeze-file")
+            , ("freezePredicateString", "freeze-predicate")
             , ("generateSettings", "generate")
             , ("loadStateSettings", "load")
             , ("bedFiles", "bed-files")
@@ -141,6 +144,9 @@ mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
   where
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
+    freezePredicate = case freezePredicateString of
+        Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
+        Nothing -> freezeNothing
 
 load :: (MonadIO m) => InitialisationSettings -> m Dump
 load InitialisationSettings{..} =
