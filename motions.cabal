@@ -90,7 +90,8 @@ library
 
 executable motions
   main-is:             Motions.hs
-  other-modules:       LoadCallbacks
+  other-modules:       LoadCallbacks,
+                       Specialise
   build-depends:       base >=4.8 && <4.9,
                        vector >=0.11 && <0.12,
                        MonadRandom >=0.4 && <0.5,
