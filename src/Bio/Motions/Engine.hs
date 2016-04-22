@@ -21,9 +21,7 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Output
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
-import Bio.Motions.Utils.FreezePredicateParser
 import Bio.Motions.Utils.Random
-import Text.Parsec.String
 
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
@@ -46,8 +44,8 @@ data RunSettings repr score backend = RunSettings
     -- ^ Number of simulation steps.
     , verboseCallbacks :: Bool
     -- ^ Enable verbose callback output.
-    , freezeFile :: Maybe FilePath
-    -- ^ A file containing the ranges of the frozen beads' indices.
+    , freezePredicate :: FreezePredicate
+    -- ^ A predicate determining whether a bead is frozen
     , allPreCallbacks :: [CallbackType 'Pre]
     -- ^ List of all available pre-callbacks' types
     , allPostCallbacks :: [CallbackType 'Post]
@@ -148,10 +146,6 @@ simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
     makeDump $ repr st'
   where
     initState = do
-        freezePredicate <- case freezeFile of
-            Just file -> liftIO (parseFromFile freezePredicateParser file) >>= either (fail . show) pure
-            Nothing -> pure freezeNothing
-
         repr :: repr <- loadDump dump freezePredicate
         score :: score <- runCallback repr
 
