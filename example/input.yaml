@@ -42,8 +42,8 @@ enabled-callbacks:
 # The used score function.
 # score: StandardScore
 
-# A file containing the description of frozen atoms.
-# freeze-file:
+# TODO
+# freeze-predicate:
 
 # Description for random initial state generation. Comment out this section if you want
 # to load the initial state from PDB files.
