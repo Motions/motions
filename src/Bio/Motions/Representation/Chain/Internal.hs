@@ -143,11 +143,15 @@ loadDump' :: _ => Dump -> FreezePredicate -> m (ChainRepresentation f)
 loadDump' Dump{..} isFrozen = do
     relBinders <- mapM relocate dumpBinders
     relBeads <- mapM relocate (concat chains)
+    let moveableBinders = U.fromList [i | (i, b) <- zip [0..] relBinders, b ^. binderType /= laminType]
+        moveableBeads = U.fromList [i | (i, b) <- zip [0..] relBeads, not . isFrozen $ b ^. beadSignature]
+    when (U.null moveableBinders) $ fail "No moveable binders"
+    when (U.null moveableBeads) $ fail "No moveable beads"
     pure ChainRepresentation
         { binders = V.fromList relBinders
-        , moveableBinders = U.fromList [i | (i, b) <- zip [0..] relBinders, b ^. binderType /= laminType]
+        , moveableBinders = moveableBinders
         , beads = V.fromList relBeads
-        , moveableBeads = U.fromList [i | (i, b) <- zip [0..] relBeads, not . isFrozen $ b ^. beadSignature]
+        , moveableBeads = moveableBeads
         , chainIndices = U.fromList . scanl' (+) 0 $ map length chains
         , space = M.fromList $ zipWith convert relBinders dumpBinders ++ zipWith convert relBeads (concat chains)
         }
