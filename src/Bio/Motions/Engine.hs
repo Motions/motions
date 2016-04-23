@@ -15,7 +15,6 @@ Portability : unportable
 module Bio.Motions.Engine where
 
 import Bio.Motions.Types
-import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 import Bio.Motions.Output
@@ -27,8 +26,8 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import System.IO
-import Control.Lens
 import Data.List
+import Data.Maybe
 
 data SimulationState repr score = SimulationState
     { repr :: !repr
@@ -92,21 +91,17 @@ stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, Outpu
 stepAndWrite callbacksHandle backend verbose = do
     move' <- step
     SimulationState{..} <- get
-    case move' of
-      Just move -> do
+    when (isJust move') $ do
+        let move = fromJust move'
         writeCallbacks callbacksHandle verbose
         push <- liftIO $ getNextPush backend
         case push of
-            PushDump f -> getDump >>= liftIO . (\d -> f d stepCounter score)
-            PushMove f -> liftIO $ f move
+            PushDump act -> getDump >>= liftIO . (\dump -> act dump stepCounter score)
+            PushMove act -> liftIO $ act move
             DoNothing -> pure ()
-      Nothing -> pure ()
     modify $ \s -> s { stepCounter = stepCounter + 1 }
-
   where
-    getDump = gets repr >>= fmap removeLamins . lift . makeDump
-    removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
-    notLamin b = b ^. binderType /= laminType
+    getDump = gets repr >>= lift . makeDump
 {-# INLINE stepAndWrite #-}
 
 writeCallbacks :: MonadIO m => Handle -> Bool -> SimT repr score m ()
