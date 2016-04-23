@@ -183,3 +183,55 @@ Each line in a ".meta" file is one of the following:
 The resulting mapping must be a bijection if you want to use a ".meta" file as input.
 
 Example PDB files together with a suitable ".meta" file are provided in the "example" directory.
+
+Callbacks
+---------
+
+Writing callbacks
+~~~~~~~~~~~~~~~~~
+
+New callbacks are added in the config/callbacks file. The project needs to be recompiled after adding a callback.
+The file contains one example callback. The full grammar is given::
+
+    <bool_expr> ::= <bool_expr> AND <bool_expr>
+        | <bool_expr> OR <bool_expr>
+        | NOT <bool_expr>
+        | <expr> <comp_operator> <expr>
+        | BELONGS ( <node> , <atom_class> )
+
+    <comp_operator> ::= < | <= | > | >= | == | !=
+
+    <atom_class> ::= BEAD
+        | BEAD_BINDING_TO <int>
+        | BINDER <int>
+
+    <node> ::= X <int>
+
+    <expr> ::= <int>
+        | <float>
+        | <expr> <operator> <expr>
+        | DIST ( <node> , <node> )
+        | ENERGY ( <node> , <node> )
+        | INT ( <expr> )
+        | FLT ( <expr> )
+        | ATOM_INDEX ( <node> )
+        | CHAIN_INDEX ( <node> )
+        | CHROMOSOME ( <node> )
+        | MIN ( <expr> , <expr> )
+        | MAX ( <expr> , <expr> )
+
+    <operator> ::= + | - | / | * | % | //
+
+    <callback> ::= CALLBACK <string> EVERY ACCEPTED <int> NODES <int> WHERE <bool_expr> COMPUTE <aggregate> <expr>
+
+    <aggregate> ::= SUM | PRODUCT | LIST
+
+Enabling callbacks
+~~~~~~~~~~~~~~~~~~
+
+To enable callbacks use the YAML configuration file. The "enabled-callbacks" option contains a list of all
+the callbacks you wish to compute during the dimulation, e.g.::
+
+    enabled-callbacks:
+        - Standard Score
+        - lamin-count
