@@ -34,15 +34,15 @@ data PDBBackend = PDBBackend
     }
 
 instance OutputBackend PDBBackend where
-    getNextPush st = return $ if intermediate st
-                                 then
-                                 PushDump (pushPDBStep st)
-                                 else
-                                 DoNothing
+    getNextPush st
+        | intermediate st = pure $ PushDump (pushPDBStep st)
+        | otherwise = pure DoNothing
     closeBackend PDBBackend{..} = do
         hClose pdbHandle
         withFile metaFile WriteMode $ \h -> writePDBMeta h meta
-    pushLastFrame = pushPDBStep
+    pushLastFrame backend dump step score
+        | intermediate backend = pure ()
+        | otherwise = pushPDBStep backend dump step score
 
 openPDBOutput :: OutputSettings -> Dump -> Bool -> Bool -> IO PDBBackend
 openPDBOutput OutputSettings{..} dump simplePDB intermediate = do

@@ -11,11 +11,11 @@ Portability : unportable
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Engine where
 
 import Bio.Motions.Types
-import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 import Bio.Motions.Output
@@ -27,7 +27,6 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import System.IO
-import Control.Lens
 import Data.List
 
 data SimulationState repr score = SimulationState
@@ -90,23 +89,18 @@ step = runMaybeT $ do
 stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, OutputBackend backend)
     => Handle -> backend -> Bool -> SimT repr score m ()
 stepAndWrite callbacksHandle backend verbose = do
-    move' <- step
-    SimulationState{..} <- get
-    case move' of
-      Just move -> do
-        writeCallbacks callbacksHandle verbose
-        push <- liftIO $ getNextPush backend
-        case push of
-            PushDump f -> getDump >>= liftIO . (\d -> f d stepCounter score)
-            PushMove f -> liftIO $ f move
-            DoNothing -> pure ()
+    step >>= \case
       Nothing -> pure ()
-    modify $ \s -> s { stepCounter = stepCounter + 1 }
-
+      Just move -> do
+          writeCallbacks callbacksHandle verbose
+          SimulationState{..} <- get
+          liftIO (getNextPush backend) >>= \case
+            PushDump act -> getDump >>= liftIO . (\dump -> act dump stepCounter score)
+            PushMove act -> liftIO $ act move
+            DoNothing -> pure ()
+    modify $ \s -> s { stepCounter = stepCounter s + 1 }
   where
-    getDump = gets repr >>= fmap removeLamins . lift . makeDump
-    removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
-    notLamin b = b ^. binderType /= laminType
+    getDump = gets repr >>= lift . makeDump
 {-# INLINE stepAndWrite #-}
 
 writeCallbacks :: MonadIO m => Handle -> Bool -> SimT repr score m ()
