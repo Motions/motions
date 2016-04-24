@@ -9,21 +9,24 @@ Portability : unportable
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Bio.Motions.Representation.Class where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.Random
+import Bio.Motions.Common
 
 import Data.MonoTraversable
 
+type family ReprMove repr :: *
 
 -- |Stores the simulation state and performs basic operations on it
 --
 -- 'm' denotes a 'Monad' (or 'Applicative') in which the
 -- simulation takes place
-class ReadRepresentation m repr => Representation m repr where
+class (HasMove (ReprMove repr), ReadRepresentation m repr) => Representation m repr where
     -- |Types that the representation wants to be able to sample randomly in 'generateMove'.
     type ReprRandomTypes m repr :: [*]
 
@@ -34,10 +37,10 @@ class ReadRepresentation m repr => Representation m repr where
     makeDump :: repr -> m Dump
 
     -- |Generates a random valid 'Move' or 'Nothing'.
-    generateMove :: Generates (ReprRandomTypes m repr) m => repr -> m (Maybe Move)
+    generateMove :: Generates (ReprRandomTypes m repr) m => repr -> m (Maybe (ReprMove repr))
 
     -- |Applies a 'Move' to the state
-    performMove :: Move -> repr -> m (repr, [BinderChange])
+    performMove :: ReprMove repr -> repr -> m (repr, [BinderChange])
 
 -- |A read-only interface to a 'Representation'
 class ReadRepresentation m repr where
