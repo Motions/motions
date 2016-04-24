@@ -12,10 +12,11 @@ Portability : unportable
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Engine where
 
-import Bio.Motions.Types
+import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 import Bio.Motions.Output
@@ -28,6 +29,7 @@ import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import System.IO
 import Data.List
+import System.CPUTime
 
 data SimulationState repr score = SimulationState
     { repr :: !repr
@@ -58,10 +60,10 @@ data RunSettings repr score backend = RunSettings
 type SimT repr score = StateT (SimulationState repr score)
 type RandomRepr m repr = (Generates (Double ': ReprRandomTypes m repr) m, Representation m repr)
 
-step :: (RandomRepr m repr, Score score) => SimT repr score m (Maybe Move)
+step :: (RandomRepr m repr, Score score) => SimT repr score m (Maybe (ReprMove repr))
 step = runMaybeT $ do
     st@SimulationState{..} <- get
-    move <- lift2 (generateMove repr) >>= maybe mzero pure
+    reprMove@(toMove -> move) <- lift2 (generateMove repr) >>= maybe mzero pure
     score' <- lift2 $ updateCallback repr score move
 
     let delta = fromIntegral $ score' - score
@@ -71,14 +73,14 @@ step = runMaybeT $ do
 
     put <=< lift2 $ do
         preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
-        (repr', _) <- performMove move repr
+        (repr', _) <- performMove reprMove repr
         postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
         pure $ st { repr = repr'
                   , score = score'
                   , preCallbackResults = preCallbackResults'
                   , postCallbackResults = postCallbackResults'
                   }
-    pure move
+    pure reprMove
   where
     factor :: Double
     factor = 2
@@ -91,7 +93,7 @@ stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, Outpu
 stepAndWrite callbacksHandle backend verbose = do
     step >>= \case
       Nothing -> pure ()
-      Just move -> do
+      Just (toMove -> move) -> do
           writeCallbacks callbacksHandle verbose
           SimulationState{..} <- get
           liftIO (getNextPush backend) >>= \case
@@ -130,6 +132,7 @@ simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend)
 simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
     let callbacksHandle = stdout
     st <- initState
+    liftIO $ getCPUTime >>= \t -> print ("time: " ++ show ((fromIntegral t / 10**12) :: Double))
 
     SimulationState{..} <- flip execStateT st $
          replicateM_ numSteps $ stepAndWrite callbacksHandle outputBackend verboseCallbacks

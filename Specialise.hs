@@ -32,3 +32,13 @@ simulate'IOChain'StandardScore'Bin'MWCIO :: RunSettings IOChainRepresentation St
                                             -> Dump -> MWCIO Dump
 simulate'IOChain'StandardScore'Bin'MWCIO = inline simulate
 {-# NOINLINE simulate'IOChain'StandardScore'Bin'MWCIO #-}
+
+simulate'PureChain'StandardScore'PDB'MWCIO :: RunSettings PureChainRepresentation StandardScore PDBBackend
+                                              -> Dump -> MWCIO Dump
+simulate'PureChain'StandardScore'PDB'MWCIO = inline simulate
+{-# NOINLINE simulate'PureChain'StandardScore'PDB'MWCIO #-}
+
+simulate'ConcurrentChain'StandardScore'PDB'MWCIO :: RunSettings ConcurrentChainRepresentation StandardScore PDBBackend
+                                              -> Dump -> MWCIO Dump
+simulate'ConcurrentChain'StandardScore'PDB'MWCIO = inline simulate
+{-# NOINLINE simulate'ConcurrentChain'StandardScore'PDB'MWCIO #-}

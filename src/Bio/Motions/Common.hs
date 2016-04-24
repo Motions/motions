@@ -91,3 +91,9 @@ asAtom = asAtom'
 {-# INLINE asAtom #-}
 
 type AsAtom a = AsAtom' Identity a
+
+class HasMove m where
+    toMove :: m -> Move
+
+instance HasMove Move where
+    toMove = id

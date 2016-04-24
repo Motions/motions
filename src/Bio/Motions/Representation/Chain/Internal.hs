@@ -99,6 +99,8 @@ instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
     getAtomAt pos ChainRepresentation{..} = pure $ Located pos . (^. located) <$> M.lookup pos space
     {-# INLINE getAtomAt #-}
 
+type instance ReprMove PureChainRepresentation = Move
+
 instance Monad m => Representation m PureChainRepresentation where
     type ReprRandomTypes m PureChainRepresentation = '[Int, Bool]
 
@@ -121,6 +123,8 @@ instance Monad m => Representation m PureChainRepresentation where
         atom = space repr M.! from
         space' = M.insert to (atom & position .~ to) . M.delete from $ space repr
     {-# INLINEABLE performMove #-}
+
+type instance ReprMove IOChainRepresentation = Move
 
 instance MonadIO m => Representation m IOChainRepresentation where
     type ReprRandomTypes m IOChainRepresentation = '[Int, Bool]
