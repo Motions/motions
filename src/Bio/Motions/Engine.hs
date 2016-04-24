@@ -28,6 +28,7 @@ import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import System.IO
 import Data.List
+import System.CPUTime
 
 data SimulationState repr score = SimulationState
     { repr :: !repr
@@ -130,6 +131,7 @@ simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend)
 simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
     let callbacksHandle = stdout
     st <- initState
+    liftIO $ getCPUTime >>= \t -> print ("time: " ++ show ((fromIntegral t / 10**12) :: Double))
 
     SimulationState{..} <- flip execStateT st $
          replicateM_ numSteps $ stepAndWrite callbacksHandle outputBackend verboseCallbacks
