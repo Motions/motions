@@ -175,6 +175,8 @@ load InitialisationSettings{..} =
 -- See the "Specialise" module.
 {-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
 {-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
+{-# RULES "simulate @PureChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'PureChain'StandardScore'PDB'MWCIO #-}
+{-# RULES "simulate @ConcurrentChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'ConcurrentChain'StandardScore'PDB'MWCIO #-}
 
 runSimulation :: Settings -> Dump -> IO Dump
 runSimulation Settings{..} = dispatchScore
@@ -188,6 +190,7 @@ runSimulation Settings{..} = dispatchScore
     dispatchRepr scoreProxy dump
         | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation) dump
         | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation) dump
+        | "ConcurrentChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy ConcurrentChainRepresentation) dump
         | otherwise = fail "Invalid representation"
     {-# INLINE dispatchRepr #-}
 

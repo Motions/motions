@@ -9,6 +9,8 @@ Portability : unportable
 module Bio.Motions.Representation.Chain
     ( PureChainRepresentation
     , IOChainRepresentation
+    , ConcurrentChainRepresentation
     ) where
 
 import Bio.Motions.Representation.Chain.Internal
+import Bio.Motions.Representation.Chain.Concurrent

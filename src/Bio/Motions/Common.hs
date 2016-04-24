@@ -91,3 +91,13 @@ asAtom = asAtom'
 {-# INLINE asAtom #-}
 
 type AsAtom a = AsAtom' Identity a
+
+class HasMove m where
+    toMove :: m -> Move
+
+-- |"impossible happened" workaround TODO: report
+newtype BasicMove = BasicMove { getBasicMove :: Move }
+
+instance HasMove BasicMove where
+    toMove = getBasicMove
+    {-# INLINE toMove #-}

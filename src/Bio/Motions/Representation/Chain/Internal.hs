@@ -12,6 +12,7 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
@@ -37,6 +38,7 @@ import qualified Data.HashMap.Strict as M
 import qualified Data.Vector as V
 import qualified Data.Vector.Unboxed as U
 import Linear
+import Data.Profunctor.Unsafe
 
 data ChainRepresentation f = ChainRepresentation
     { space :: !(Space' f)
@@ -99,38 +101,55 @@ instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
     getAtomAt pos ChainRepresentation{..} = pure $ Located pos . (^. located) <$> M.lookup pos space
     {-# INLINE getAtomAt #-}
 
+data IndexedMove = BinderMove !Int !Move
+                 | BeadMove !Int !Move
+
+instance HasMove IndexedMove where
+    toMove (BinderMove _ m) = m
+    toMove (BeadMove _ m) = m
+    {-# INLINE toMove #-}
+
+type instance ReprMove PureChainRepresentation = IndexedMove
+
 instance Monad m => Representation m PureChainRepresentation where
     type ReprRandomTypes m PureChainRepresentation = '[Int, Bool]
 
     loadDump = loadDump'
     makeDump = makeDump'
     generateMove = generateMove'
-    {-# INLINEABLE generateMove #-}
+    {-# INLINE generateMove #-}
 
-    performMove (MoveFromTo from to) repr
-        | Binder binderSig <- atom = pure $
-            let Just idx = V.elemIndex (Located from binderSig) $ binders repr
-            in  (repr { space = space'
+    performMove move repr
+        | BinderMove idx (MoveFromTo from to) <- move = pure $
+            let atom = space repr M.! from
+                Binder binderSig = atom
+            in  (repr { space = moveSpace atom from to
                       , binders = binders repr V.// [(idx, Located to binderSig)]
                       }, [])
-        | Bead beadSig <- atom = pure
-            (repr { space = space'
-                  , beads = beads repr V.// [(beadSig ^. beadAtomIndex, Located to beadSig)]
-                  }, [])
+        | BeadMove idx (MoveFromTo from to) <- move = pure $
+            let atom = space repr M.! from
+                Bead beadSig = atom
+            in if beadSig ^. beadAtomIndex /= idx then error "idx /= beadAtomIndex"
+               else (repr { space = moveSpace atom from to
+                          , beads = beads repr V.// [(beadSig ^. beadAtomIndex, Located to beadSig)]
+                          }, [])
       where
-        atom = space repr M.! from
-        space' = M.insert to (atom & position .~ to) . M.delete from $ space repr
+        moveSpace atom from to = M.insert to (atom & position .~ to) . M.delete from $ space repr
     {-# INLINEABLE performMove #-}
+
+type instance ReprMove IOChainRepresentation = BasicMove
 
 instance MonadIO m => Representation m IOChainRepresentation where
     type ReprRandomTypes m IOChainRepresentation = '[Int, Bool]
 
     loadDump = loadDump'
     makeDump = makeDump'
-    generateMove = generateMove'
-    {-# INLINEABLE generateMove #-}
+    generateMove repr = do
+        m <- generateMove' repr
+        pure $ fmap (BasicMove #. toMove) m
+    {-# INLINE generateMove #-}
 
-    performMove (MoveFromTo from to) repr = do
+    performMove (toMove -> MoveFromTo from to) repr = do
         liftIO $ writeIORef (atom ^. wrappedPosition) to
         pure (repr { space = space' }, [])
       where
@@ -170,20 +189,20 @@ makeDump' repr = do
         }
 
 -- |An 'f'-polymorphic implementation of 'generateMive' for 'ChainRepresentation f'.
-generateMove' :: _ => ChainRepresentation f -> m (Maybe Move)
+generateMove' :: _ => ChainRepresentation f -> m (Maybe IndexedMove)
 generateMove' repr@ChainRepresentation{..} = do
     moveBinder <- getRandom
     if moveBinder then
-        pick moveableBinders binders []
+        fmap (uncurry BinderMove) <$> pick moveableBinders binders []
     else
-        pick moveableBeads beads [illegalBeadMove repr]
+        fmap (uncurry BeadMove) <$> pick moveableBeads beads [illegalBeadMove repr]
   where
     -- |Pick a random move of some atom in a sequence
     pick :: _  -- Under some cumbersome constraints...
         => ixs -- ^The sequence of moveable atoms' indices
         -> s -- ^The sequence of atoms
         -> t (Move -> Element s -> m Bool) -- ^A 'Traversable' of additional move constraints
-        -> m (Maybe Move)
+        -> m (Maybe (Int, Move))
     pick ixs xs constraints = do
         ix <- getRandomElement ixs
         let x = DS.unsafeIndex xs ix
@@ -195,7 +214,7 @@ generateMove' repr@ChainRepresentation{..} = do
             guard . not $ M.member pos' space
             let m = Move pos d
             forM_ constraints $ \c -> lift (c m x) >>= guard . not
-            pure m
+            pure (ix, m)
     {-# INLINE pick #-}
 {-# INLINE generateMove' #-}
 
