@@ -188,6 +188,7 @@ runSimulation Settings{..} = dispatchScore
     dispatchRepr scoreProxy dump
         | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation) dump
         | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation) dump
+        | "ConcurrentChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy ConcurrentChainRepresentation) dump
         | otherwise = fail "Invalid representation"
     {-# INLINE dispatchRepr #-}
 
