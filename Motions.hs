@@ -25,10 +25,7 @@ import Bio.Motions.BED
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Chain
 import Bio.Motions.Representation.Dump
-import Bio.Motions.Callback.Class
-import Bio.Motions.Callback.Discover
 import Bio.Motions.Callback.StandardScore
-import Bio.Motions.Callback.GyrationRadius()
 import Bio.Motions.Format.Handle
 import Bio.Motions.StateInitialisation
 import Bio.Motions.Output
@@ -52,8 +49,6 @@ import Data.Yaml
 import Data.Aeson.Types as J
 import GHC.Generics
 import Specialise
-
-import LoadCallbacks()
 
 data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]
@@ -139,11 +134,9 @@ instance FromJSON Settings where
                                        <*> parseJSON v
     parseJSON invalid = typeMismatch "Object" invalid
 
-mkRunSettings :: RunSettings' -> backend -> E.RunSettings repr score backend
+mkRunSettings :: RunSettings' -> backend -> E.RunSettings repr score backend Specialise.PreCallbacks Specialise.PostCallbacks
 mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
   where
-    allPreCallbacks = $(allCallbacks Pre)
-    allPostCallbacks = $(allCallbacks Post)
     freezePredicate = case freezePredicateString of
         Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
         Nothing -> freezeNothing
@@ -212,7 +205,7 @@ runSimulation Settings{..} = dispatchScore
 
     dispatchFinal :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> backend -> Dump -> IO Dump
     dispatchFinal (_ :: _ score) (_ :: _ repr) random backend dump =
-        random $ E.simulate (mkRunSettings runSettings backend :: E.RunSettings repr score _) dump
+        random $ E.simulate (mkRunSettings runSettings backend :: E.RunSettings repr score _ _ _) dump
     {-# INLINE dispatchFinal #-}
 
 run :: Settings -> IO ()

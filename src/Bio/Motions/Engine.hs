@@ -12,16 +12,20 @@ Portability : unportable
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Engine where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Specialise
 import Bio.Motions.Output
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.Random
+
+import Data.Proxy
 
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
@@ -29,33 +33,29 @@ import qualified Data.Map.Strict as M
 import System.IO
 import Data.List
 
-data SimulationState repr score = SimulationState
+data SimulationState repr score m = SimulationState
     { repr :: !repr
     , score :: !score
-    , preCallbackResults :: ![CallbackResult 'Pre]
-    , postCallbackResults :: ![CallbackResult 'Post]
+    , preCallbackResults :: ![SpecCallbackValue 'Pre m repr]
+    , postCallbackResults :: ![SpecCallbackValue 'Post m repr]
     , stepCounter :: !Int
     }
 
 -- |Describes how the simulation should run.
-data RunSettings repr score backend = RunSettings
+data RunSettings repr score backend (preCbs :: [*]) (postCbs :: [*]) = RunSettings
     { numSteps :: Int
     -- ^ Number of simulation steps.
     , verboseCallbacks :: Bool
     -- ^ Enable verbose callback output.
     , freezePredicate :: FreezePredicate
     -- ^ A predicate determining whether a bead is frozen
-    , allPreCallbacks :: [CallbackType 'Pre]
-    -- ^ List of all available pre-callbacks' types
-    , allPostCallbacks :: [CallbackType 'Post]
-    -- ^ List of all available post-callbacks' types
     , requestedCallbacks :: [String]
     -- ^ List of requested callback names
     , outputBackend :: backend
     -- ^ Output backend
     }
 
-type SimT repr score = StateT (SimulationState repr score)
+type SimT repr score m = StateT (SimulationState repr score m) m
 type RandomRepr m repr = (Generates (Double ': ReprRandomTypes m repr) m, Representation m repr)
 
 step :: (RandomRepr m repr, Score score) => SimT repr score m (Maybe Move)
@@ -70,9 +70,9 @@ step = runMaybeT $ do
         guard $ r < exp (delta * factor)
 
     put <=< lift2 $ do
-        preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
+        preCallbackResults' <- mapM (updateSpecCallback repr move) preCallbackResults
         repr' <- performMove move repr
-        postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
+        postCallbackResults' <- mapM (updateSpecCallback repr' move) postCallbackResults
         pure $ st { repr = repr'
                   , score = score'
                   , preCallbackResults = preCallbackResults'
@@ -109,25 +109,25 @@ writeCallbacks handle verbose = do
     postStr <- fmap resultStr <$> gets postCallbackResults
     liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
   where
-    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
+    resultStr (SpecCallbackValue _ cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
 
 -- |Parses a list of callback names
 filterCallbacks ::
-       [CallbackType mode]
+       [SpecCallbackType mode m repr]
     -- ^List of all available callback types
     -> [String]
     -- ^Requested callback names
-    -> ([CallbackType mode], [String])
+    -> ([SpecCallbackType mode m repr], [String])
     -- ^(Requested callback types, leftover names)
 filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
   where
-    m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
+    m = M.fromList [(callbackName p, x) | x@SpecCallback{scValue = p} <- allCbs]
     (found, notFound) = partition (`M.member` m) req
 
-simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend)
-    => RunSettings repr score backend -> Dump -> m Dump
-simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
+simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend, SpecCallbacks 'Pre preCbs, SpecCallbacks 'Post postCbs)
+    => RunSettings repr score backend preCbs postCbs -> Dump -> m Dump
+simulate (RunSettings{..} :: RunSettings repr score backend preCbs postCbs) dump = do
     let callbacksHandle = stdout
     st <- initState
 
@@ -142,12 +142,14 @@ simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
         repr :: repr <- loadDump dump freezePredicate
         score :: score <- runCallback repr
 
-        let (enabledPreCallbacks, remainingCallbacks) = filterCallbacks allPreCallbacks requestedCallbacks
+        let allPreCallbacks = makeSpecCallbacks (Proxy :: Proxy preCbs)
+            allPostCallbacks = makeSpecCallbacks (Proxy :: Proxy postCbs)
+            (enabledPreCallbacks, remainingCallbacks) = filterCallbacks allPreCallbacks requestedCallbacks
             (enabledPostCallbacks, remainingCallbacks') = filterCallbacks allPostCallbacks remainingCallbacks
         unless (null remainingCallbacks') . error $
             "Unrecognized callbacks: " ++ intercalate ", " remainingCallbacks'
-        preCallbackResults <- getCallbackResults repr enabledPreCallbacks
-        postCallbackResults <- getCallbackResults repr enabledPostCallbacks
+        preCallbackResults <- runSpecCallbacks repr enabledPreCallbacks
+        postCallbackResults <- runSpecCallbacks repr enabledPostCallbacks
 
         let stepCounter = 0
         pure SimulationState{..}
