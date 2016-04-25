@@ -10,7 +10,6 @@ module Bio.Motions.Callback.Discover where
 
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Periodic
-import Data.Proxy
 import Language.Haskell.TH
 
 -- |Finds all callbacks with the given 'Mode' and creates a list of
@@ -24,17 +23,18 @@ import Language.Haskell.TH
 -- is parsed using the Template Haskell callback quasiquoter, it must
 -- be parsed at stage prior to the call to 'allCallbacks', e.g. it must
 -- be defined in another module.
-allCallbacks :: Mode -> ExpQ
+allCallbacks :: Mode -> TypeQ
 allCallbacks mode = do
     name <- newName "a"
     mode' <- promotedT $ case mode of
         Pre -> 'Pre
         Post -> 'Post
     insts <- reifyInstances ''Callback [mode', VarT name]
-    listE [mkCallbackType t | InstanceD [] (AppT _ t) _ <- insts]
+    mkList <$> sequence [mkCallbackType t | InstanceD [] (AppT _ t) _ <- insts]
   where
-    mkCallbackType t = do
-        periodic <- isInstance ''CallbackPeriod [t]
-        let typ | periodic = [t| Periodic $(pure t) |]
-                | otherwise = pure t
-        [| CallbackType (Proxy :: Proxy $(typ)) |]
+    mkCallbackType t = fix <$> isInstance ''CallbackPeriod [t]
+      where
+        fix True = AppT (ConT ''Periodic) t
+        fix False = t
+
+    mkList = foldr (AppT . AppT PromotedConsT) PromotedNilT

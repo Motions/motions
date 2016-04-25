@@ -40,6 +40,7 @@ instance Callback 'Pre GyrationRadius where
     runCallback repr = GyrationRadius <$> do
         chainsCount <- getNumberOfChains repr
         forM [0..chainsCount - 1] $ gyrationRadius repr
+    {-# INLINE runCallback #-}
 
     updateCallback repr (GyrationRadius prev) m@Move{..} = GyrationRadius <$> do
         atom <- getAtomAt moveFrom repr
@@ -49,6 +50,7 @@ instance Callback 'Pre GyrationRadius where
                 change <- gyrationRadiusChange m repr chainIndex
                 return $ prev & ix chainIndex +~ change
             _ -> return prev
+    {-# INLINE updateCallback #-}
 
 -- |Computes the gyration radius of the given chain
 gyrationRadius :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m Double
@@ -56,6 +58,7 @@ gyrationRadius repr chainIndex = do
     sumOfDistances <- getChain repr chainIndex $ return . sumOfDistances
     chainLength <- getChain repr chainIndex $ return . fromIntegral . olength
     return $ sumOfDistances / countPairs chainLength
+{-# INLINE gyrationRadius #-}
 
 -- |Computes the change of gyration radius in the moved chain
 gyrationRadiusChange :: (Monad m, ReadRepresentation m repr) =>
@@ -72,17 +75,21 @@ gyrationRadiusChange Move{..} repr movedChainIndex = do
     let diffLen = sqrt $ fromIntegral $ quadrance moveDiff
     chainLength <- getChain repr movedChainIndex $ return . fromIntegral . olength
     return $ (toAdd - diffLen - toSubtract) / countPairs chainLength
+{-# INLINE gyrationRadiusChange #-}
 
 -- |Computes the sum of distances between all pairs of atoms in the given chain
 sumOfDistances :: (MonoTraversable c, Element c ~ Located a) => c -> Double
 sumOfDistances chain = ofoldl' go 0 chain / 2.0
   where go result bead = result + distancesToAll (bead ^. position) chain
+{-# INLINE sumOfDistances #-}
 
 -- |Computes the sum of distances between the given position and all atoms in the given chain
 distancesToAll :: (MonoTraversable c, Element c ~ Located a) => Vec3 -> c -> Double
 distancesToAll start = ofoldl' go 0
   where go result bead = result + sqrt (fromIntegral $ qd (bead ^. position) start)
+{-# INLINE distancesToAll #-}
 
 -- |Number of pairs
 countPairs :: (Fractional a) => a -> a
 countPairs x = x * (x - 1) / 2
+{-# INLINE countPairs #-}
