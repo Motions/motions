@@ -28,6 +28,7 @@ library
                        Bio.Motions.Utils.Parsec,
                        Bio.Motions.Utils.Random,
                        Bio.Motions.Utils.Common,
+                       Bio.Motions.Utils.Constraint,
                        Bio.Motions.Callback.Class,
                        Bio.Motions.Callback.Discover,
                        Bio.Motions.Callback.GyrationRadius,
