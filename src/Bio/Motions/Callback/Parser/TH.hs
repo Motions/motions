@@ -32,7 +32,7 @@ import Language.Haskell.TH
 import Language.Haskell.TH.Quote
 import Language.Haskell.TH.Syntax
 
-import Bio.Motions.Callback.Class hiding (CallbackResult)
+import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Parser.Parser
 import Bio.Motions.Callback.Periodic
 import Bio.Motions.Representation.Class
@@ -179,7 +179,7 @@ createCallback ParsedCallback{..} = concat <$> sequence [common, frequency, mono
                         let prevVec = replaceAll atom prevAtom vec
                             go = runTHCallback repr in
                         (-) <$> go vec <*> go prevVec
-                {-# INLINEABLE updateCallback #-}
+                {-# INLINE updateCallback #-}
             |]
         _ -> [d|
             instance Callback 'Post (THCallback $(name)) where
