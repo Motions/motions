@@ -16,7 +16,6 @@ Portability : unportable
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
@@ -38,6 +37,7 @@ module Bio.Motions.Callback.Parser.Parser
 
 import Bio.Motions.Common
 import Bio.Motions.Types
+import Bio.Motions.Utils.Common
 import Data.Maybe
 import GHC.Prim
 import Text.Parsec
@@ -103,9 +103,7 @@ instance ToNode n => ToNode ('Succ n) where
 
 -- |A useful constraint. 'EC' 'c' 'n' '[a_0, a_1, ...] means:
 -- 'ToNode' 'n' and all of 'c' a_0, 'c' a_1, ...
-type family EC (c :: * -> Constraint) (n :: Nat) (a :: [*]) :: Constraint
-type instance EC c n '[] = (ToNode n)
-type instance EC c n (t ': ts) = (c t, EC c n ts)
+type EC (c :: * -> Constraint) (n :: Nat) (a :: [*]) = (ToNode n, All c a)
 
 -- |The AST of the callback DSL.
 --

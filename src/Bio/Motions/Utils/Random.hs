@@ -13,7 +13,6 @@ Portability : unportable
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
 module Bio.Motions.Utils.Random
     ( MonadRandom
     , getRandom
@@ -26,13 +25,14 @@ module Bio.Motions.Utils.Random
     , runMWCIO
     ) where
 
-import Data.Profunctor.Unsafe
+import Bio.Motions.Utils.Common
 import Control.Monad.Primitive
 import Control.Monad.Trans
 import qualified Control.Monad.Random as CMR
+import Data.Profunctor.Unsafe
 import GHC.Exts
-import qualified System.Random.MWC as MWC
 import System.IO.Unsafe
+import qualified System.Random.MWC as MWC
 
 -- |A 'Monad' which supports generation of (pseud)random numbers.
 class Monad m => MonadRandom m where
@@ -47,12 +47,7 @@ class Monad m => MonadRandom m where
     getRandomR :: Random m a => (a, a) -> m a
 
 -- |Constraint ensuring that 'm' is able to generate all the 'types'.
-type Generates types m = (MonadRandom m, Randoms types m)
-
--- |Ensures that the 'Random' 'm' is satisfied for all 'types'.
-type family Randoms types m :: Constraint where
-    Randoms '[] m = ()
-    Randoms (t ': ts) m = (Random m t, Randoms ts m)
+type Generates types m = (MonadRandom m, All (Random m) types)
 
 -- |Uses 'Control.Monad.Random' as the underlying random number generator.
 newtype WithRandom m a = WithRandom { runWithRandom :: m a }
