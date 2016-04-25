@@ -36,6 +36,7 @@ library
                        Bio.Motions.Callback.Parser.Parser,
                        Bio.Motions.Callback.Parser.TH,
                        Bio.Motions.Callback.Periodic,
+                       Bio.Motions.Callback.Specialise,
                        Bio.Motions.Types,
                        Bio.Motions.Common,
                        Bio.Motions.PDB.Meta,
