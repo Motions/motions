@@ -1,12 +1,11 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 module CallbackDiscoverSpec(spec) where
 
 import LoadTestCallbacks
@@ -21,42 +20,41 @@ import Data.Proxy
 import GHC.Exts
 import Test.Hspec
 
-class CallbackNames (m :: Mode) (callbacks :: [a]) where
-    callbackNames :: Proxy# m -> Proxy# callbacks -> [String]
+class CallbackNames (callbacks :: [a]) where
+    callbackNames :: Proxy# callbacks -> [String]
 
-instance CallbackNames m '[] where
-    callbackNames _ _ = []
+instance CallbackNames '[] where
+    callbackNames _ = []
 
-instance (Callback m cb, CallbackNames m cbs) => CallbackNames m (cb ': cbs) where
-    callbackNames pM _ = this : rest
+instance (Callback m cb, CallbackNames cbs) => CallbackNames (cb ': cbs) where
+    callbackNames _ = this : rest
       where
         this = callbackName (Proxy :: Proxy cb)
-        rest = callbackNames pM (proxy# :: Proxy# cbs)
+        rest = callbackNames (proxy# :: Proxy# cbs)
 
-testDiscover :: forall mode list. CallbackNames mode list => [CallbackType mode] -> Proxy# list -> Spec
-testDiscover discovered pList = it "discovers them correctly" $
+testDiscover :: forall discovered expected.
+    (CallbackNames discovered, CallbackNames expected)
+     => Proxy# discovered -> Proxy# expected -> Spec
+testDiscover discovered expected = it "discovers them correctly" $
     discoveredNames `shouldMatchList` expectedNames
   where
-    discoveredNames = [callbackName t | CallbackType t <- discovered]
-    expectedNames = callbackNames (proxy# :: Proxy# mode) pList
+    discoveredNames = callbackNames discovered
+    expectedNames = callbackNames expected
 
-preCallbacks :: [CallbackType 'Pre]
-preCallbacks = $(allCallbacks Pre)
-
-postCallbacks :: [CallbackType 'Post]
-postCallbacks = $(allCallbacks Post)
+type PreCallbacks = $(allCallbacks Pre)
+type PostCallbacks = $(allCallbacks Post)
 
 spec :: Spec
 spec = context "the callback discovery" $ do
     context "when discovering pre-callbacks" $
-        testDiscover preCallbacks (proxy# :: Proxy#
+        testDiscover (proxy# :: Proxy# PreCallbacks) (proxy# :: Proxy#
             '[ StandardScore
              , GyrationRadius
              , Periodic EmptyCallback
              ])
 
     context "when discovering post-callbacks" $
-        testDiscover postCallbacks (proxy# :: Proxy#
+        testDiscover (proxy# :: Proxy# PostCallbacks) (proxy# :: Proxy#
             '[ THCallback "sum42-beads"
              , THCallback "prod2-all"
              , THCallback "list42-binders"
