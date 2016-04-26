@@ -120,11 +120,6 @@ pattern Located p x = Located' (Identity p) x
 pattern BinderInfo pos binderType = Located pos (BinderSignature binderType)
 pattern BeadInfo pos ev atomIx chainIx ixOnChain = Located pos (BeadSignature ev atomIx chainIx ixOnChain)
 
--- |Represents an additional addition or removal of a binder
--- due to a 'Move'.
-data BinderChange = AddBinder BinderInfo -- ^ Addition of a binder
-                  | RemoveBinder BinderInfo -- ^ Removal of a binder
-
 instance HasBeadSignature (BeadInfo' f) where
     beadSignature = located
     {-# INLINE beadSignature #-}

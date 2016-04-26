@@ -71,7 +71,7 @@ step = runMaybeT $ do
 
     put <=< lift2 $ do
         preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
-        (repr', _) <- performMove move repr
+        repr' <- performMove move repr
         postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
         pure $ st { repr = repr'
                   , score = score'

@@ -73,11 +73,11 @@ testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
     context "when generating a move"
         testGenerateMove
 
-    beforeWith (\repr -> fst <$> performMove beadMove repr) $
+    beforeWith (\repr -> performMove beadMove repr) $
         context "after making a bead move" $ do
             testAfterBeadMove
 
-            beforeWith (\repr -> fst <$> performMove binderMove repr) $
+            beforeWith (\repr -> performMove binderMove repr) $
                 context "after making a binder move"
                     testAfterBinderMove
   where

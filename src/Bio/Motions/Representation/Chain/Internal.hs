@@ -110,13 +110,13 @@ instance Monad m => Representation m PureChainRepresentation where
     performMove (MoveFromTo from to) repr
         | Binder binderSig <- atom = pure $
             let Just idx = V.elemIndex (Located from binderSig) $ binders repr
-            in  (repr { space = space'
-                      , binders = binders repr V.// [(idx, Located to binderSig)]
-                      }, [])
+            in  repr { space = space'
+                     , binders = binders repr V.// [(idx, Located to binderSig)]
+                     }
         | Bead beadSig <- atom = pure
-            (repr { space = space'
-                  , beads = beads repr V.// [(beadSig ^. beadAtomIndex, Located to beadSig)]
-                  }, [])
+            repr { space = space'
+                 , beads = beads repr V.// [(beadSig ^. beadAtomIndex, Located to beadSig)]
+                 }
       where
         atom = space repr M.! from
         space' = M.insert to (atom & position .~ to) . M.delete from $ space repr
@@ -132,7 +132,7 @@ instance MonadIO m => Representation m IOChainRepresentation where
 
     performMove (MoveFromTo from to) repr = do
         liftIO $ writeIORef (atom ^. wrappedPosition) to
-        pure (repr { space = space' }, [])
+        pure repr { space = space' }
       where
         atom = space repr M.! from
         space' = M.insert to atom $ M.delete from $ space repr
