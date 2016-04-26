@@ -6,6 +6,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 module Bio.Motions.Representation.Chain.Concurrent where
 
 import Bio.Motions.Types
@@ -16,10 +17,8 @@ import Bio.Motions.Representation.Chain.Internal
 import Bio.Motions.Representation.Common
 import Bio.Motions.Utils.Random
 
-import System.IO.Error
 import Linear
 import Control.Concurrent
-import Control.Exception
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.Maybe
@@ -34,12 +33,12 @@ import qualified Data.Array as A
 import qualified System.Random.MWC as MWC
 import qualified Data.HashMap.Strict as M
 
-data Request = Perform Move
+data Request = Perform IndexedMove
              | Generate
 
 data Cube = Cube
     { cubeChan :: Chan Request
-    , cubeMVar :: MVar (Maybe Move)
+    , cubeMVar :: MVar (Maybe IndexedMove)
     , cubeLow :: Vec3
     , cubeHigh :: Vec3
     , cubeRepr :: IORef PureChainRepresentation
@@ -53,7 +52,7 @@ data ConcurrentChainRepresentation = ConcurrentChainRepresentation
     , cubeSideLen :: Int
     }
 
-type instance ReprMove ConcurrentChainRepresentation = Move
+type instance ReprMove ConcurrentChainRepresentation = IndexedMove
 
 instance MonadIO m => Representation m ConcurrentChainRepresentation where
     type ReprRandomTypes m ConcurrentChainRepresentation = '[Int, Bool]
@@ -88,7 +87,7 @@ instance MonadIO m => Representation m ConcurrentChainRepresentation where
         repr' <- liftIO $ readIORef repr
         (repr'', _) <- performMove move repr'
         liftIO $ atomicWriteIORef repr repr''
-        liftIO $ forM_ (closeCubes r move) $ \cube -> writeChan (cubeChan cube) (Perform move)
+        liftIO $ forM_ (closeCubes r $ toMove move) $ \cube -> writeChan (cubeChan cube) (Perform move)
         pure (r, [])
     {-# INLINEABLE performMove #-}
 
@@ -154,7 +153,7 @@ cubeWorker Cube{..} = do
                 d <- V.unsafeIndex legalMoves <$> MWC.uniformR (0, V.length legalMoves - 1) gen
                 let pos = x ^. position
                     pos' = pos + d
-                runMaybeT $ guard (not $ M.member pos' (space repr)) >> pure (Move pos d)
+                runMaybeT $ guard (not $ M.member pos' (space repr)) >> pure (BinderMove ix $ Move pos d)
             else if (not . S.null) localBeads then do
                 ix <- (`S.elemAt` localBeads) <$> MWC.uniformR (0, S.size localBeads - 1) gen
                 x <- V.indexM (beads repr) ix
@@ -165,45 +164,31 @@ cubeWorker Cube{..} = do
                     guard . not $ M.member pos' $ space repr
                     let m = Move pos d
                     illegalBeadMove repr m x >>= guard . not
-                    pure m
+                    pure $ BeadMove ix m
             else
                 pure Nothing
-        reply repr move
+        reply move
   where
-    reply :: PureChainRepresentation -> Maybe Move -> IO ()
-    reply oldRepr !move = readChan cubeChan >>= \case
+    reply :: Maybe IndexedMove -> IO ()
+    reply !move = readChan cubeChan >>= \case
         Generate -> do
             putMVar cubeMVar move
-        Perform move'@(MoveFromTo from to) -> do
-            when (entersCube move') $ do
-                newRepr <- readIORef cubeRepr
-                addAtom newRepr to
-            when (leavesCube move') $ removeAtom oldRepr from
+        Perform reprMove'@(toMove -> move') -> do
+            when (entersCube move') $ addAtom reprMove'
+            when (leavesCube move') $ removeAtom reprMove'
             --case move of
             --  Just m -> unless (isClose m move') $ reply oldRepr move
             --  Nothing -> pure ()
 
-    addAtom :: PureChainRepresentation -> Vec3 -> IO ()
-    addAtom r v = updateAtom S.insert r v `catchIOError` (\e -> ioError (userError ("addAtom" ++ show e)))
+    updateAtom :: (Int -> S.Set Int -> S.Set Int) -> IndexedMove -> IO ()
+    updateAtom update (BinderMove idx _) = modifyIORef' cubeLocalBinders $ update idx
+    updateAtom update (BeadMove idx _) = modifyIORef' cubeLocalBeads $ update idx
 
-    removeAtom :: PureChainRepresentation -> Vec3 -> IO ()
-    removeAtom r v = updateAtom S.delete r v `catchIOError` (\e -> ioError (userError ("removeAtom" ++ show e)))
+    addAtom :: IndexedMove -> IO ()
+    addAtom = updateAtom S.insert
 
-    updateAtom :: (Int -> S.Set Int -> S.Set Int) -> PureChainRepresentation -> Vec3 -> IO ()
-    updateAtom update repr pos =
-        case [beadIndex repr pos, binderIndex repr pos] of
-            [Nothing, Nothing] -> ioError (userError "That's bad")
-            [Just _, Just _] -> ioError (userError "That's even worse")
-            [Just ix, _] -> modifyIORef' cubeLocalBeads $ update ix
-            [_, Just ix] -> modifyIORef' cubeLocalBinders $ update ix
-            _ -> error "wtf"
-
-    -- TODO: slow
-    beadIndex :: PureChainRepresentation -> Vec3 -> Maybe Int
-    beadIndex repr pos = V.findIndex ((== pos) . (^. position)) . beads $ repr
-
-    binderIndex :: PureChainRepresentation -> Vec3 -> Maybe Int
-    binderIndex repr pos = V.findIndex ((== pos) . (^. position)) . binders $ repr
+    removeAtom :: IndexedMove -> IO ()
+    removeAtom = updateAtom S.delete
 
     entersCube :: Move -> Bool
     entersCube (MoveFromTo from to) = not (insideThisCube from) && insideThisCube to

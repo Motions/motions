@@ -95,5 +95,8 @@ type AsAtom a = AsAtom' Identity a
 class HasMove m where
     toMove :: m -> Move
 
-instance HasMove Move where
-    toMove = id
+-- |"impossible happened" workaround TODO: report
+newtype BasicMove = BasicMove Move
+
+instance HasMove BasicMove where
+    toMove (BasicMove m) = m
