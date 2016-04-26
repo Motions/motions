@@ -37,7 +37,7 @@ class ReadRepresentation m repr => Representation m repr where
     generateMove :: Generates (ReprRandomTypes m repr) m => repr -> m (Maybe Move)
 
     -- |Applies a 'Move' to the state
-    performMove :: Move -> repr -> m (repr, [BinderChange])
+    performMove :: Move -> repr -> m repr
 
 -- |A read-only interface to a 'Representation'
 class ReadRepresentation m repr where
