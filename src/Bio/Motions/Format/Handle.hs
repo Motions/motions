@@ -15,6 +15,7 @@ import Bio.Motions.Format.ProtoStream
 import Bio.Motions.Format.DumpSerialisation
 
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Callback.Class
 import Bio.Motions.Types
 import Bio.Motions.Output
 
@@ -47,7 +48,7 @@ instance OutputBackend BinaryBackend where
     getNextPush state@BinaryBackend{..} = do
         cur <- readIORef framesSinceLastKF
         return $ if cur == framesPerKF then
-                      PushDump $ \d _ _ -> appendKeyframe state d
+                      PushDump $ \d c _ _ -> appendKeyframe state d c
                       else
                       PushMove $ appendDelta state
 
@@ -65,7 +66,7 @@ openBinaryOutput framesPerKF OutputSettings{..} dump = do
     handle <- openOutput
     framesSinceLastKF <- newIORef 0
     let st = BinaryBackend{..}
-    appendKeyframe st dump
+    appendKeyframe st dump ([], [])
     return st
   where
     openOutput = withCString path $ \cPath ->
@@ -94,13 +95,12 @@ genericAppend stream f msg =
     --TODO toStrict is slow
   where bytes = BL.toStrict . messagePut $ msg
 
-appendKeyframe :: BinaryBackend -> Dump -> IO ()
-appendKeyframe BinaryBackend{..} dump = do
+appendKeyframe :: BinaryBackend -> Dump -> Callbacks -> IO ()
+appendKeyframe BinaryBackend{..} dump c = do
     writeIORef framesSinceLastKF 1
-    genericAppend handle protoAppendKeyframe $ getKeyframe dump ([], []) -- TODO callbacks
+    genericAppend handle protoAppendKeyframe $ getKeyframe dump c
 
--- TODO callbacks
-appendDelta :: BinaryBackend -> Move -> IO ()
-appendDelta BinaryBackend{..} m = do
+appendDelta :: BinaryBackend -> Move -> Callbacks -> IO ()
+appendDelta BinaryBackend{..} m c = do
     modifyIORef framesSinceLastKF (+1)
-    genericAppend handle protoAppendDelta $ serialiseMove m ([], [])
+    genericAppend handle protoAppendDelta $ serialiseMove m c

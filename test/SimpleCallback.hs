@@ -11,9 +11,10 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Serialisation
 import Bio.Motions.Callback.Periodic
 
+import Control.DeepSeq
 
 newtype SimpleCallback (n :: Nat) = SimpleCallback Int
-    deriving (Show, Eq, Num, CallbackSerialisable)
+    deriving (Show, Eq, Num, CallbackSerialisable, NFData)
 
 instance Callback 'Pre (SimpleCallback n) where
     callbackName _ = "_SimpleCallback"

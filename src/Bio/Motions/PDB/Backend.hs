@@ -14,6 +14,7 @@ import Bio.Motions.Types
 import Bio.Motions.PDB.Write
 import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Callback.Class
 
 import Control.Lens
 import System.IO
@@ -31,21 +32,25 @@ data PDBBackend = PDBBackend
     -- ^Path to metadata file
     , intermediate :: Bool
     -- ^Whether to write intermediate frames
+    , cbHandle :: Handle
+    -- ^Callback output handle
+    , cbVerbose :: Bool
+    -- ^Verbose callbacks
     }
 
 instance OutputBackend PDBBackend where
-    getNextPush st
-        | intermediate st = pure $ PushDump (pushPDBStep st)
-        | otherwise = pure DoNothing
+    getNextPush st@PDBBackend{..}
+        | intermediate = pure $ PushDump (pushPDBStep st)
+        | otherwise = pure . PushMove $ \_ cb -> writeCallbacks cbHandle cbVerbose cb
     closeBackend PDBBackend{..} = do
         hClose pdbHandle
         withFile metaFile WriteMode $ \h -> writePDBMeta h meta
     pushLastFrame backend dump step score
         | intermediate backend = pure ()
-        | otherwise = pushPDBStep backend dump step score
+        | otherwise = pushPDBStep backend dump ([], []) step score
 
-openPDBOutput :: OutputSettings -> Dump -> Bool -> Bool -> IO PDBBackend
-openPDBOutput OutputSettings{..} dump simplePDB intermediate = do
+openPDBOutput :: OutputSettings -> Dump -> Bool -> Bool -> Handle -> Bool -> IO PDBBackend
+openPDBOutput OutputSettings{..} dump simplePDB intermediate cbHandle cbVerbose = do
     let pdbFile = outputPrefix ++ ".pdb"
         laminFile = outputPrefix ++ "-lamin.pdb"
         metaFile = pdbFile ++ ".meta"
@@ -62,14 +67,15 @@ openPDBOutput OutputSettings{..} dump simplePDB intermediate = do
     pdbError = "The PDB format can't handle this number of different beads, binders or chains."
 
 -- |Append a step to the output file
-pushPDBStep :: (Show score) => PDBBackend -> Dump -> Int -> score -> IO ()
-pushPDBStep PDBBackend{..} dump' step score = do
+pushPDBStep :: (Show score) => PDBBackend -> Dump -> Callbacks -> Int -> score -> IO ()
+pushPDBStep PDBBackend{..} dump' callbacks step score = do
     frame <- readIORef frameCounter
     let frameHeader = StepHeader { headerSeqNum = frame
                                  , headerStep = step
                                  , headerTitle = "chromosome;bonds=" ++ show score
                                  }
     liftIO $ writePDB pdbHandle frameHeader meta dump >> hPutStrLn pdbHandle "END"
+    liftIO $ writeCallbacks cbHandle cbVerbose callbacks
     modifyIORef frameCounter (+1)
   where
     dump = removeLamins dump'
@@ -84,3 +90,14 @@ pushPDBLamins handle pdbMeta dump' = do
   where
     filterLamins d = Dump { dumpBinders = filter isLamin $ dumpBinders d, dumpChains = [] }
     isLamin b = b ^. binderType == laminType
+
+-- |Output callbacks in text form
+writeCallbacks :: MonadIO m => Handle -> Bool -> Callbacks -> m ()
+writeCallbacks handle verbose callbacks = do
+    let preStr = fmap resultStr . fst $ callbacks
+        postStr = fmap resultStr . snd $ callbacks
+    liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
+  where
+    --TODO?
+    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
+    separator = if verbose then "\n" else " "

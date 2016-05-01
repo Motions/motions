@@ -200,7 +200,10 @@ runSimulation Settings{..} = dispatchScore
     dispatchBackend scoreProxy reprProxy random dump
         | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump
         | otherwise = run $ openPDBOutput outSettings dump simplePDB writeIntermediatePDB
+                                callbacksHandle verboseCallbacks
         where
+            callbacksHandle = stdout    --TODO this should be a path or something, and the handle
+                                        -- would then be managed(open/close) by the backend
             RunSettings'{..} = runSettings
             outSettings = OutputSettings{..}
 
