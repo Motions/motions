@@ -13,7 +13,6 @@ module Bio.Motions.Format.Handle
 
 import Bio.Motions.Format.ProtoStream
 import Bio.Motions.Format.DumpSerialisation
-import Bio.Motions.Format.DumpDeserialisation
 
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Types
@@ -98,10 +97,10 @@ genericAppend stream f msg =
 appendKeyframe :: BinaryBackend -> Dump -> IO ()
 appendKeyframe BinaryBackend{..} dump = do
     writeIORef framesSinceLastKF 1
-    genericAppend handle protoAppendKeyframe . getKeyframe $ dump
+    genericAppend handle protoAppendKeyframe $ getKeyframe dump ([], []) -- TODO callbacks
 
 -- TODO callbacks
 appendDelta :: BinaryBackend -> Move -> IO ()
 appendDelta BinaryBackend{..} m = do
     modifyIORef framesSinceLastKF (+1)
-    genericAppend handle protoAppendDelta . serialiseMove $ m
+    genericAppend handle protoAppendDelta $ serialiseMove m ([], [])
