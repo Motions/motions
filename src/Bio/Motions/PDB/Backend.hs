@@ -14,6 +14,7 @@ import Bio.Motions.Types
 import Bio.Motions.PDB.Write
 import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Format.DumpSerialisation(Callbacks)  --todo przenieść do types czy coś
 
 import Control.Lens
 import System.IO
@@ -42,7 +43,7 @@ instance OutputBackend PDBBackend where
         withFile metaFile WriteMode $ \h -> writePDBMeta h meta
     pushLastFrame backend dump step score
         | intermediate backend = pure ()
-        | otherwise = pushPDBStep backend dump step score
+        | otherwise = pushPDBStep backend dump ([], []) step score
 
 openPDBOutput :: OutputSettings -> Dump -> Bool -> Bool -> IO PDBBackend
 openPDBOutput OutputSettings{..} dump simplePDB intermediate = do
@@ -62,8 +63,8 @@ openPDBOutput OutputSettings{..} dump simplePDB intermediate = do
     pdbError = "The PDB format can't handle this number of different beads, binders or chains."
 
 -- |Append a step to the output file
-pushPDBStep :: (Show score) => PDBBackend -> Dump -> Int -> score -> IO ()
-pushPDBStep PDBBackend{..} dump' step score = do
+pushPDBStep :: (Show score) => PDBBackend -> Dump -> Callbacks -> Int -> score -> IO ()
+pushPDBStep PDBBackend{..} dump' callbacks step score = do
     frame <- readIORef frameCounter
     let frameHeader = StepHeader { headerSeqNum = frame
                                  , headerStep = step

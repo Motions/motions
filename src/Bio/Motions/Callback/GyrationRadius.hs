@@ -23,6 +23,7 @@ import Control.Lens
 import Control.Monad
 import Data.MonoTraversable
 import Linear
+import Control.DeepSeq
 
 {- |
 Represents the gyration radius of each chain -- the n-th element
@@ -30,7 +31,7 @@ of the list is the gyration radius of the n-th chain. The gyration
 radius of a chain is the average parwise distance of its beads.
 -}
 newtype GyrationRadius = GyrationRadius [Double]
-    deriving (Eq, CallbackSerialisable)
+    deriving (Eq, CallbackSerialisable, NFData)
 
 instance Show GyrationRadius where
     show (GyrationRadius rs) = show rs
