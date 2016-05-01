@@ -15,6 +15,8 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module Bio.Motions.Callback.Class where
 
 import Bio.Motions.Types
@@ -22,6 +24,7 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Serialisation
 
 import Data.Proxy
+import GHC.Generics
 
 -- |Represents the mode of a callback
 data Mode = Pre  -- ^Such a callback will be fired before a move is made
@@ -58,6 +61,9 @@ class (Show cb, CallbackSerialisable cb) => Callback (mode :: Mode) cb | cb -> m
 -- |An existential wrapper around a 'Callback''s result.
 data CallbackResult mode where
     CallbackResult :: Callback mode cb => !cb -> CallbackResult mode
+
+{-deriving instance (Generic mode) => Generic (CallbackResult mode)-}
+-- todo
 
 -- |An existential wrapper around a 'Callback''s type.
 data CallbackType mode where
