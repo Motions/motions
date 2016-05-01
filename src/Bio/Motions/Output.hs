@@ -10,6 +10,7 @@ module Bio.Motions.Output where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Callback.Class
 
 import Control.Monad
 import Control.Exception
@@ -39,15 +40,15 @@ class OutputBackend a where
 -- This is useful because generating a 'Dump' is potentially slow, so we avoid it whenever possible.
 -- Some backends (e.g. PDB without intermediates) might ignore frames, hence 'DoNothing'.
 data PushOutputFrame =
-      PushDump (forall score. (Show score) => Dump -> Int -> score -> IO ())
+        PushDump (forall score. (Show score) => Dump -> Callbacks -> Int -> score -> IO ())
       -- ^PDB needs the step number (the Int) and current score
-      | PushMove (Move -> IO ()) -- TODO PushMove should do callbacks
+      | PushMove (Move -> Callbacks -> IO ())
       | DoNothing
 
 -- |A backend that evaluates all moves, but does no IO. Used for benchmarks.
 data NullBackend
 
 instance OutputBackend NullBackend where
-    getNextPush _ = return $ PushMove $ void . evaluate . force
+    getNextPush _ = return $ PushMove $ curry (void . evaluate . force . fst)   --todo
     pushLastFrame _ dump _ _ = void . evaluate . force $ dump
     closeBackend _ = pure ()

@@ -26,7 +26,6 @@ import Bio.Motions.Utils.Random
 import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
-import System.IO
 import Data.List
 
 data SimulationState repr score = SimulationState
@@ -41,8 +40,6 @@ data SimulationState repr score = SimulationState
 data RunSettings repr score backend = RunSettings
     { numSteps :: Int
     -- ^ Number of simulation steps.
-    , verboseCallbacks :: Bool
-    -- ^ Enable verbose callback output.
     , freezePredicate :: FreezePredicate
     -- ^ A predicate determining whether a bead is frozen
     , allPreCallbacks :: [CallbackType 'Pre]
@@ -87,31 +84,22 @@ step = runMaybeT $ do
 {-# INLINE step #-}
 
 stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, OutputBackend backend)
-    => Handle -> backend -> Bool -> SimT repr score m ()
-stepAndWrite callbacksHandle backend verbose = do
+    => backend -> SimT repr score m ()
+stepAndWrite backend = do
     step >>= \case
       Nothing -> pure ()
       Just move -> do
-          writeCallbacks callbacksHandle verbose
+          cb <- (,) <$> gets preCallbackResults <*> gets postCallbackResults
+          {-writeCallbacks callbacksHandle verbose    --TODO-}
           SimulationState{..} <- get
           liftIO (getNextPush backend) >>= \case
-            PushDump act -> getDump >>= liftIO . (\dump -> act dump stepCounter score)
-            PushMove act -> liftIO $ act move
+            PushDump act -> getDump >>= liftIO . (\dump -> act dump cb stepCounter score)
+            PushMove act -> liftIO $ act move cb
             DoNothing -> pure ()
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
   where
     getDump = gets repr >>= lift . makeDump
 {-# INLINE stepAndWrite #-}
-
-writeCallbacks :: MonadIO m => Handle -> Bool -> SimT repr score m ()
-writeCallbacks handle verbose = do
-    preStr <- fmap resultStr <$> gets preCallbackResults
-    postStr <- fmap resultStr <$> gets postCallbackResults
-    liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
-  where
-    --TODO?
-    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
-    separator = if verbose then "\n" else " "
 
 -- |Parses a list of callback names
 filterCallbacks ::
@@ -129,11 +117,10 @@ filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
 simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend)
     => RunSettings repr score backend -> Dump -> m Dump
 simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
-    let callbacksHandle = stdout
     st <- initState
 
     SimulationState{..} <- flip execStateT st $
-         replicateM_ numSteps $ stepAndWrite callbacksHandle outputBackend verboseCallbacks
+         replicateM_ numSteps $ stepAndWrite outputBackend
 
     finalDump <- makeDump repr
     liftIO $ pushLastFrame outputBackend finalDump stepCounter score
