@@ -13,6 +13,8 @@ Portability : unportable
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Bio.Motions.Callback.Periodic
     ( CallbackPeriod
     , Periodic(..)
@@ -22,6 +24,8 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Serialisation
 import Data.Proxy
 import GHC.TypeLits
+import GHC.Generics
+import Control.DeepSeq
 
 -- |The interval between successive recomputations of a 'Callback' 'cb', when transformed
 -- using the 'Periodic' callback transformer
@@ -32,7 +36,7 @@ data Periodic cb = PeriodicValue { periodicValue :: !cb }
                  -- ^The value of 'cb' is present right now
                  | PeriodicWait { periodicWait :: !Int }
                  -- ^The value will be computed in 'periodicWait' steps.
-                 deriving Eq
+                 deriving (Eq, Generic, NFData)
 
 instance Show cb => Show (Periodic cb) where
     show (PeriodicValue v) = show v
