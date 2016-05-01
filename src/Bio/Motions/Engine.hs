@@ -92,11 +92,12 @@ stepAndWrite callbacksHandle backend verbose = do
     step >>= \case
       Nothing -> pure ()
       Just move -> do
-          writeCallbacks callbacksHandle verbose
+          cb <- (,) <$> gets preCallbackResults <*> gets postCallbackResults
+          writeCallbacks callbacksHandle verbose    --TODO
           SimulationState{..} <- get
           liftIO (getNextPush backend) >>= \case
-            PushDump act -> getDump >>= liftIO . (\dump -> act dump stepCounter score)
-            PushMove act -> liftIO $ act move
+            PushDump act -> getDump >>= liftIO . (\dump -> act dump cb stepCounter score)
+            PushMove act -> liftIO $ act move cb
             DoNothing -> pure ()
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
   where
