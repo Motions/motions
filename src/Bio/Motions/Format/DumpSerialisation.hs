@@ -31,8 +31,6 @@ import Bio.Motions.Types
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Serialisation
 
-type Callbacks = ([CallbackResult 'Pre], [CallbackResult 'Post])
-
 serialiseMove :: Move -> Callbacks -> Delta
 serialiseMove Move{..} cbs = Delta
     { from = Just $ makePoint moveFrom

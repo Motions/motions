@@ -22,13 +22,17 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Serialisation
 
 import Data.Proxy
+import Control.DeepSeq
+
+
+type Callbacks = ([CallbackResult 'Pre], [CallbackResult 'Post])
 
 -- |Represents the mode of a callback
 data Mode = Pre  -- ^Such a callback will be fired before a move is made
           | Post -- ^Such a callback will be fired after a move is made
 
 -- |Represents a callback
-class (Show cb, CallbackSerialisable cb) => Callback (mode :: Mode) cb | cb -> mode where
+class (Show cb, CallbackSerialisable cb, NFData cb) => Callback (mode :: Mode) cb | cb -> mode where
     -- |A human-readable name of the callback.
     callbackName :: proxy cb -> String
 
@@ -57,7 +61,10 @@ class (Show cb, CallbackSerialisable cb) => Callback (mode :: Mode) cb | cb -> m
 
 -- |An existential wrapper around a 'Callback''s result.
 data CallbackResult mode where
-    CallbackResult :: Callback mode cb => !cb -> CallbackResult mode
+    CallbackResult :: (Callback mode cb) => !cb -> CallbackResult mode
+
+instance NFData (CallbackResult mode) where
+    rnf (CallbackResult cb) = rnf cb
 
 -- |An existential wrapper around a 'Callback''s type.
 data CallbackType mode where

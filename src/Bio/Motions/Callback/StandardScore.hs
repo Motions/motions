@@ -25,6 +25,7 @@ import Data.MonoTraversable
 import Data.Foldable
 import Linear
 import Data.Profunctor.Unsafe
+import Control.DeepSeq
 
 {- |
 Represents the standard score function, i.e. the sum over all contacts of the binding energy
@@ -32,7 +33,7 @@ between the contacting atoms. Contacts are defined as pairs (binder, bead) with 
 distance.
  -}
 newtype StandardScore = StandardScore Int
-    deriving (Eq, Ord, Num, Integral, Enum, Real, CallbackSerialisable)
+    deriving (Eq, Ord, Num, Integral, Enum, Real, CallbackSerialisable, NFData)
 
 instance Show StandardScore where
     show (StandardScore i) = show i
