@@ -9,6 +9,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE LambdaCase #-}
 module Bio.Motions.Representation.Dump where
 
 import Bio.Motions.Common
@@ -16,6 +17,7 @@ import Bio.Motions.Types
 import Control.Lens
 import Control.Monad
 import Control.Monad.State.Strict
+import Control.Monad.Except
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
@@ -60,3 +62,68 @@ dropIndices b = DumpBeadInfo
     { dumpBeadPosition = b ^. position
     , dumpBeadEV = b ^. beadEV
     }
+
+type Diff = StateT (Either () Move) (Except String) ()
+
+-- |Performs a difference of two dumps, searching for a single position change.
+--  Returns an error if no difference, multiple differences, or any other inconsistencies were found.
+--  Otherwise returns the resulting 'Move'.
+diffDumps ::
+     Dump
+  -- ^The dump from which the move was performed.
+  -> Dump
+  -- ^The dump after the move was performed.
+  -> Either String Move
+  -- ^The resulting move or error.
+diffDumps d1 d2 =
+    case runExcept (execStateT diff $ Left ()) of
+      Left err        -> Left err
+      Right (Left ()) -> Left "No differences found"
+      Right (Right m) -> Right m
+  where
+    diff :: Diff
+    diff = diffBinders >> diffChains
+
+    diffBinders :: Diff
+    diffBinders = do
+        let bs1 = dumpBinders d1
+            bs2 = dumpBinders d2
+        when (length bs1 /= length bs2)
+            $ throwError "Different binder list lengths"
+        -- TODO: write tests for ordered binders
+        zipWithM_ diffTwoBinders bs1 bs2
+
+    diffChains :: Diff
+    diffChains = do
+        let chs1 = dumpChains d1
+            chs2 = dumpChains d2
+        when (length chs1 /= length chs2)
+            $ throwError $ "Different chain counts: " ++ show (length chs1) ++ ", " ++ show (length chs2)
+        zipWithM_ diffTwoChains chs1 chs2
+
+    diffTwoChains :: [DumpBeadInfo] -> [DumpBeadInfo] -> Diff
+    diffTwoChains ch1 ch2 = do
+        when (length ch1 /= length ch2)
+            $ throwError $ "Different chain lengths: " ++ show (ch1, length ch1)
+                                               ++ ", " ++ show (ch2, length ch2)
+        zipWithM_ diffTwoBeads ch1 ch2
+
+    diffTwoBeads :: DumpBeadInfo -> DumpBeadInfo -> Diff
+    diffTwoBeads b1 b2 = do
+        when (dumpBeadEV b1 /= dumpBeadEV b2)
+            $ throwError $ "Beads with the same index but different EVs: " ++ show b1 ++ ", " ++ show b2
+        diffPositions (dumpBeadPosition b1) (dumpBeadPosition b2)
+
+    diffTwoBinders :: BinderInfo -> BinderInfo -> Diff
+    diffTwoBinders b1 b2 = do
+        when (b1 ^. binderType /= b2 ^. binderType)
+            $ throwError $ "Binders with the same index but different types: " ++ show b1 ++ ", " ++ show b2
+        diffPositions (b1 ^. position) (b2 ^. position)
+
+    diffPositions :: Vec3 -> Vec3 -> Diff
+    diffPositions v1 v2 = unless (v1 == v2) $ recordMove $ MoveFromTo v1 v2
+
+    recordMove :: Move -> Diff
+    recordMove m = get >>= \case
+        Left _   -> put $ Right m
+        Right m' -> throwError $ "At least two differences occured: " ++ show m ++ ", " ++ show m'
