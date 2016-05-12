@@ -37,14 +37,14 @@ class (Show cb, CallbackSerialisable cb, NFData cb) => Callback (mode :: Mode) c
     callbackName :: proxy cb -> String
 
     -- |Computes the callback's result from scratch.
-    runCallback :: (Monad m, ReadRepresentation m repr)
+    runCallback :: (Monad m, CallbackRepresentation m repr)
         => repr
         -- ^The representation.
         -> m cb
         -- ^The computed value.
 
     -- |Computes the callback's result after a move.
-    updateCallback :: (Monad m, ReadRepresentation m repr)
+    updateCallback :: (Monad m, CallbackRepresentation m repr)
         => repr
         -- ^The representation before/after the move. See 'Mode'.
         -> cb
@@ -54,7 +54,7 @@ class (Show cb, CallbackSerialisable cb, NFData cb) => Callback (mode :: Mode) c
         -> m cb
         -- ^The new value.
 
-    default updateCallback :: (Monad m, ReadRepresentation m repr, mode ~ 'Post)
+    default updateCallback :: (Monad m, CallbackRepresentation m repr, mode ~ 'Post)
         => repr -> cb -> Move -> m cb
     updateCallback repr _ _ = runCallback repr
     {-# INLINEABLE updateCallback #-}
@@ -74,19 +74,19 @@ getCallbackName :: forall cb mode. Callback mode cb => cb -> String
 getCallbackName _ = callbackName (Proxy :: Proxy cb)
 
 -- |Runs a 'Callback' in a monad and returns the result.
-getCallbackResult :: forall m repr mode. (Monad m, ReadRepresentation m repr) =>
+getCallbackResult :: forall m repr mode. (Monad m, CallbackRepresentation m repr) =>
     repr -> CallbackType mode -> m (CallbackResult mode)
 getCallbackResult repr (CallbackType (_ :: Proxy cb)) = CallbackResult <$> (runCallback repr :: m cb)
 {-# INLINEABLE getCallbackResult #-}
 
 -- |Runs all 'Callback's in a list and returns the list of results.
-getCallbackResults :: (Traversable t, Monad m, ReadRepresentation m repr) =>
+getCallbackResults :: (Traversable t, Monad m, CallbackRepresentation m repr) =>
     repr -> t (CallbackType mode) -> m (t (CallbackResult mode))
 getCallbackResults = traverse . getCallbackResult
 {-# INLINEABLE getCallbackResults #-}
 
 -- |Updates a 'Callback''s result in a monad after a move.
-updateCallbackResult :: (Monad m, ReadRepresentation m repr) =>
+updateCallbackResult :: (Monad m, CallbackRepresentation m repr) =>
     repr -> Move -> CallbackResult mode -> m (CallbackResult mode)
 updateCallbackResult repr move (CallbackResult cb) = CallbackResult <$> updateCallback repr cb move
 {-# INLINEABLE updateCallbackResult #-}
