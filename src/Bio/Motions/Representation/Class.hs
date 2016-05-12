@@ -24,11 +24,17 @@ import Data.MonoTraversable
 -- 'm' denotes a 'Monad' (or 'Applicative') in which the
 -- simulation takes place
 class ReadRepresentation m repr => Representation m repr where
-    -- |Types that the representation wants to be able to sample randomly in 'generateMove'.
-    type ReprRandomTypes m repr :: [*]
 
     -- |Loads the state from a 'Dump'
     loadDump :: Dump -> FreezePredicate -> m repr
+
+    -- |Applies a 'Move' to the state
+    performMove :: Move -> repr -> m repr
+
+-- |A read-only interface to a 'Representation'
+class CallbackRepresentation m repr => ReadRepresentation  m repr where
+    -- |Types that the representation wants to be able to sample randomly in 'generateMove'.
+    type ReprRandomTypes m repr :: [*]
 
     -- |Saves the current state in a 'Dump'
     makeDump :: repr -> m Dump
@@ -36,11 +42,8 @@ class ReadRepresentation m repr => Representation m repr where
     -- |Generates a random valid 'Move' or 'Nothing'.
     generateMove :: Generates (ReprRandomTypes m repr) m => repr -> m (Maybe Move)
 
-    -- |Applies a 'Move' to the state
-    performMove :: Move -> repr -> m repr
 
--- |A read-only interface to a 'Representation'
-class ReadRepresentation m repr where
+class CallbackRepresentation m repr where
     -- |Retrieves an arbitrary information about the represented binders
     -- Note: the implementation is allowed to return only a subset of binders,
     -- provided that every binder bound to some bead is represented.
