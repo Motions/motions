@@ -8,13 +8,13 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE ViewPatterns #-}
 module Bio.Motions.BED where
 
 import Bio.Motions.Types
 import Bio.Motions.Utils.Parsec
 
-import qualified Control.Applicative as A
-import Control.Monad.State.Strict
+import Control.Monad
 import Text.Parsec
 import Text.Parsec.ByteString
 import Foreign.Marshal.Utils(fromBool)
@@ -31,32 +31,36 @@ data BindingSiteInfo = BindingSiteInfo
     }
     deriving (Eq, Show)
 
+-- |Translation between chromosome names and chain numbers.
+type NameMapping = M.Map String Int
+
 -- |Combines BED files into EnergyVectors of beads
 parseBEDs ::
      Int
   -- ^ Resolution of simulation
-  -> [Int]
-  -- ^ Lenghts of chromosomes (number of base pairs)
+  -> [(String, Int)]
+  -- ^ List of names of the chromosomes with their lenghts, sorted by their numbers
   -> [FilePath]
   -- ^ Locations of BED files
   -> IO [[EnergyVector]]
-parseBEDs resolution lengths fileNames = do
-    parses <- zipWithM (parseFromFile . parseBED) [0..] fileNames
+parseBEDs resolution (unzip -> (names, lengths)) fileNames = do
+    let namesToNums = M.fromList $ zip names [0..]
+    parses <- zipWithM (parseFromFile . parseBED namesToNums) [0..] fileNames
     beds <- concat <$> mapM (either (ioError . userError . show) return) parses
     let newLengths = map (`divCeil` resolution) lengths
     let bsInfos = map (applyResolution resolution) beds
     return $ collect (length fileNames) newLengths bsInfos
 
 -- |Parses a single BED file
-parseBED :: Int -> Parser [BindingSiteInfo]
-parseBED bsType = do
+parseBED :: NameMapping -> Int -> Parser [BindingSiteInfo]
+parseBED mapping bsType = do
     optional $ string "Track" >> manyTill anyChar endOfLine
-    endBy (line bsType) endOfLine
+    endBy (line mapping bsType) endOfLine
 
 -- |Parses one line of BED
-line :: Int -> Parser BindingSiteInfo
-line bsType = do
-    bsChain <- chromosome
+line :: NameMapping -> Int -> Parser BindingSiteInfo
+line mapping bsType = do
+    bsChain <- chromosome mapping
     void tab
     bsFrom <- int
     void tab
@@ -65,9 +69,15 @@ line bsType = do
     optional (tab >> manyTill anyChar (lookAhead endOfLine))
     return BindingSiteInfo{..}
 
+-- |Returns the number of the chain with the given name
+-- or fails if there is no chain with that name
+getChainNumber :: NameMapping -> String -> Parser Int
+getChainNumber mapping name =
+    maybe (fail $ "Unrecognised chromosome: " ++ name) return $ M.lookup name mapping
+
 -- |Parses BED 'chromosome' column
-chromosome :: Parser Int
-chromosome = optional (string "chr") >> (\x -> x-1) A.<$> int
+chromosome :: NameMapping -> Parser Int
+chromosome mapping = word >>= getChainNumber mapping
 
 -- |Groups nucleotides according to the resolution parameter
 applyResolution :: Int -> BindingSiteInfo -> BindingSiteInfo

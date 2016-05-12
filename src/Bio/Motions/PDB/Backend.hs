@@ -49,8 +49,23 @@ instance OutputBackend PDBBackend where
         | intermediate backend = pure ()
         | otherwise = pushPDBStep backend dump ([], []) step score
 
-openPDBOutput :: OutputSettings -> Dump -> Bool -> Bool -> Handle -> Bool -> IO PDBBackend
-openPDBOutput OutputSettings{..} dump simplePDB intermediate cbHandle cbVerbose = do
+openPDBOutput ::
+    OutputSettings
+    -> Dump
+    -- ^Current state of the simulation
+    -> [String]
+    -- ^Names of the chains (in order of their numbers)
+    -> Bool
+    -- ^Use simple PDB names?
+    -> Bool
+    -- ^Output intermediate steps?
+    -> Handle
+    -- ^Name of the output file
+    -> Bool
+    -- ^Verbose output?
+    -> IO PDBBackend
+    -- ^Opened PDB backend
+openPDBOutput OutputSettings{..} dump chainNames simplePDB intermediate cbHandle cbVerbose = do
     let pdbFile = outputPrefix ++ ".pdb"
         laminFile = outputPrefix ++ "-lamin.pdb"
         metaFile = pdbFile ++ ".meta"
@@ -58,7 +73,7 @@ openPDBOutput OutputSettings{..} dump simplePDB intermediate cbHandle cbVerbose 
         bts = nub . map (^. binderType) . dumpBinders $ dump
         chs = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
         mkMeta = if simplePDB then mkSimplePDBMeta else mkPDBMeta
-        meta = fromMaybe (error pdbError) $ mkMeta evs bts chs
+        meta = fromMaybe (error pdbError) $ mkMeta evs bts chs chainNames
     pdbHandle <- openFile pdbFile WriteMode
     withFile laminFile WriteMode $ \h -> pushPDBLamins h meta dump
     frameCounter <- newIORef 0
