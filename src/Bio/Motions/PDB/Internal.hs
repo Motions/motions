@@ -54,12 +54,15 @@ data PDBMeta = PDBMeta
     , chainId :: M.Map ChainId Char
     -- ^ Maps chain numbers to characters (only those defined in 'pdbChars') later used in the
     --   @chainID@ field of a PDB @ATOM@ entry.
+    , chainName :: M.Map ChainId String
+    -- ^ Maps chain numbers to their full names
     }
 
 data RevPDBMeta = RevPDBMeta
     { revBeadRes :: M.Map String EnergyVector
     , revBinderRes :: M.Map String BinderType
     , revChainId :: M.Map Char ChainId
+    , revChainName :: M.Map String ChainId
     }
     deriving (Eq, Show)
 
@@ -80,11 +83,13 @@ data PDBEntry = PDBHeader  { classification :: String }
 data PDBMetaEntry = EnergyVectorMap EnergyVector String
                   | BinderTypeMap BinderType String
                   | ChainIdMap ChainId Char
+                  | ChainNameMap ChainId String
 
 printPDBMetaEntry :: PDBMetaEntry -> String
 printPDBMetaEntry (EnergyVectorMap ev str) = "EV " ++ (show . toList) ev ++ " " ++ str
 printPDBMetaEntry (BinderTypeMap bt str) = "BT " ++ (show . getBinderType) bt ++ " " ++ str
 printPDBMetaEntry (ChainIdMap ch c) = "CH " ++ show ch ++ " " ++ [c]
+printPDBMetaEntry (ChainNameMap ch name) = "NM " ++ show ch ++ " " ++ name
 
 parsePDBMetaData :: BS.ByteString -> Either ReadError [PDBMetaEntry]
 parsePDBMetaData = parseOrError metaEntries
@@ -93,7 +98,7 @@ parsePDBMetaData = parseOrError metaEntries
     metaEntries = sepEndBy metaEntry endOfLine <* eof
 
     metaEntry :: Parser PDBMetaEntry
-    metaEntry = energyVecMap <|> binderTypeMap <|> chainIdMap
+    metaEntry = energyVecMap <|> binderTypeMap <|> chainIdMap <|> chainNameMap
 
     energyVecMap :: Parser PDBMetaEntry
     energyVecMap = EnergyVectorMap <$> (string "EV" *> spaces *> energyVector <* spaces)
@@ -110,6 +115,11 @@ parsePDBMetaData = parseOrError metaEntries
                             <*> oneOf pdbChars
                             <?> "Chain id mapping"
 
+    chainNameMap :: Parser PDBMetaEntry
+    chainNameMap = ChainNameMap <$> (string "NM" *> spaces *> int <* spaces)
+                                <*> word
+                                <?> "Chain name mapping"
+
     binderTypeString :: Parser String
     binderTypeString = sequence $ char 'B' : replicate 2 (oneOf pdbChars)
 
@@ -123,9 +133,10 @@ toPDBMetaData :: PDBMeta -> [PDBMetaEntry]
 toPDBMetaData PDBMeta{..} = map (uncurry EnergyVectorMap) (toList beadRes)
                          ++ map (uncurry BinderTypeMap) (toList binderRes)
                          ++ map (uncurry ChainIdMap) (toList chainId)
+                         ++ map (uncurry ChainNameMap) (toList chainName)
 
 toRevPDBMeta :: [PDBMetaEntry] -> Either ReadError RevPDBMeta
-toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty) >=> \meta -> validate meta >> pure meta
+toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty) >=> \meta -> validate meta >> pure meta
   where
     step meta (EnergyVectorMap ev str)
       | M.member str (revBeadRes meta) = throwError $ "Duplicate energy vector strings: " ++ str
@@ -136,14 +147,20 @@ toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty) >=> \meta -> vali
     step meta (ChainIdMap ch c)
       | M.member c (revChainId meta) = throwError $ "Duplicate chain id chars: " ++ [c]
       | otherwise = pure meta { revChainId = M.insert c ch $ revChainId meta }
+    step meta (ChainNameMap ch name)
+      | M.member name (revChainName meta) = throwError $ "Duplicate chain names: " ++ name
+      | otherwise = pure meta { revChainName = M.insert name ch $ revChainName meta }
+
 
     validate RevPDBMeta{..} = do
         let evs = map getEnergyVector . M.elems $ revBeadRes
             bts = map getBinderType . M.elems $ revBinderRes
             chs = M.elems revChainId
+            names = M.elems revChainName
         onDuplicates evs $ \ev -> throwError $ "Duplicate energy vectors: " ++ show ev
         onDuplicates bts $ \bt -> throwError $ "Duplicate binder types: " ++ show bt
         onDuplicates chs $ \ch -> throwError $ "Duplicate chain ids: " ++ show ch
+        onDuplicates names $ \name -> throwError $ "Duplicate chain ids: " ++ show name
         when (null bts || minimum bts /= 0)
             $ throwError "Mapping for binder type '0' (lamin type) is required but not provided"
         unless (and . zipWith (==) [0..] . sort $ bts)
@@ -203,7 +220,7 @@ fromPDBData meta es = do
     dumpBinders <- mapM (fromBinderData meta) binderEntries
     connects <- fromConnectsData connectEntries
     beadMap <- M.fromList <$> mapM (\e -> (serial e, ) <$> fromBeadData meta e) beadEntries
-    (chainIds, dumpChains) <- unzip <$> extractChains connects beadMap -- TODO: chain ids in dumpChains
+    (chainIds, dumpChains) <- unzip <$> sortWith fst <$> extractChains connects beadMap -- TODO: chain ids in dumpChains
     onDuplicates chainIds $ \ch -> throwError $ "Two chains (not connected) with the same chain id: " ++ show ch
     pure Dump{..}
   where

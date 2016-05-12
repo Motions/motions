@@ -69,7 +69,7 @@ generate:
 
     # Lengths of the chains.
     chain-lengths:
-        - 100
+      - {name: "chr1", length: 100}
 
     # Numbers of binders of each type excluding lamins. Each type corresponds to a BED file provided above
     # starting the second (if exists). The first file corresponds to the lamin type.

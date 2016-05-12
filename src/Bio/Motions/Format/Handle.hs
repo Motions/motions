@@ -27,13 +27,6 @@ import qualified Data.ByteString.Lazy as BL
 import Text.ProtocolBuffers
 import Data.IORef
 
-import Bio.Motions.PDB.Meta(mapChains)  --hack
-import Control.Lens
-import qualified Data.Map as M
-import Data.List(nub)
-import Data.Maybe
-
-
 type OutputHandle = Ptr HStream
 
 data BinaryBackend = BinaryBackend
@@ -60,9 +53,11 @@ openBinaryOutput ::
        Int
     -- ^Number of frames per keyframe
     -> OutputSettings
-    -> Dump
+    ->  Dump
+    -> [String]
+    -- ^Full names of the chains
     -> IO BinaryBackend
-openBinaryOutput framesPerKF OutputSettings{..} dump = do
+openBinaryOutput framesPerKF OutputSettings{..} dump chainNames = do
     handle <- openOutput
     framesSinceLastKF <- newIORef 0
     let st = BinaryBackend{..}
@@ -75,10 +70,6 @@ openBinaryOutput framesPerKF OutputSettings{..} dump = do
     header = getHeader simulationName simulationDescription chainNames dump
     bytes = BL.toStrict . messagePut $ header
     path = outputPrefix ++ ".bin"
-    -- ugly hack follows, TODO fix chain names
-    chs = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
-    chMap = fromMaybe (error "unable to create chain names") (mapChains chs)
-    chainNames = (:[]) <$> ((chMap M.!) <$> chs)
 
 -- |Append a protobuf value to a stream, using a protostream function
 genericAppend :: (ReflectDescriptor msg, Wire msg) =>
