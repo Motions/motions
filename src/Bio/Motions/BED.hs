@@ -14,11 +14,15 @@ import Bio.Motions.Types
 import Bio.Motions.Utils.Parsec
 
 import qualified Control.Applicative as A
+import Control.Monad
 import Control.Monad.State.Strict
+import Control.Monad.Trans.Either
 import Text.Parsec
 import Text.Parsec.ByteString
 import Foreign.Marshal.Utils(fromBool)
+import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Bimap as BM
 
 import GHC.Exts (fromList)
 
@@ -31,30 +35,46 @@ data BindingSiteInfo = BindingSiteInfo
     }
     deriving (Eq, Show)
 
+-- |Translation between chromosome names, and chain numbers
+-- |the translation is non cannonical, names will have assigned
+-- |numbers in order of apperance
+type NameMapping = BM.Bimap String Int
+
+-- |Parser enhanced in mapping between chromosome nameand their numbers
+type ChrParser a = Parsec String NameMapping a
+
+parseChrFromFile :: Int -> String -> StateT NameMapping (EitherT ParseError IO) [BindingSiteInfo]
+parseChrFromFile bsType fileName = StateT (\bm -> EitherT $ runParser (parseBED bsType) bm fileName <$> readFile fileName)
+
 -- |Combines BED files into EnergyVectors of beads
 parseBEDs ::
      Int
   -- ^ Resolution of simulation
-  -> [Int]
+  -> M.Map String Int
   -- ^ Lenghts of chromosomes (number of base pairs)
   -> [FilePath]
   -- ^ Locations of BED files
-  -> IO [[EnergyVector]]
+  -> IO ([[EnergyVector]], [String])
 parseBEDs resolution lengths fileNames = do
-    parses <- zipWithM (parseFromFile . parseBED) [0..] fileNames
-    beds <- concat <$> mapM (either (ioError . userError . show) return) parses
-    let newLengths = map (`divCeil` resolution) lengths
+    let funcs = zipWith parseChrFromFile [0..] fileNames
+    (parses, mapping) <- eitherT (ioError . userError . show) return $ runStateT (sequence funcs) BM.empty
+    let names = L.nub $ map snd (BM.toAscListR mapping) ++ M.keys lengths
+    let lengthsList = map (lengths M.!) names
+    let beds = concat parses
+    let newLengths = map (`divCeil` resolution) lengthsList
     let bsInfos = map (applyResolution resolution) beds
-    return $ collect (length fileNames) newLengths bsInfos
+    return (collect (length fileNames) newLengths bsInfos, names)
 
 -- |Parses a single BED file
-parseBED :: Int -> Parser [BindingSiteInfo]
+parseBED :: Int -> ChrParser ([BindingSiteInfo], NameMapping)
 parseBED bsType = do
     optional $ string "Track" >> manyTill anyChar endOfLine
-    endBy (line bsType) endOfLine
+    chains <- endBy (line bsType) endOfLine
+    mapping <- getState
+    return (chains, mapping)
 
 -- |Parses one line of BED
-line :: Int -> Parser BindingSiteInfo
+line :: Int -> ChrParser BindingSiteInfo
 line bsType = do
     bsChain <- chromosome
     void tab
@@ -65,9 +85,23 @@ line bsType = do
     optional (tab >> manyTill anyChar (lookAhead endOfLine))
     return BindingSiteInfo{..}
 
+-- |Returns the number of the chain with the given name.
+-- |If the name hasn't been used yet, it assignes
+-- |the smallest non used positive number to it
+maybeAssignAndGetNumber :: String -> ChrParser Int
+maybeAssignAndGetNumber name = do
+    map <- getState
+    unless (name `BM.member` map) $ do
+        let (num, _) = if not $ BM.null map then BM.findMaxR map else (-1, "nothing")
+        modifyState (BM.insert name (num + 1))
+    map <- getState
+    return $ map BM.! name
+
 -- |Parses BED 'chromosome' column
-chromosome :: Parser Int
-chromosome = optional (string "chr") >> (\x -> x-1) A.<$> int
+chromosome :: ChrParser Int
+chromosome = do
+    name <- manyTill anyChar (lookAhead tab)
+    maybeAssignAndGetNumber name
 
 -- |Groups nucleotides according to the resolution parameter
 applyResolution :: Int -> BindingSiteInfo -> BindingSiteInfo

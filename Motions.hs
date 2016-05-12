@@ -45,6 +45,8 @@ import System.IO
 import Control.Monad.IO.Class
 import Control.Monad
 import qualified Data.Vector.Unboxed as U
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map as M
 import Options.Applicative as O
 import Data.Proxy
 import Data.Maybe
@@ -57,7 +59,7 @@ import LoadCallbacks()
 
 data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]
-    , chainLengths :: [Int]
+    , chainLengths :: M.Map String Int
     , bindersCounts :: [Int]
     , radius :: Int
     , resolution :: Int
@@ -162,7 +164,7 @@ load InitialisationSettings{..} =
           mapM_ hClose pdbHandles
           pure dump
       (Just GenerateSettings{..}, _) -> do
-          energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
+          (energyVectors, chainNames) <- liftIO $ parseBEDs resolution chainLengths bedFiles
           let evLength = U.length . getEnergyVector . head . head $ energyVectors
           when (evLength /= length bindersCounts + 1)
             $ error "The number of different binder types must be the same as the number of chain \
