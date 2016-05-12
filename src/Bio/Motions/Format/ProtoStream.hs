@@ -25,6 +25,9 @@ foreign import ccall unsafe "protostream_open_new"
 foreign import ccall unsafe "protostream_close"
     protoClose :: Ptr HStream -> IO ()
 
+foreign import ccall unsafe "protostream_frames_per_keyframe"
+    protoGetFPKF :: Ptr HStream -> IO CUInt
+
 foreign import ccall unsafe "protostream_append_keyframe"
     protoAppendKeyframe :: Ptr HStream -> Ptr () -> CSize -> IO ()
 
@@ -50,7 +53,7 @@ foreign import ccall unsafe "protostream_valid_keyframe_iterator"
     protoValidKeyframeIterator :: Ptr HStream -> Ptr HKeyframeIterator -> IO CInt
 
 foreign import ccall unsafe "protostream_advance_keyframe_iterator"
-    protoAdvanceKeyframeIterator :: Ptr HKeyframeIterator -> IO ()
+    protoAdvanceKeyframeIterator :: Ptr HKeyframeIterator -> CInt -> IO ()
 
 foreign import ccall unsafe "protostream_free_keyframe_iterator"
     protoFreeKeyframeIterator :: Ptr HKeyframeIterator -> IO ()
