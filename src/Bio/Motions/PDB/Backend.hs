@@ -10,6 +10,7 @@ module Bio.Motions.PDB.Backend where
 
 import Bio.Motions.Common
 import Bio.Motions.Output
+import Bio.Motions.Input
 import Bio.Motions.Types
 import Bio.Motions.PDB.Write
 import Bio.Motions.PDB.Meta
@@ -101,3 +102,21 @@ writeCallbacks handle verbose (preCbs, postCbs) = do
     --TODO?
     resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
+
+
+data PDBReader = PDBReader
+    { handle :: Handle
+    , inputPos :: IORef Int
+    }
+
+instance InputBackend PDBReader where
+    openInput InputSettings{..} = do
+        handle <- openFile inputFile ReadMode
+        inputPos <- newIORef 0
+        return PDBReader{..}
+    seekInput = undefined
+    tellInput = readIORef . inputPos
+    inputLength = undefined
+    getDump = undefined
+    {-getMove = undefined-}
+    closeInput = hClose . handle
