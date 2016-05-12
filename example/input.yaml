@@ -16,7 +16,7 @@ steps: 1000
 
 # Whether to write intermediate simulation steps to the main PDB file. If True every accepted move will
 # generate a frame in the PDB file. If False only the last frame will be written.
-write-intermediate-frames: False
+write-intermediate-frames: True
 
 # Whether to print callback names (prints only the results if False).
 verbose-callbacks: True
@@ -89,7 +89,7 @@ generate:
 # Description for loading the initial state from PDB and ".meta" files.
 # load:
 #     # The list of PDB files containing the atoms.
-#     pdb-files:
+#     input-files:
 #         - in.pdb
 #         - in.pdb.lamin
 #
