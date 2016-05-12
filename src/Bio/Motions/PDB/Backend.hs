@@ -6,14 +6,20 @@ Stability   : experimental
 Portability : unportable
 -}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Bio.Motions.PDB.Backend where
 
 import Bio.Motions.Common
 import Bio.Motions.Output
+import Bio.Motions.Input
 import Bio.Motions.Types
 import Bio.Motions.PDB.Write
+import Bio.Motions.PDB.Read
+import Bio.Motions.PDB.Internal(RevPDBMeta)
 import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 
 import Control.Lens
@@ -49,7 +55,20 @@ instance OutputBackend PDBBackend where
         | intermediate backend = pure ()
         | otherwise = pushPDBStep backend dump ([], []) step score
 
-openPDBOutput :: OutputSettings -> Dump -> Bool -> Bool -> Handle -> Bool -> IO PDBBackend
+-- |Open PDB output
+openPDBOutput ::
+       OutputSettings
+    -> Dump
+    -- ^Dump of the first frame
+    -> Bool
+    -- ^Use simplePDB
+    -> Bool
+    -- ^Write intermediate frames
+    -> Handle
+    -- ^Callback output handle
+    -> Bool
+    -- ^Verbose callbacks
+    -> IO PDBBackend
 openPDBOutput OutputSettings{..} dump simplePDB intermediate cbHandle cbVerbose = do
     let pdbFile = outputPrefix ++ ".pdb"
         laminFile = outputPrefix ++ "-lamin.pdb"
@@ -101,3 +120,26 @@ writeCallbacks handle verbose (preCbs, postCbs) = do
     --TODO?
     resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
+
+data PDBReader = PDBReader
+    { handles :: [Handle]
+    , revMeta :: RevPDBMeta
+    }
+
+openPDBInput :: InputSettings -> IO (PDBReader, Dump)
+openPDBInput InputSettings{..} = do
+    handles <- mapM (`openFile` ReadMode) inputFiles
+    let mf = fromMaybe (error "Specify an input meta file") metaFile
+    revMeta <- either (fail . ("Meta file read error: " ++)) pure =<<
+        withFile mf ReadMode readPDBMeta
+    dump <- either (fail . ("PDB read error: " ++)) pure =<< readPDB handles revMeta
+    return (PDBReader{..}, dump)
+
+instance (MonadIO m, ReadRepresentation m repr) => MoveProducer m repr PDBReader where
+    getMove PDBReader{..} repr score = do
+        dump <- makeDump repr
+        dump' <- liftIO $ readPDB handles revMeta >>= either (fail . ("PDB read error: " ++)) pure
+        let move = either (error "diff error") id $ diffDumps dump dump'
+        score' <- updateCallback repr score move
+        return $ Just (move, score')
+    closeProducer PDBReader{..} = mapM_ hClose handles
