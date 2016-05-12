@@ -67,9 +67,10 @@ generate:
         - feat0.bed
         - feat1.bed
 
-    # Lengths of the chains.
-    chain-lengths:
-        - 100
+    # Names and lengths of chromosomes. The numbers of the chromosomes are defined by
+    # the order of this list.
+    chromosome-infos:
+      - {name: "chr1", length: 100}
 
     # Numbers of binders of each type excluding lamins. Each type corresponds to a BED file provided above
     # starting the second (if exists). The first file corresponds to the lamin type.
