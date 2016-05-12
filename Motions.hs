@@ -32,9 +32,8 @@ import Bio.Motions.Callback.GyrationRadius()
 import Bio.Motions.Format.Handle
 import Bio.Motions.StateInitialisation
 import Bio.Motions.Output
+import Bio.Motions.Input
 import Bio.Motions.PDB.Backend
-import Bio.Motions.PDB.Read
-import Bio.Motions.PDB.Meta
 import qualified Bio.Motions.Engine as E
 import Bio.Motions.Utils.FreezePredicateParser
 import Bio.Motions.Utils.Random
@@ -64,14 +63,9 @@ data GenerateSettings = GenerateSettings
     , initAttempts :: Int
     } deriving Generic
 
-data LoadStateSettings = LoadStateSettings
-    { pdbFiles :: [FilePath]
-    , metaFile :: FilePath
-    } deriving Generic
-
 data InitialisationSettings = InitialisationSettings
     { generateSettings :: Maybe GenerateSettings
-    , loadStateSettings :: Maybe LoadStateSettings
+    , inputSettings :: Maybe InputSettings
     } deriving Generic
 
 data RunSettings' = RunSettings'
@@ -116,14 +110,15 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("chainLengths", "chain-lengths")
             , ("bindersCounts", "binders-counts")
             , ("initAttempts", "initialisation-attempts")
-            , ("pdbFiles", "pdb-files")
+            , ("inputFiles", "input-files")
             , ("metaFile", "meta-file")
+            , ("binaryInput", "binary-input")
             ]
 
 instance FromJSON GenerateSettings where
     parseJSON = genericParseJSON'
 
-instance FromJSON LoadStateSettings where
+instance FromJSON InputSettings where
     parseJSON = genericParseJSON'
 
 instance FromJSON InitialisationSettings where
@@ -139,8 +134,8 @@ instance FromJSON Settings where
                                        <*> parseJSON v
     parseJSON invalid = typeMismatch "Object" invalid
 
-mkRunSettings :: RunSettings' -> backend -> E.RunSettings repr score backend
-mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
+mkRunSettings :: RunSettings' -> backend -> producer -> E.RunSettings repr score backend producer
+mkRunSettings RunSettings'{..} outputBackend producer = E.RunSettings{..}
   where
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
@@ -148,20 +143,8 @@ mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
         Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
         Nothing -> freezeNothing
 
-load :: (MonadIO m) => InitialisationSettings -> m Dump
-load InitialisationSettings{..} =
-    case (generateSettings, loadStateSettings) of
-      (Nothing, Nothing) ->
-          error "The state initialisation method (\"generate\" or \"load\") was not specified."
-      (Just _, Just _) ->
-          error "Both \"generate\" and \"load\" methods provided. Choose one."
-      (_, Just LoadStateSettings{..}) -> liftIO $ do
-          meta <- either (error . ("Meta file read error: " ++)) pure =<< withFile metaFile ReadMode readPDBMeta
-          pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
-          dump <- either (error . ("PDB read error: " ++)) pure =<< readPDB pdbHandles meta
-          mapM_ hClose pdbHandles
-          pure dump
-      (Just GenerateSettings{..}, _) -> do
+generate :: (MonadIO m) => GenerateSettings -> m Dump
+generate GenerateSettings{..} = do
           energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
           let evLength = U.length . getEnergyVector . head . head $ energyVectors
           when (evLength /= length bindersCounts + 1)
@@ -176,28 +159,49 @@ load InitialisationSettings{..} =
 {-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
 {-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
 
-runSimulation :: Settings -> Dump -> IO Dump
+runSimulation :: Settings -> IO Dump
 runSimulation Settings{..} = dispatchScore
   where
-    dispatchScore dump
-        | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore) dump
+    dispatchScore
+        | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore)
         | otherwise = fail "Invalid score"
     {-# INLINE dispatchScore #-}
 
-    dispatchRepr :: _ => _ score -> Dump -> IO Dump
-    dispatchRepr scoreProxy dump
-        | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation) dump
-        | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation) dump
+    dispatchRepr :: _ => _ score -> IO Dump
+    dispatchRepr scoreProxy
+        | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation)
+        | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation)
         | otherwise = fail "Invalid representation"
     {-# INLINE dispatchRepr #-}
 
-    dispatchRandom :: _ => _ score -> _ repr -> Dump -> IO Dump
-    dispatchRandom scoreProxy reprProxy dump
-        | otherwise = dispatchBackend scoreProxy reprProxy runMWCIO dump
+    dispatchRandom :: _ => _ score -> _ repr -> IO Dump
+    dispatchRandom scoreProxy reprProxy
+        | otherwise = dispatchInput scoreProxy reprProxy runMWCIO
     {-# INLINE dispatchRandom #-}
 
-    dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
-    dispatchBackend scoreProxy reprProxy random dump
+    dispatchInput :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> IO Dump
+    dispatchInput scoreProxy reprProxy random =
+        case (generateSettings, inputSettings) of
+          (Nothing, Nothing) ->
+              error "The state initialisation method (\"generate\" or \"load\") was not specified."
+          (Just _, Just _) ->
+              error "Both \"generate\" and \"load\" methods provided. Choose one."
+          (_, Just settings) -> if binaryInput settings then do
+                                 prod <- liftIO $ openBinaryInput settings
+                                 dump <- seekBinaryKF prod 0 -- TODO 0
+                                 dispatchBackend scoreProxy reprProxy random prod dump
+                             else
+                             liftIO (openPDBInput settings) >>=
+                                uncurry (dispatchBackend scoreProxy reprProxy random)
+          (Just settings, _) -> do
+              dump <- generate settings
+              dispatchBackend scoreProxy reprProxy random MoveGenerator dump
+      where
+          InitialisationSettings{..} = initialisationSettings
+    {-# INLINE dispatchInput #-}
+
+    dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> producer -> Dump -> IO Dump
+    dispatchBackend scoreProxy reprProxy random producer dump
         | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump
         | otherwise = run $ openPDBOutput outSettings dump simplePDB writeIntermediatePDB
                                 callbacksHandle verboseCallbacks
@@ -209,13 +213,13 @@ runSimulation Settings{..} = dispatchScore
 
             run :: _ => IO backend -> IO Dump
             run open = bracket open closeBackend $ \backend ->
-                dispatchFinal scoreProxy reprProxy random backend dump
+                dispatchFinal scoreProxy reprProxy random backend producer dump
             {-# INLINE run #-}
     {-# INLINE dispatchBackend #-}
 
-    dispatchFinal :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> backend -> Dump -> IO Dump
-    dispatchFinal (_ :: _ score) (_ :: _ repr) random backend dump =
-        random $ E.simulate (mkRunSettings runSettings backend :: E.RunSettings repr score _) dump
+    dispatchFinal :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> backend -> producer -> Dump -> IO Dump
+    dispatchFinal (_ :: _ score) (_ :: _ repr) random backend producer dump =
+        random $ E.simulate (mkRunSettings runSettings backend producer :: E.RunSettings repr score _ _) dump
     {-# INLINE dispatchFinal #-}
 
 run :: Settings -> IO ()
@@ -223,8 +227,7 @@ run settings@Settings{..} = do
     when (simplePDB runSettings) $
         putStrLn "Warning: when using \"simple-pdb-output: True\" with 3 or more different binder types \
                   \ it won't be possible to use the resulting output as initial state later."
-    dump <- load initialisationSettings
-    _ <- runSimulation settings dump
+    _ <- runSimulation settings
     -- TODO: do something with the dump?
     pure ()
 
