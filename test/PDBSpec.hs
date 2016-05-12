@@ -5,6 +5,7 @@ module PDBSpec where
 
 import Bio.Motions.Representation.Dump
 import Bio.Motions.PDB.Internal
+import Bio.Motions.PDB.Meta
 import Bio.Motions.Types
 
 import qualified Data.Map as M
@@ -79,6 +80,7 @@ testWrite = do
     chainId = [ (0, 'A')
               , (1, 'B')
               ]
+    chainName = []
     dump = Dump
         { dumpBinders =
             [ BinderInfo (V3 0 0 0) bi0
@@ -113,9 +115,11 @@ testWrite = do
 
 testRead :: Spec
 testRead = do
-    context "when reading correct meta data" $
+    context "when reading correct meta data" $ do
         it "creates the correct structure" $
             toRevPDBMeta pdbMetaEntries `shouldBe` Right expectedMeta
+        it "extracts the chain names correctly" $
+            getChainNames expectedMeta `shouldBe` ["Watson", "Crick"]
     context "when reading correct frame data" $ do
         let eitherErrDump = fromPDBData expectedMeta pdbEntries
         it "reads the data without errors" $
@@ -205,6 +209,8 @@ testRead = do
                      , BinderTypeMap bi1 bi1s
                      , ChainIdMap ch0 ch0s
                      , ChainIdMap ch1 ch1s
+                     , ChainNameMap ch0 "Watson"
+                     , ChainNameMap ch1 "Crick"
                      ]
 
     expectedMeta = RevPDBMeta
@@ -217,6 +223,9 @@ testRead = do
         , revChainId = [ (ch0s, ch0)
                        , (ch1s, ch1)
                        ]
+        , revChainName = [ ("Watson", ch0)
+                         , ("Crick", ch1)
+                         ]
         }
 
     expectedDump :: Dump
@@ -272,7 +281,7 @@ testRead = do
     (ev0, ev1, evshort, evlong) = ([0,0], [0,1], [], [0,0,0])
     (ev0s, ev1s, evshorts, evlongs) = ("AAA", "AAB", "AAC", "AAD")
 
-    (ch0, ch1) = (0, 1)
+    (ch0, ch1) = (1, 2)
     (ch0s, ch1s) = ('a', 'b')
 
     shouldFailParsingMeta x = toRevPDBMeta x `shouldSatisfy` isLeft

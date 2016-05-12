@@ -57,11 +57,16 @@ import LoadCallbacks()
 
 data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]
-    , chainLengths :: [Int]
+    , chromosomeInfos :: [ChromosomeInfo]
     , bindersCounts :: [Int]
     , radius :: Int
     , resolution :: Int
     , initAttempts :: Int
+    } deriving Generic
+
+data ChromosomeInfo = ChromosomeInfo
+    { chromosomeName :: String
+    , chromosomeLength :: Int
     } deriving Generic
 
 data LoadStateSettings = LoadStateSettings
@@ -113,11 +118,13 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("generateSettings", "generate")
             , ("loadStateSettings", "load")
             , ("bedFiles", "bed-files")
-            , ("chainLengths", "chain-lengths")
+            , ("chromosomeInfos", "chromosome-infos")
             , ("bindersCounts", "binders-counts")
             , ("initAttempts", "initialisation-attempts")
             , ("pdbFiles", "pdb-files")
             , ("metaFile", "meta-file")
+            , ("chromosomeName", "name")
+            , ("chromosomeLength", "length")
             ]
 
 instance FromJSON GenerateSettings where
@@ -130,6 +137,9 @@ instance FromJSON InitialisationSettings where
     parseJSON = genericParseJSON'
 
 instance FromJSON RunSettings' where
+    parseJSON = genericParseJSON'
+
+instance FromJSON ChromosomeInfo where
     parseJSON = genericParseJSON'
 
 instance FromJSON Settings where
@@ -148,7 +158,7 @@ mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
         Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
         Nothing -> freezeNothing
 
-load :: (MonadIO m) => InitialisationSettings -> m Dump
+load :: (MonadIO m) => InitialisationSettings -> m (Dump, [String])
 load InitialisationSettings{..} =
     case (generateSettings, loadStateSettings) of
       (Nothing, Nothing) ->
@@ -160,9 +170,10 @@ load InitialisationSettings{..} =
           pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
           dump <- either (error . ("PDB read error: " ++)) pure =<< readPDB pdbHandles meta
           mapM_ hClose pdbHandles
-          pure dump
+          pure (dump, getChainNames meta)
       (Just GenerateSettings{..}, _) -> do
-          energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
+          let chromosomeInfosAsPairs = [(a, b) | ChromosomeInfo a b <- chromosomeInfos]
+          energyVectors <- liftIO $ parseBEDs resolution chromosomeInfosAsPairs bedFiles
           let evLength = U.length . getEnergyVector . head . head $ energyVectors
           when (evLength /= length bindersCounts + 1)
             $ error "The number of different binder types must be the same as the number of chain \
@@ -170,14 +181,14 @@ load InitialisationSettings{..} =
           maybeDump <- liftIO $ initialise initAttempts radius bindersCounts energyVectors
           case maybeDump of
             Nothing -> error "Failed to initialise."
-            Just dump -> pure dump
+            Just dump -> pure (dump, map fst chromosomeInfosAsPairs)
 
 -- See the "Specialise" module.
 {-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
 {-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
 
-runSimulation :: Settings -> Dump -> IO Dump
-runSimulation Settings{..} = dispatchScore
+runSimulation :: Settings -> Dump -> [String] -> IO Dump
+runSimulation Settings{..} dump chainNames = dispatchScore dump
   where
     dispatchScore dump
         | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore) dump
@@ -198,8 +209,8 @@ runSimulation Settings{..} = dispatchScore
 
     dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
     dispatchBackend scoreProxy reprProxy random dump
-        | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump
-        | otherwise = run $ openPDBOutput outSettings dump simplePDB writeIntermediatePDB
+        | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump chainNames
+        | otherwise = run $ openPDBOutput outSettings dump chainNames simplePDB writeIntermediatePDB
                                 callbacksHandle verboseCallbacks
         where
             callbacksHandle = stdout    --TODO this should be a path or something, and the handle
@@ -223,8 +234,8 @@ run settings@Settings{..} = do
     when (simplePDB runSettings) $
         putStrLn "Warning: when using \"simple-pdb-output: True\" with 3 or more different binder types \
                   \ it won't be possible to use the resulting output as initial state later."
-    dump <- load initialisationSettings
-    _ <- runSimulation settings dump
+    (dump, chainNames) <- load initialisationSettings
+    _ <- runSimulation settings dump chainNames
     -- TODO: do something with the dump?
     pure ()
 
