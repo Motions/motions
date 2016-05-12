@@ -45,6 +45,8 @@ import System.IO
 import Control.Monad.IO.Class
 import Control.Monad
 import qualified Data.Vector.Unboxed as U
+import qualified Data.HashMap.Strict as HM
+import qualified Data.Map as M
 import Options.Applicative as O
 import Data.Proxy
 import Data.Maybe
@@ -57,7 +59,7 @@ import LoadCallbacks()
 
 data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]
-    , chainLengths :: [Int]
+    , chainLengths :: M.Map String Int
     , bindersCounts :: [Int]
     , radius :: Int
     , resolution :: Int
@@ -148,7 +150,7 @@ mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
         Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
         Nothing -> freezeNothing
 
-load :: (MonadIO m) => InitialisationSettings -> m Dump
+load :: (MonadIO m) => InitialisationSettings -> m (Dump, [String])
 load InitialisationSettings{..} =
     case (generateSettings, loadStateSettings) of
       (Nothing, Nothing) ->
@@ -160,9 +162,9 @@ load InitialisationSettings{..} =
           pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
           dump <- either (error . ("PDB read error: " ++)) pure =<< readPDB pdbHandles meta
           mapM_ hClose pdbHandles
-          pure dump
+          pure (dump, getChainNames meta)
       (Just GenerateSettings{..}, _) -> do
-          energyVectors <- liftIO $ parseBEDs resolution chainLengths bedFiles
+          (energyVectors, chainNames) <- liftIO $ parseBEDs resolution chainLengths bedFiles
           let evLength = U.length . getEnergyVector . head . head $ energyVectors
           when (evLength /= length bindersCounts + 1)
             $ error "The number of different binder types must be the same as the number of chain \
@@ -170,14 +172,14 @@ load InitialisationSettings{..} =
           maybeDump <- liftIO $ initialise initAttempts radius bindersCounts energyVectors
           case maybeDump of
             Nothing -> error "Failed to initialise."
-            Just dump -> pure dump
+            Just dump -> pure (dump, chainNames)
 
 -- See the "Specialise" module.
 {-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
 {-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
 
-runSimulation :: Settings -> Dump -> IO Dump
-runSimulation Settings{..} = dispatchScore
+runSimulation :: Settings -> Dump -> [String] -> IO Dump
+runSimulation Settings{..} dump names = dispatchScore dump
   where
     dispatchScore dump
         | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore) dump
@@ -199,7 +201,7 @@ runSimulation Settings{..} = dispatchScore
     dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
     dispatchBackend scoreProxy reprProxy random dump
         | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump
-        | otherwise = run $ openPDBOutput outSettings dump simplePDB writeIntermediatePDB
+        | otherwise = run $ openPDBOutput outSettings dump names simplePDB writeIntermediatePDB
                                 callbacksHandle verboseCallbacks
         where
             callbacksHandle = stdout    --TODO this should be a path or something, and the handle
@@ -223,8 +225,8 @@ run settings@Settings{..} = do
     when (simplePDB runSettings) $
         putStrLn "Warning: when using \"simple-pdb-output: True\" with 3 or more different binder types \
                   \ it won't be possible to use the resulting output as initial state later."
-    dump <- load initialisationSettings
-    _ <- runSimulation settings dump
+    (dump, names) <- load initialisationSettings
+    _ <- runSimulation settings dump names
     -- TODO: do something with the dump?
     pure ()
 
