@@ -32,9 +32,10 @@ import Bio.Motions.Callback.GyrationRadius()
 import Bio.Motions.Format.Handle
 import Bio.Motions.StateInitialisation
 import Bio.Motions.Output
+import Bio.Motions.Input
 import Bio.Motions.PDB.Backend
-import Bio.Motions.PDB.Read
-import Bio.Motions.PDB.Meta
+{-import Bio.Motions.PDB.Read-}
+{-import Bio.Motions.PDB.Meta-}
 import qualified Bio.Motions.Engine as E
 import Bio.Motions.Utils.FreezePredicateParser
 import Bio.Motions.Utils.Random
@@ -139,8 +140,8 @@ instance FromJSON Settings where
                                        <*> parseJSON v
     parseJSON invalid = typeMismatch "Object" invalid
 
-mkRunSettings :: RunSettings' -> backend -> E.RunSettings repr score backend
-mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
+mkRunSettings :: RunSettings' -> backend -> producer -> E.RunSettings repr score backend producer
+mkRunSettings RunSettings'{..} outputBackend producer = E.RunSettings{..}
   where
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
@@ -148,7 +149,7 @@ mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
         Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
         Nothing -> freezeNothing
 
-load :: (MonadIO m) => InitialisationSettings -> m Dump
+load :: (MonadIO m, MoveProducer p) => InitialisationSettings -> m (p, Dump)
 load InitialisationSettings{..} =
     case (generateSettings, loadStateSettings) of
       (Nothing, Nothing) ->
@@ -176,28 +177,32 @@ load InitialisationSettings{..} =
 {-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
 {-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
 
-runSimulation :: Settings -> Dump -> IO Dump
+runSimulation :: Settings -> IO Dump
 runSimulation Settings{..} = dispatchScore
   where
-    dispatchScore dump
-        | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore) dump
+    dispatchScore
+        | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore)
         | otherwise = fail "Invalid score"
     {-# INLINE dispatchScore #-}
 
-    dispatchRepr :: _ => _ score -> Dump -> IO Dump
-    dispatchRepr scoreProxy dump
-        | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation) dump
-        | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation) dump
+    dispatchRepr :: _ => _ score -> IO Dump
+    dispatchRepr scoreProxy
+        | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation)
+        | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation)
         | otherwise = fail "Invalid representation"
     {-# INLINE dispatchRepr #-}
 
-    dispatchRandom :: _ => _ score -> _ repr -> Dump -> IO Dump
-    dispatchRandom scoreProxy reprProxy dump
-        | otherwise = dispatchBackend scoreProxy reprProxy runMWCIO dump
+    dispatchRandom :: _ => _ score -> _ repr -> IO Dump
+    dispatchRandom scoreProxy reprProxy
+        | otherwise = dispatchBackend scoreProxy reprProxy runMWCIO
     {-# INLINE dispatchRandom #-}
 
+    dispatchInput :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> IO Dump
+    dispatchInput scoreProxy reprProxy random = do
+        pure ()
+
     dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
-    dispatchBackend scoreProxy reprProxy random dump
+    dispatchBackend scoreProxy reprProxy random producer dump
         | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump
         | otherwise = run $ openPDBOutput outSettings dump simplePDB writeIntermediatePDB
                                 callbacksHandle verboseCallbacks
@@ -209,13 +214,13 @@ runSimulation Settings{..} = dispatchScore
 
             run :: _ => IO backend -> IO Dump
             run open = bracket open closeBackend $ \backend ->
-                dispatchFinal scoreProxy reprProxy random backend dump
+                dispatchFinal scoreProxy reprProxy random backend producer dump
             {-# INLINE run #-}
     {-# INLINE dispatchBackend #-}
 
-    dispatchFinal :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> backend -> Dump -> IO Dump
-    dispatchFinal (_ :: _ score) (_ :: _ repr) random backend dump =
-        random $ E.simulate (mkRunSettings runSettings backend :: E.RunSettings repr score _) dump
+    dispatchFinal :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> backend -> producer -> Dump -> IO Dump
+    dispatchFinal (_ :: _ score) (_ :: _ repr) random backend producer dump =
+        random $ E.simulate (mkRunSettings runSettings backend producer :: E.RunSettings repr score _ _) dump
     {-# INLINE dispatchFinal #-}
 
 run :: Settings -> IO ()
@@ -223,8 +228,7 @@ run settings@Settings{..} = do
     when (simplePDB runSettings) $
         putStrLn "Warning: when using \"simple-pdb-output: True\" with 3 or more different binder types \
                   \ it won't be possible to use the resulting output as initial state later."
-    dump <- load initialisationSettings
-    _ <- runSimulation settings dump
+    _ <- runSimulation settings
     -- TODO: do something with the dump?
     pure ()
 

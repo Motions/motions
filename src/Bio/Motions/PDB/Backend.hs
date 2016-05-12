@@ -6,14 +6,20 @@ Stability   : experimental
 Portability : unportable
 -}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Bio.Motions.PDB.Backend where
 
 import Bio.Motions.Common
 import Bio.Motions.Output
+import Bio.Motions.Input
 import Bio.Motions.Types
 import Bio.Motions.PDB.Write
+import Bio.Motions.PDB.Read
+import Bio.Motions.PDB.Internal(RevPDBMeta)
 import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 
 import Control.Lens
@@ -101,3 +107,27 @@ writeCallbacks handle verbose (preCbs, postCbs) = do
     --TODO?
     resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
+
+
+data PDBReader = PDBReader
+    { handles :: [Handle]
+    , inputPos :: IORef Int
+    , revMeta :: RevPDBMeta
+    }
+
+openPDBInput :: InputSettings -> FilePath -> IO PDBReader
+openPDBInput InputSettings{..} metaFile = do
+    handles <- (:[]) <$> openFile inputFile ReadMode  -- TODO
+    revMeta <- either (error . ("Meta file read error: " ++)) pure =<<
+        withFile metaFile ReadMode readPDBMeta
+    inputPos <- newIORef 0
+    return PDBReader{..}
+
+
+instance (MonadIO m, ReadRepresentation m repr) => MoveProducer m repr PDBReader where
+    getMove PDBReader{..} repr score = do
+        dump <- makeDump repr
+        dump' <- liftIO $ readPDB handles revMeta >>= either (error . ("PDB read error: " ++)) pure 
+        liftIO $ modifyIORef inputPos (+1)
+        let move = either (error "diff error") id $ diffDumps dump dump'
+        return $ Just (move, score)
