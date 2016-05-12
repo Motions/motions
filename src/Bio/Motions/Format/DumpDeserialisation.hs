@@ -42,6 +42,9 @@ deserialiseDump header keyframe = do
     dumpChains <- zipWithM (readChainBeads binderTypesCount) chainDescriptions chainPositions
     return Dump{..}
 
+getChainNames :: ProtoHeader.Header -> Maybe [String]
+getChainNames = mapM readChainName . toList . ProtoHeader.chains
+
 readBinder :: ProtoBinder.Binder -> Maybe BinderInfo
 readBinder ProtoBinder.Binder{..} = do
     binderType' <- BinderType . fromIntegral <$> binder_type
