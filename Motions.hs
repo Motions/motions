@@ -24,6 +24,7 @@ import Bio.Motions.Types
 import Bio.Motions.BED
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Chain
+import Bio.Motions.Representation.Chain.Slow
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Discover
@@ -50,6 +51,7 @@ import Data.Proxy
 import Data.Maybe
 import Data.Yaml
 import Data.Aeson.Types as J
+import Data.Reflection
 import GHC.Generics
 import Specialise
 
@@ -59,7 +61,7 @@ data GenerateSettings = GenerateSettings
     { bedFiles :: [FilePath]
     , chromosomeInfos :: [ChromosomeInfo]
     , bindersCounts :: [Int]
-    , radius :: Int
+    , cellRadius :: Int
     , resolution :: Int
     , initAttempts :: Int
     } deriving Generic
@@ -97,6 +99,8 @@ data Settings = Settings
     { runSettings :: RunSettings'
     , reprName :: String
     , scoreName :: String
+    , maxMoveRad :: Int
+    , maxChainDist :: Int
     , initialisationSettings :: InitialisationSettings
     }
 
@@ -120,6 +124,7 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("bedFiles", "bed-files")
             , ("chromosomeInfos", "chromosome-infos")
             , ("bindersCounts", "binders-counts")
+            , ("cellRadius", "cell-radius")
             , ("initAttempts", "initialisation-attempts")
             , ("pdbFiles", "pdb-files")
             , ("metaFile", "meta-file")
@@ -146,6 +151,8 @@ instance FromJSON Settings where
     parseJSON v@(Object v') = Settings <$> parseJSON v
                                        <*> v' .:? "representation" .!= "IOChain"
                                        <*> v' .:? "score" .!= "StandardScore"
+                                       <*> v' .:? "max-move-radius" .!= 2
+                                       <*> v' .:? "max-chain-segment-length" .!= 2
                                        <*> parseJSON v
     parseJSON invalid = typeMismatch "Object" invalid
 
@@ -158,8 +165,8 @@ mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
         Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
         Nothing -> freezeNothing
 
-load :: (MonadIO m) => InitialisationSettings -> m (Dump, [String])
-load InitialisationSettings{..} =
+load :: (MonadIO m) => InitialisationSettings -> Int -> m (Dump, [String])
+load InitialisationSettings{..} maxChainDist =
     case (generateSettings, loadStateSettings) of
       (Nothing, Nothing) ->
           error "The state initialisation method (\"generate\" or \"load\") was not specified."
@@ -168,7 +175,7 @@ load InitialisationSettings{..} =
       (_, Just LoadStateSettings{..}) -> liftIO $ do
           meta <- either (error . ("Meta file read error: " ++)) pure =<< withFile metaFile ReadMode readPDBMeta
           pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
-          dump <- either (error . ("PDB read error: " ++)) pure =<< readPDB pdbHandles meta
+          dump <- either (error . ("PDB read error: " ++)) pure =<< readPDB pdbHandles meta (Just maxChainDist)
           mapM_ hClose pdbHandles
           pure (dump, getChainNames meta)
       (Just GenerateSettings{..}, _) -> do
@@ -178,7 +185,7 @@ load InitialisationSettings{..} =
           when (evLength /= length bindersCounts + 1)
             $ error "The number of different binder types must be the same as the number of chain \
                      \ features (BED files) minus one (the lamin feature)."
-          maybeDump <- liftIO $ initialise initAttempts radius bindersCounts energyVectors
+          maybeDump <- liftIO $ initialise initAttempts cellRadius maxChainDist bindersCounts energyVectors
           case maybeDump of
             Nothing -> error "Failed to initialise."
             Just dump -> pure (dump, map fst chromosomeInfosAsPairs)
@@ -197,10 +204,25 @@ runSimulation Settings{..} dump chainNames = dispatchScore dump
 
     dispatchRepr :: _ => _ score -> Dump -> IO Dump
     dispatchRepr scoreProxy dump
-        | "IOChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy IOChainRepresentation) dump
-        | "PureChain" <- reprName = dispatchRandom scoreProxy (Proxy :: Proxy PureChainRepresentation) dump
+        | "IOChain" <- reprName = dispatchFastRepr scoreProxy (Proxy :: Proxy IOChainRepresentation) dump
+        | "PureChain" <- reprName = dispatchFastRepr scoreProxy (Proxy :: Proxy PureChainRepresentation) dump
+        | "SlowChain" <- reprName = dispatchSlowRepr scoreProxy dump
         | otherwise = fail "Invalid representation"
     {-# INLINE dispatchRepr #-}
+
+    dispatchFastRepr :: _ => _ score -> _ repr -> Dump -> IO Dump
+    dispatchFastRepr scoreProxy reprProxy dump
+        | (2, 2) <- (maxMoveRad, maxChainDist) = dispatchRandom scoreProxy reprProxy dump
+        | otherwise = fail "Invalid maximum move radius or maximum chain distance: only sqrt(2) is allowed \
+                            \ in IOChainRepresentation and PureChainRepresentation"
+    {-# INLINE dispatchFastRepr #-}
+
+    dispatchSlowRepr :: _ => _ score -> Dump -> IO Dump
+    dispatchSlowRepr scoreProxy dump =
+        reifyNat (toInteger maxMoveRad) $ \(Proxy :: Proxy r) ->
+            reifyNat (toInteger maxChainDist) $ \(Proxy :: Proxy d) ->
+                dispatchRandom scoreProxy (Proxy :: Proxy (SlowRepr r d)) dump
+    {-# INLINE dispatchSlowRepr #-}
 
     dispatchRandom :: _ => _ score -> _ repr -> Dump -> IO Dump
     dispatchRandom scoreProxy reprProxy dump
@@ -234,7 +256,7 @@ run settings@Settings{..} = do
     when (simplePDB runSettings) $
         putStrLn "Warning: when using \"simple-pdb-output: True\" with 3 or more different binder types \
                   \ it won't be possible to use the resulting output as initial state later."
-    (dump, chainNames) <- load initialisationSettings
+    (dump, chainNames) <- load initialisationSettings maxChainDist
     _ <- runSimulation settings dump chainNames
     -- TODO: do something with the dump?
     pure ()
