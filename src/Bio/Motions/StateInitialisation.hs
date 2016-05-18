@@ -31,7 +31,9 @@ initialise :: (MonadRandom m) =>
      Int
   -- ^Maximum number of initialisation attempts
   -> Int
-  -- ^Radius
+  -- ^Radius of the cell
+  -> Int
+  -- ^Square of the maximum chain segment length
   -> [Int]
   -- ^Number of binders of each type excluding lamin,
   -- the order must be the same as the order used in energy vectors
@@ -39,13 +41,15 @@ initialise :: (MonadRandom m) =>
   -- ^EnergyVectors of beads
   -> m (Maybe Dump)
   -- ^Initial state
-initialise maxTries r bindersCounts evs = runRepetitionGuardT maxTries $
-    spaceToDump <$> initialiseSpace r bindersCounts evs
+initialise maxTries cellr maxd bindersCounts evs = runRepetitionGuardT maxTries $
+  spaceToDump <$> initialiseSpace cellr maxd bindersCounts evs
 
 -- |Creates an initial state
 initialiseSpace :: (MonadRandom m) =>
      Int
-  -- ^Radius
+  -- ^Radius of the cell
+  -> Int
+  -- ^Square of the maximum chain segment length
   -> [Int]
   -- ^Number of binders of each type excluding lamin,
   -- the order must be the same as the order used in energy vectors
@@ -53,13 +57,13 @@ initialiseSpace :: (MonadRandom m) =>
   -- ^EnergyVectors of beads
   -> RepetitionGuardT m Space
   -- ^Initial state
-initialiseSpace r bindersCounts beads = do
-    stateWithChains <- addChains r stateWithLamins beads
+initialiseSpace cellr maxd bindersCounts beads = do
+    stateWithChains <- addChains cellr maxd stateWithLamins beads
     addBinders stateWithChains
   where
-    stateWithLamins = addLamins M.empty $ spherePoints (fromIntegral r)
+    stateWithLamins = addLamins M.empty $ spherePoints (fromIntegral cellr)
     addBinders = foldr (<=<) return . concat $
-        zipWith (\count -> replicate count . addBinder r) bindersCounts [1..]
+        zipWith (\count -> replicate count . addBinder cellr) bindersCounts [1..]
 
 -- |Converts Space to Dump
 spaceToDump :: Space -> Dump
@@ -91,6 +95,8 @@ addChain :: (MonadRandom m) =>
  -- ^Chain index of the first bead to be added
  -> Int
  -- ^Global index of the first atom to be added
+ -> Int
+ -- ^Square of the maximum chain segment length
  -> Vec3
  -- ^Starting point
  -> Space
@@ -99,23 +105,23 @@ addChain :: (MonadRandom m) =>
  -- ^Energy vectors of atoms that are going to be added
  -> RepetitionGuardT m Space
  -- ^The state with a added chain
-addChain _ _ _ _ space [] = return space
-addChain chainNo indOnChain glInd start space [ev] =
+addChain _ _ _ _ _ space [] = return space
+addChain chainNo indOnChain glInd _ start space [ev] =
     return $ M.insert start (asAtom $ BeadInfo start ev glInd chainNo indOnChain) space
-addChain chainNo indOnChain glInd start space (ev:evs) = do
+addChain chainNo indOnChain glInd maxd start space (ev:evs) = do
     nextRep
-    moves <- shuffleM $ V.toList legalMoves
+    moves <- shuffleM . V.toList $ legalMoves maxd
     let targets = [target | move <- moves,
                             let target = move + start,
                             not $ target `M.member` space,
-                            not $ intersectsChain space start target]
+                            not $ intersectsChain maxd space start target]
     let newSpace = M.insert start (asAtom $ BeadInfo start ev glInd chainNo indOnChain) space
-    msum . map (\m -> addChain chainNo (indOnChain + 1) (glInd + 1) m newSpace evs) $ targets
+    msum . map (\m -> addChain chainNo (indOnChain + 1) (glInd + 1) maxd m newSpace evs) $ targets
 
 -- |Tries to find a free position
 getRandomFreePosition :: (MonadRandom m) =>
     Int
- -- ^Radius
+ -- ^Radius of the cell
  -> Space
  -- ^Current space
  -> RepetitionGuardT m Vec3
@@ -131,7 +137,7 @@ getRandomFreePosition r space = go
 -- |Adds a binder of given type in a space
 addBinder :: (MonadRandom m) =>
     Int
- -- ^Radius
+ -- ^Radius of the cell
  -> Int
  -- ^The binder's type
  -> Space
@@ -145,7 +151,9 @@ addBinder r binderType space = do
 -- |Finds a good starting point for a chain and adds it there
 hookAndAddChain :: (MonadRandom m) =>
     Int
- -- ^Radius
+ -- ^Radius of the cell
+ -> Int
+ -- ^Square of the maximum chain segment length
  -> Int
  -- ^Chain number
  -> Int
@@ -155,21 +163,23 @@ hookAndAddChain :: (MonadRandom m) =>
  -> Space
  -- ^Current space
  -> RepetitionGuardT m Space
-hookAndAddChain r chainNo glInd vectors space = go
+hookAndAddChain cellr maxd chainNo glInd vectors space = go
   where
     go = do
-        start <- getRandomFreePosition r space
-        addChain chainNo 0 glInd start space vectors `mplus` (nextRep >> go)
+        start <- getRandomFreePosition cellr space
+        addChain chainNo 0 glInd maxd start space vectors `mplus` (nextRep >> go)
 
 -- |Adds all the chains somewhere in the space
 addChains :: (MonadRandom m) =>
     Int
- -- ^Radius
-  -> Space
+ -- ^Radius of the cell
+ -> Int
+ -- ^Square of the maximum chain segment length
+ -> Space
  -- ^Current space
-  -> [[EnergyVector]]
+ -> [[EnergyVector]]
  -- ^Energy vectors of the beads in the chains
-  -> RepetitionGuardT m Space
-addChains r space vectors =
+ -> RepetitionGuardT m Space
+addChains cellr maxd space vectors =
     fst <$> foldM (\(s, count) (evs, nr) -> (,count + length evs) <$>
-        hookAndAddChain r nr count evs s) (space, 0) (zip vectors [0..])
+        hookAndAddChain cellr maxd nr count evs s) (space, 0) (zip vectors [0..])
