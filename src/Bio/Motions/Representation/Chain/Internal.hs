@@ -104,7 +104,7 @@ instance Monad m => Representation m PureChainRepresentation where
 
     loadDump = loadDump'
     makeDump = makeDump'
-    generateMove = generateMove'
+    generateMove = fastGenerateMove
     {-# INLINEABLE generateMove #-}
 
     performMove (MoveFromTo from to) repr
@@ -127,7 +127,7 @@ instance MonadIO m => Representation m IOChainRepresentation where
 
     loadDump = loadDump'
     makeDump = makeDump'
-    generateMove = generateMove'
+    generateMove = fastGenerateMove
     {-# INLINEABLE generateMove #-}
 
     performMove (MoveFromTo from to) repr = do
@@ -169,14 +169,31 @@ makeDump' repr = do
         , dumpChains = (dropIndices <$>) <$> relChains
         }
 
--- |An 'f'-polymorphic implementation of 'generateMive' for 'ChainRepresentation f'.
-generateMove' :: _ => ChainRepresentation f -> m (Maybe Move)
-generateMove' repr@ChainRepresentation{..} = do
+-- |A fast implementation of 'generateMove' for 'ChainRepresentation f' allowing moves with qd <= 2.
+fastGenerateMove :: _ => ChainRepresentation f -> m (Maybe Move)
+fastGenerateMove repr = generateMove' repr sqrt2LegalMoves [] [sqrt2IllegalBeadMove repr]
+{-# INLINE fastGenerateMove #-}
+
+sqrt2LegalMoves :: V.Vector Vec3
+sqrt2LegalMoves = legalMoves 2
+
+-- |An 'f'-polymorphic implementation of 'generateMove' for 'ChainRepresentation f'.
+generateMove' :: _ =>
+     ChainRepresentation f
+  -- ^The representation
+  -> V.Vector Vec3
+  -- ^A vector of legal moves
+  -> [Move -> BinderInfo' f -> m Bool]
+  -- ^A list of additional binder move constraints
+  -> [Move -> BeadInfo' f -> m Bool]
+  -- ^A list of additional bead move constraints
+  -> m (Maybe Move)
+generateMove' ChainRepresentation{..} legalMoves binderConstraints beadConstraints = do
     moveBinder <- getRandom
     if moveBinder then
-        pick moveableBinders binders []
+        pick moveableBinders binders binderConstraints
     else
-        pick moveableBeads beads [illegalBeadMove repr]
+        pick moveableBeads beads beadConstraints
   where
     -- |Pick a random move of some atom in a sequence
     pick :: _  -- Under some cumbersome constraints...
@@ -221,15 +238,15 @@ localNeighbours info repr = do
     chain = getChain' repr $ info ^. beadChain
 {-# INLINE localNeighbours #-}
 
-illegalBeadMove :: Wrapper m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
-illegalBeadMove repr Move{..} bead = do
+sqrt2IllegalBeadMove :: Wrapper m f => ChainRepresentation f -> Move -> BeadInfo' f -> m Bool
+sqrt2IllegalBeadMove repr Move{..} bead = do
     bead' <- retrieveLocated bead
     pairs <- localNeighbours (bead' & position +~ moveDiff) repr
     pure $ any (uncurry notOk) pairs
   where
-    notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain (space repr) b1 b2
+    notOk b1 b2 = wrongQd (qd b1 b2) || intersectsChain2 (space repr) b1 b2
     wrongQd d = d <= 0 || d > 2
-{-# INLINE illegalBeadMove #-}
+{-# INLINE sqrt2IllegalBeadMove #-}
 
 -- |Returns the chain with the specified index.
 getChain' :: ChainRepresentation f -> Int -> V.Vector (BeadInfo' f)
