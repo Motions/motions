@@ -24,6 +24,10 @@ findOrError e k = maybe (throwError e) pure . M.lookup k
 onDuplicates :: (Eq a, Monad m) => [a] -> (a -> m ()) -> m ()
 onDuplicates xs onDup = forM_ (init . tails $ xs) $ \(y:ys) -> when (y `elem` ys) $ onDup y
 
+-- |All two-element subsets (returned as ordered pairs) of the given list.
+distinctPairs :: [a] -> [(a, a)]
+distinctPairs l = [(a, b) | a : tl <- init (tails l), b <- tl]
+
 -- |Ensures that the 'c' is satisfied for every element of 'list'.
 type family All (c :: k -> Constraint) (list :: [k]) :: Constraint where
     All c '[] = ()
