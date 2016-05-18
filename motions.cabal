@@ -19,6 +19,7 @@ library
   exposed-modules:     Bio.Motions.Representation.Class,
                        Bio.Motions.Representation.Chain,
                        Bio.Motions.Representation.Chain.Internal,
+                       Bio.Motions.Representation.Chain.Slow,
                        Bio.Motions.Representation.Common,
                        Bio.Motions.Representation.Dump,
                        Bio.Motions.Format.DumpDeserialisation,
@@ -28,6 +29,7 @@ library
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Utils.Parsec,
                        Bio.Motions.Utils.Random,
+                       Bio.Motions.Utils.Geometry,
                        Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,
                        Bio.Motions.Callback.Serialisation,
@@ -84,7 +86,8 @@ library
                        mwc-random >=0.13 && <0.14,
                        primitive >=0.6 && <0.7,
                        deepseq >=1.4 && <1.5,
-                       unordered-containers >=0.2 && <0.3
+                       unordered-containers >=0.2 && <0.3,
+                       arithmoi >=0.4.1 && <0.4.2
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -99,9 +102,10 @@ executable motions
                        optparse-applicative >=0.12 && <0.13,
                        transformers >=0.4 && <0.5,
                        split >=0.2 && <0.3,
-                       yaml >=0.8.16 && <0.8.17,
+                       yaml >=0.8.17 && <0.8.18,
                        aeson >=0.11 && <0.12,
                        parsec >=3.1 && <3.2,
+                       reflection >=2.1.2 && <2.1.3,
                        motions
   default-language:    Haskell2010
   ghc-options:         -pgml c++ -Wall
@@ -146,7 +150,8 @@ test-suite spec
                        LoadTestCallbacks,
                        SimpleCallback,
                        CallbackDiscoverSpec,
-                       CallbackPeriodicSpec
+                       CallbackPeriodicSpec,
+                       GeometrySpec
     ghc-options:       -pgml c++ -Wall
     if os(osx)
       extra-libraries: cprotostream_static
