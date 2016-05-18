@@ -21,7 +21,6 @@ import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.Chain.Internal
-import Bio.Motions.Representation.Common
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.GyrationRadius
@@ -45,19 +44,6 @@ instance MonadRandom m => MonadRandom (PropertyM m) where
 
     getRandom = lift getRandom
     getRandomR = lift . getRandomR
-
-testIntersectsChain :: Spec
-testIntersectsChain = do
-    it "reports actual intersections to exist" $
-        intersectsChain space (V3 7 8 7) (V3 7 7 8) `shouldBe` True
-
-    it "doesn't report about non-existing intersections" $
-        intersectsChain space (V3 7 8 7) (V3 7 8 8) `shouldBe` False
-  where
-    space = [ (V3 7 7 7, Located (V3 7 7 7) $ BeadSig $ BeadSignature ev 0 0 0)
-            , (V3 7 8 8, Located (V3 7 8 8) $ BeadSig $ BeadSignature ev 0 0 1)
-            ]
-    ev = []
 
 testRepr :: _ => proxy repr -> Spec
 testRepr (_ :: _ repr) = before (loadDump dump freezePredicate :: IO repr) $ do
@@ -358,6 +344,3 @@ spec = do
 
     context "the IO chain representation" $
         testRepr (Proxy :: Proxy IOChainRepresentation)
-
-    context "the intersectsChain function"
-        testIntersectsChain

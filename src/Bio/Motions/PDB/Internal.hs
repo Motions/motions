@@ -198,12 +198,12 @@ toCoordData = (* 3) . fmap fromIntegral
 toConnectData :: Serial -> PDBEntry
 toConnectData i = PDBConnect i (i + 1)
 
-fromPDBData :: RevPDBMeta -> [PDBEntry] -> Either ReadError Dump
-fromPDBData meta es = do
+fromPDBData :: RevPDBMeta -> Maybe Int -> [PDBEntry] -> Either ReadError Dump
+fromPDBData meta maxd es = do
     dumpBinders <- mapM (fromBinderData meta) binderEntries
     connects <- fromConnectsData connectEntries
     beadMap <- M.fromList <$> mapM (\e -> (serial e, ) <$> fromBeadData meta e) beadEntries
-    (chainIds, dumpChains) <- unzip <$> extractChains connects beadMap -- TODO: chain ids in dumpChains
+    (chainIds, dumpChains) <- unzip <$> extractChains maxd connects beadMap -- TODO: chain ids in dumpChains
     onDuplicates chainIds $ \ch -> throwError $ "Two chains (not connected) with the same chain id: " ++ show ch
     pure Dump{..}
   where
@@ -244,19 +244,21 @@ fromCoordData = fmap round . (/ 3)
 
 -- |Extracts all chains tagged with their IDs from a set of beads.
 extractChains ::
-     (M.Map Serial Serial, M.Map Serial Serial)
+     Maybe Int
+  -- ^Square of the maximum chain segment length or Nothing if unbounded.
+  -> (M.Map Serial Serial, M.Map Serial Serial)
   -- ^A bijection on a subset of the set of beads, representing connections between them.
   -> M.Map Serial (ChainId, DumpBeadInfo)
   -- ^The set of beads tagged with their PDB serial numbers.
   -> Either ReadError [(ChainId, [DumpBeadInfo])]
   -- ^The resulting list of chains or error if the input was invalid.
-extractChains (forMap, revMap) = go
+extractChains maxd (forMap, revMap) = go
   where
     go m | M.null m = Right []
          | otherwise = do
         let (serial, (chId, _)) = M.findMin m
         start <- findStart serial serial
-        (chain, m') <- extractOneChain forMap start chId m
+        (chain, m') <- extractOneChain maxd forMap start chId m
         ((chId, chain) :) <$> go m'
     findStart start cur =
         case M.lookup cur revMap of
@@ -266,7 +268,9 @@ extractChains (forMap, revMap) = go
 
 -- |Extracts one chain from a set of beads.
 extractOneChain ::
-     M.Map Serial Serial
+     Maybe Int
+  -- ^Square of the maximum chain segment length or Nothing if unbounded.
+  -> M.Map Serial Serial
   -- ^A bijection between a subset of the set of beads, representing connections between them.
   -> Serial
   -- ^The PDB serial number of the beginning of the chain.
@@ -276,7 +280,7 @@ extractOneChain ::
   -- ^The set of beads tagged with their PDB serial numbers.
   -> Either ReadError ([DumpBeadInfo], M.Map Serial (ChainId, DumpBeadInfo))
   -- ^The resulting chain and the set of remaining beads or error if the input was invalid.
-extractOneChain connects start chId = go start
+extractOneChain maxd connects start chId = go start
   where
     go cur m = do
         (chId', bead) <- findOrError ("Non-existing atom in connects: " ++ show cur) cur m
@@ -288,9 +292,10 @@ extractOneChain connects start chId = go start
             Nothing -> pure ([bead], m')
             Just next -> do
                 (nextBead : chain, m'') <- go next m'
-                when ((qd `on` dumpBeadPosition) bead nextBead > 2)
-                    $ throwError $ "Distance between connected atoms " ++ show cur
-                                   ++ " and " ++ show next ++ " is greater than the square root of 2"
+                flip (maybe (pure ())) maxd $ \maxd' ->
+                    when ((qd `on` dumpBeadPosition) bead nextBead > maxd')
+                        $ throwError $ "Distance between connected atoms " ++ show cur ++ " and "
+                                       ++ show next ++ " is greater than the square root of " ++ show maxd'
                 pure (bead : nextBead : chain, m'')
 
 mergeDumps :: [Dump] -> Either ReadError Dump
@@ -310,6 +315,7 @@ mergeDumps dumps = checkChains >> checkPositions >> pure (Dump allBinders allCha
 
     checkChains = checkCrossConnects -- TODO: chain ids
 
+    -- TODO: longer segments crossings
     checkCrossConnects = foldM_ checkCrossStep S.empty connectedPositions
     checkCrossStep s (v1, v2) | qd v1 v2 < 2 = pure s
     checkCrossStep s (v1, v2) = do

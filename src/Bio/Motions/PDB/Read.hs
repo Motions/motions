@@ -24,11 +24,11 @@ import qualified Data.ByteString.Char8 as BS
 import System.IO
 import Linear
 
-readPDB :: [Handle] -> RevPDBMeta -> IO (Either ReadError Dump)
-readPDB hs meta = (sequence >=> toDump) <$> mapM readPDBData hs
+readPDB :: [Handle] -> RevPDBMeta -> Maybe Int -> IO (Either ReadError Dump)
+readPDB hs meta maxd = (sequence >=> toDump) <$> mapM readPDBData hs
   where
     toDump :: [[PDBEntry]] -> Either ReadError Dump
-    toDump = mapM (fromPDBData meta) >=> mergeDumps
+    toDump = mapM (fromPDBData meta maxd) >=> mergeDumps
 
 -- |Reads the first frame in a PDB file
 readPDBData :: Handle -> IO (Either ReadError [PDBEntry])
