@@ -1,4 +1,4 @@
-resolver: nightly-2016-04-09
+resolver: lts-6.0
 extra-deps:
     - hPDB-1.2.0.9
 flags:
