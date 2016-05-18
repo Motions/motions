@@ -42,6 +42,14 @@ enabled-callbacks:
 # The used score function.
 # score: StandardScore
 
+# Square of the maximum move radius. Only 2 is allowed when using IOChain or PureChain representations.
+# Warning: possible integer overflows when using large move radii. Preferably use <= 27.
+# max-move-radius: 2
+
+# Square of the maximum chain segment length. Only 2 is allowed when using IOChain or PureChain.
+# Warning: possible integer overflows when using large lengths. Preferably use <= 27.
+# max-chain-segment-length: 2
+
 # A predicate determining whether a bead should be frozen or not.
 # Grammar:
 #
@@ -78,7 +86,7 @@ generate:
         - 1000
 
     # The radius of the cell in which the simulation takes place.
-    radius: 10
+    cell-radius: 10
 
     # The resolution used to convert BED files to chains.
     resolution: 10

@@ -28,7 +28,8 @@ import Text.Parsec
 import Text.Parsec.ByteString
 import Data.List
 import Data.Function
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as S
 import qualified Data.ByteString.Char8 as BS
 
@@ -214,12 +215,12 @@ toCoordData = (* 3) . fmap fromIntegral
 toConnectData :: Serial -> PDBEntry
 toConnectData i = PDBConnect i (i + 1)
 
-fromPDBData :: RevPDBMeta -> [PDBEntry] -> Either ReadError Dump
-fromPDBData meta es = do
+fromPDBData :: RevPDBMeta -> Maybe Int -> [PDBEntry] -> Either ReadError Dump
+fromPDBData meta maxd es = do
     dumpBinders <- mapM (fromBinderData meta) binderEntries
     connects <- fromConnectsData connectEntries
     beadMap <- M.fromList <$> mapM (\e -> (serial e, ) <$> fromBeadData meta e) beadEntries
-    (chainIds, dumpChains) <- unzip . sortWith fst <$> extractChains connects beadMap
+    (chainIds, dumpChains) <- unzip . sortWith fst <$> extractChains maxd connects beadMap
     onDuplicates chainIds $ \ch ->
         throwError $ "Two chains (not connected) with the same chain id: " ++ show ch
     unless (and $ zipWith (==) chainIds [0..]) $
@@ -263,19 +264,21 @@ fromCoordData = fmap round . (/ 3)
 
 -- |Extracts all chains tagged with their IDs from a set of beads.
 extractChains ::
-     (M.Map Serial Serial, M.Map Serial Serial)
+     Maybe Int
+  -- ^Square of the maximum chain segment length or Nothing if unbounded.
+  -> (M.Map Serial Serial, M.Map Serial Serial)
   -- ^A bijection on a subset of the set of beads, representing connections between them.
   -> M.Map Serial (ChainId, DumpBeadInfo)
   -- ^The set of beads tagged with their PDB serial numbers.
   -> Either ReadError [(ChainId, [DumpBeadInfo])]
   -- ^The resulting list of chains or error if the input was invalid.
-extractChains (forMap, revMap) = go
+extractChains maxd (forMap, revMap) = go
   where
     go m | M.null m = Right []
          | otherwise = do
         let (serial, (chId, _)) = M.findMin m
         start <- findStart serial serial
-        (chain, m') <- extractOneChain forMap start chId m
+        (chain, m') <- extractOneChain maxd forMap start chId m
         ((chId, chain) :) <$> go m'
     findStart start cur =
         case M.lookup cur revMap of
@@ -285,7 +288,9 @@ extractChains (forMap, revMap) = go
 
 -- |Extracts one chain from a set of beads.
 extractOneChain ::
-     M.Map Serial Serial
+     Maybe Int
+  -- ^Square of the maximum chain segment length or Nothing if unbounded.
+  -> M.Map Serial Serial
   -- ^A bijection between a subset of the set of beads, representing connections between them.
   -> Serial
   -- ^The PDB serial number of the beginning of the chain.
@@ -295,7 +300,7 @@ extractOneChain ::
   -- ^The set of beads tagged with their PDB serial numbers.
   -> Either ReadError ([DumpBeadInfo], M.Map Serial (ChainId, DumpBeadInfo))
   -- ^The resulting chain and the set of remaining beads or error if the input was invalid.
-extractOneChain connects start chId = go start
+extractOneChain maxd connects start chId = go start
   where
     go cur m = do
         (chId', bead) <- findOrError ("Non-existing atom in connects: " ++ show cur) cur m
@@ -307,16 +312,19 @@ extractOneChain connects start chId = go start
             Nothing -> pure ([bead], m')
             Just next -> do
                 (nextBead : chain, m'') <- go next m'
-                when ((qd `on` dumpBeadPosition) bead nextBead > 2)
-                    $ throwError $ "Distance between connected atoms " ++ show cur
-                                   ++ " and " ++ show next ++ " is greater than the square root of 2"
+                forM_ maxd $ \maxd' ->
+                    when ((qd `on` dumpBeadPosition) bead nextBead > maxd')
+                        $ throwError $ "Distance between connected atoms " ++ show cur ++ " and "
+                                       ++ show next ++ " is greater than the square root of " ++ show maxd'
                 pure (bead : nextBead : chain, m'')
 
 mergeDumps :: [Dump] -> Either ReadError Dump
-mergeDumps dumps = checkChains >> checkPositions >> pure (Dump allBinders allChains)
+mergeDumps dumps = checkPositions >> checkChains >> pure mergedDump
   where
     allBinders = concatMap dumpBinders dumps
     allChains = concatMap dumpChains dumps
+    mergedDump = Dump allBinders allChains
+
     allAtomPositions = map dumpBeadPosition (concat allChains)
                     ++ map (^. position) allBinders
     connectedPositions = concatMap ((zip <*> tail) . map dumpBeadPosition) allChains
@@ -329,13 +337,17 @@ mergeDumps dumps = checkChains >> checkPositions >> pure (Dump allBinders allCha
 
     checkChains = checkCrossConnects
 
-    checkCrossConnects = foldM_ checkCrossStep S.empty connectedPositions
-    checkCrossStep s (v1, v2) | qd v1 v2 < 2 = pure s
-    checkCrossStep s (v1, v2) = do
-        let [u1, u2] = crossPoss v1 v2
-        when (S.member (u1, u2) s || S.member (u2, u1) s)
-            $ throwError $ "Chains cross on the segment" ++ show (v1, v2)
-        pure $ S.insert (v1, v2) s
+    checkCrossConnects = mapM_ checkCrossStep connectedPositions
+    checkCrossStep (v1, v2) = when (intersects v1 v2)
+        $ throwError $ "Chains cross on the segment" ++ show (v1, v2)
+
+    intersects
+      | maxQd <= 2 = sqrt2IntersectsChain beadSpace
+      | otherwise  = intersectsChain maxQd beadSpace
+
+    beadSpace = foldr (\b -> HM.insert (b ^. position) (asAtom b)) HM.empty allBeads
+    allBeads = concat . dumpIndexedChains $ mergedDump
+    maxQd = foldr (max . uncurry qd) 0 connectedPositions
 
 parseOrError :: Stream s Identity t => Parsec s () a -> s -> Either ReadError a
 parseOrError p = left show . parse p ""

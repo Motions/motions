@@ -121,7 +121,7 @@ testRead = do
         it "extracts the chain names correctly" $
             getChainNames expectedMeta `shouldBe` ["Watson", "Crick"]
     context "when reading correct frame data" $ do
-        let eitherErrDump = fromPDBData expectedMeta pdbEntries
+        let eitherErrDump = fromPDBData expectedMeta maxd pdbEntries
         it "reads the data without errors" $
             eitherErrDump `shouldSatisfy` isRight
         when (isRight eitherErrDump) $ do
@@ -285,7 +285,10 @@ testRead = do
     (ch0s, ch1s) = ('a', 'b')
 
     shouldFailParsingMeta x = toRevPDBMeta x `shouldSatisfy` isLeft
-    shouldFailParsingPDB x = fromPDBData expectedMeta x `shouldSatisfy` isLeft
+    shouldFailParsingPDB x = fromPDBData expectedMeta maxd x `shouldSatisfy` isLeft
+
+    maxd :: Maybe Int
+    maxd = Just 2
 
     metaDupEvStrs :: [PDBMetaEntry]
     metaDupEvStrs = [ EnergyVectorMap ev0 ev0s

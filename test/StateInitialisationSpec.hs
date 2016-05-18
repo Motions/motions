@@ -16,11 +16,11 @@ import Bio.Motions.Representation.Common
 
 spec :: Spec
 spec = context "when generating state" $ do
-    let ans = run (initialise 1000 10 [4,4,4] fewShortEVectors) 123
+    let ans = run (initialise 1000 10 2 [4,4,4] fewShortEVectors) 123
     it "generates something, when possible" $
         ans `shouldSatisfy` isJust
     it "generates nothing, when impossible" $
-        run (initialise 1000 100 [1,1,1] oneSuperLongEVector) 123 `shouldSatisfy` isNothing
+        run (initialise 1000 100 2 [1,1,1] oneSuperLongEVector) 123 `shouldSatisfy` isNothing
     let Just dump = ans
     it "generates proper amount of non-lamin binders" $
         length (dumpBinders dump) - length (getAllLamins dump) `shouldBe` 12
@@ -30,7 +30,7 @@ spec = context "when generating state" $ do
     let beadsPositions = map (map dumpBeadPosition) $ dumpChains dump
     it "generates non-intersecting chains" $
         beadsPositions `shouldNotSatisfy` any (\chain ->
-            or $ zipWith (intersectsChain ansSpace) chain (tail chain))
+            or $ zipWith (sqrt2IntersectsChain ansSpace) chain (tail chain))
     it "generates atoms on distinct fields" $
         M.size ansSpace `shouldBe` length (concat $ dumpChains dump) + length (dumpBinders dump)
 
