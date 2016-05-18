@@ -5,6 +5,8 @@ License     : Apache
 Stability   : experimental
 Portability : unportable
 -}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 module Bio.Motions.Representation.Common where
 
@@ -32,6 +34,12 @@ legalMoves = V.fromList [v | [x, y, z] <- replicateM 3 [-1, 0, 1],
                              let v = V3 x y z,
                              quadrance v `elem` [1, 2]]
 
+legalMoves' :: Int -> V.Vector Vec3
+legalMoves' r = V.fromList [v | [x, y, z] <- replicateM 3 [-rt..rt],
+                                let v = V3 x y z,
+                                quadrance v `elem` [1..r]]
+  where rt = r --FIXME
+
 -- |Checks if a segment connecting the two given points would intersect with a chain.
 -- Assumes that these points are neighbours on the 3-dimensional grid, i. e. the quadrance
 -- of the distance between these points equals 1 or 2.
@@ -42,8 +50,11 @@ intersectsChain space v1 v2 =
                 _                                -> False
   where
     d = qd v1 v2
-    chainNeighbours b1 b2 = b1 ^. beadChain == b2 ^. beadChain
-                         && abs (b1 ^. beadIndexOnChain - b2 ^. beadIndexOnChain) == 1
+
+-- TODO: haddock
+chainNeighbours :: BeadSignature -> BeadSignature -> Bool
+chainNeighbours b1 b2 = b1 ^. beadChain == b2 ^. beadChain
+                     && abs (b1 ^. beadIndexOnChain - b2 ^. beadIndexOnChain) == 1
 
 -- |Returns the segment crossing the segment connecting the two given points.
 -- Assumes that the quadrance between these points equals 2.

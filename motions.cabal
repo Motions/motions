@@ -19,6 +19,7 @@ library
   exposed-modules:     Bio.Motions.Representation.Class,
                        Bio.Motions.Representation.Chain,
                        Bio.Motions.Representation.Chain.Internal,
+                       Bio.Motions.Representation.Chain.Slow,
                        Bio.Motions.Representation.Common,
                        Bio.Motions.Representation.Dump,
                        Bio.Motions.Format.DumpDeserialisation,
@@ -28,6 +29,7 @@ library
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Utils.Parsec,
                        Bio.Motions.Utils.Random,
+                       Bio.Motions.Utils.Geometry,
                        Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,
                        Bio.Motions.Callback.Serialisation,
@@ -146,7 +148,8 @@ test-suite spec
                        LoadTestCallbacks,
                        SimpleCallback,
                        CallbackDiscoverSpec,
-                       CallbackPeriodicSpec
+                       CallbackPeriodicSpec,
+                       GeometrySpec
     ghc-options:       -pgml c++ -Wall
     if os(osx)
       extra-libraries: cprotostream_static
