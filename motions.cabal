@@ -28,6 +28,7 @@ library
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Utils.Parsec,
                        Bio.Motions.Utils.Random,
+                       Bio.Motions.Utils.Geometry,
                        Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,
                        Bio.Motions.Callback.Serialisation,
@@ -146,7 +147,8 @@ test-suite spec
                        LoadTestCallbacks,
                        SimpleCallback,
                        CallbackDiscoverSpec,
-                       CallbackPeriodicSpec
+                       CallbackPeriodicSpec,
+                       GeometrySpec
     ghc-options:       -pgml c++ -Wall
     if os(osx)
       extra-libraries: cprotostream_static
