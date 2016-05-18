@@ -24,13 +24,22 @@ import qualified Data.ByteString.Char8 as BS
 import System.IO
 import Linear
 
-readPDB :: [Handle] -> RevPDBMeta -> IO (Either ReadError Dump)
-readPDB hs meta = (sequence >=> toDump) <$> mapM readPDBData hs
+-- |Reads a dump from PDB files, taking the first frame from each file and merging them.
+readPDB ::
+     [Handle]
+  -- ^A list of handles to the PDB files.
+  -> RevPDBMeta
+  -- ^The Meta structure used to read the PDB format.
+  -> Maybe Int
+  -- ^Square of the maximum chain segment length or Nothing if unbounded. Used for error checking.
+  -> IO (Either ReadError Dump)
+  -- ^The resulting dump or error.
+readPDB hs meta maxd = (sequence >=> toDump) <$> mapM readPDBData hs
   where
     toDump :: [[PDBEntry]] -> Either ReadError Dump
-    toDump = mapM (fromPDBData meta) >=> mergeDumps
+    toDump = mapM (fromPDBData meta maxd) >=> mergeDumps
 
--- |Reads the first frame in a PDB file
+-- |Reads the first frame in a PDB file.
 readPDBData :: Handle -> IO (Either ReadError [PDBEntry])
 readPDBData h = parseFrame . fst . BS.breakSubstring "END" <$> BS.hGetContents h
 
