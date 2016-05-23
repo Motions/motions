@@ -12,6 +12,7 @@ Portability : unportable
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Engine where
 
@@ -28,34 +29,29 @@ import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import Data.List
 
-data SimulationState repr score = SimulationState
+data SimulationState repr score dict = SimulationState
     { repr :: !repr
     , score :: !score
-    , preCallbackResults :: ![CallbackResult 'Pre]
-    , postCallbackResults :: ![CallbackResult 'Post]
+    , dict :: !dict
     , stepCounter :: !Int
     }
 
 -- |Describes how the simulation should run.
-data RunSettings repr score backend = RunSettings
+data RunSettings repr score backend dict (postCbs :: [*]) = RunSettings
     { numSteps :: Int
     -- ^ Number of simulation steps.
     , freezePredicate :: FreezePredicate
     -- ^ A predicate determining whether a bead is frozen
-    , allPreCallbacks :: [CallbackType 'Pre]
-    -- ^ List of all available pre-callbacks' types
-    , allPostCallbacks :: [CallbackType 'Post]
-    -- ^ List of all available post-callbacks' types
     , requestedCallbacks :: [String]
     -- ^ List of requested callback names
     , outputBackend :: backend
     -- ^ Output backend
     }
 
-type SimT repr score = StateT (SimulationState repr score)
+type SimT repr score dict = StateT (SimulationState repr scor dict)
 type RandomRepr m repr = (Generates (Double ': ReprRandomTypes m repr) m, Representation m repr)
 
-step :: (RandomRepr m repr, Score score) => SimT repr score m (Maybe Move)
+step :: (RandomRepr m repr, Score score, CallbackDict m repr dict) => SimT repr score dict m (Maybe Move)
 step = runMaybeT $ do
     st@SimulationState{..} <- get
     move <- lift2 (generateMove repr) >>= maybe mzero pure
