@@ -7,9 +7,9 @@ Portability : unportable
  -}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -21,9 +21,8 @@ import Bio.Motions.Types
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Serialisation
 
-import Data.Proxy
+import Data.Typeable
 import Control.DeepSeq
-
 
 type Callbacks = ([CallbackResult 'Pre], [CallbackResult 'Post])
 
@@ -32,20 +31,24 @@ data Mode = Pre  -- ^Such a callback will be fired before a move is made
           | Post -- ^Such a callback will be fired after a move is made
 
 -- |Represents a callback
-class (Show cb, CallbackSerialisable cb, NFData cb) => Callback (mode :: Mode) cb | cb -> mode where
+class (Show cb, CallbackSerialisable cb, NFData cb, Typeable cb) => Callback (mode :: Mode) cb | cb -> mode where
     -- |A human-readable name of the callback.
     callbackName :: proxy cb -> String
 
     -- |Computes the callback's result from scratch.
-    runCallback :: (Monad m, ReadRepresentation m repr)
-        => repr
+    runCallback :: CallbackCache m repr score cache
+        => cache
+        -- ^The callback cache.
+        -> repr
         -- ^The representation.
         -> m cb
         -- ^The computed value.
 
     -- |Computes the callback's result after a move.
-    updateCallback :: (Monad m, ReadRepresentation m repr)
-        => repr
+    updateCallback :: CallbackCache m repr score cache
+        => cache
+        -- ^The callback cache.
+        -> repr
         -- ^The representation before/after the move. See 'Mode'.
         -> cb
         -- ^The previous value.
@@ -54,9 +57,9 @@ class (Show cb, CallbackSerialisable cb, NFData cb) => Callback (mode :: Mode) c
         -> m cb
         -- ^The new value.
 
-    default updateCallback :: (Monad m, ReadRepresentation m repr, mode ~ 'Post)
-        => repr -> cb -> Move -> m cb
-    updateCallback repr _ _ = runCallback repr
+    default updateCallback :: (CallbackCache m repr score cache, mode ~ 'Post)
+        => cache -> repr -> cb -> Move -> m cb
+    updateCallback cache repr _ _ = runCallback cache repr
     {-# INLINEABLE updateCallback #-}
 
 -- |An existential wrapper around a 'Callback''s result.
@@ -73,25 +76,21 @@ data CallbackType mode where
 getCallbackName :: forall cb mode. Callback mode cb => cb -> String
 getCallbackName _ = callbackName (Proxy :: Proxy cb)
 
--- |Runs a 'Callback' in a monad and returns the result.
-getCallbackResult :: forall m repr mode. (Monad m, ReadRepresentation m repr) =>
-    repr -> CallbackType mode -> m (CallbackResult mode)
-getCallbackResult repr (CallbackType (_ :: Proxy cb)) = CallbackResult <$> (runCallback repr :: m cb)
-{-# INLINEABLE getCallbackResult #-}
-
--- |Runs all 'Callback's in a list and returns the list of results.
-getCallbackResults :: (Traversable t, Monad m, ReadRepresentation m repr) =>
-    repr -> t (CallbackType mode) -> m (t (CallbackResult mode))
-getCallbackResults = traverse . getCallbackResult
-{-# INLINEABLE getCallbackResults #-}
-
--- |Updates a 'Callback''s result in a monad after a move.
-updateCallbackResult :: (Monad m, ReadRepresentation m repr) =>
-    repr -> Move -> CallbackResult mode -> m (CallbackResult mode)
-updateCallbackResult repr move (CallbackResult cb) = CallbackResult <$> updateCallback repr cb move
-{-# INLINEABLE updateCallbackResult #-}
-
 -- |An alias for a particularily important class of callbacks, viz. score functions.
 -- TODO: better serializability constraint
 -- TODO: remove Integral
 type Score cb = (Callback 'Pre cb, Num cb, Ord cb, Integral cb, Show cb)
+
+-- |Represents callback value cache
+--
+-- For optimisation purposes (i.e. specialisations), monad and representation
+-- are provided as type class parameters.
+class (Monad m, ReadRepresentation m repr, Score score) => CallbackCache m repr score cache | cache -> score where
+    -- |Computes the value of a callback or returns a cached one
+    --
+    -- It is allowed to use any optimisations it finds suitable,
+    -- provided that the return values are correct
+    getPostCallback :: Callback 'Post cb => cache -> repr -> m cb
+
+    -- |Returns the current value of the score function.
+    getScore :: cache -> m score
