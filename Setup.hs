@@ -26,6 +26,7 @@ makeLibProtostream _ flags = do
         prefix <- runStdout ["git", "rev-parse", "--show-prefix"]
         when (prefix /= "\n") $ -- not in the root of the git working directory
             run ["git", "clone", "https://github.com/Motions/libprotostream.git", "."]
+        run ["git", "fetch"]
         local <- runStdout ["git", "rev-parse", "@"]
         upstream <- runStdout ["git", "rev-parse", "origin/master"]
         when (local /= upstream) $ do
