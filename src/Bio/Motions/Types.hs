@@ -26,9 +26,13 @@ import qualified Data.Vector.Unboxed as U
 import GHC.Exts
 import Control.Lens.TH
 import Data.Profunctor.Unsafe
+import Data.Int
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
+
+-- |Counter type for counting all attempted steps.
+type StepCounter = Int64
 
 -- |An alias used for representing energy.
 type Energy = Int

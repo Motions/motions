@@ -41,7 +41,7 @@ data PDBBackend = PDBBackend
 instance OutputBackend PDBBackend where
     getNextPush st@PDBBackend{..}
         | intermediate = pure $ PushDump (pushPDBStep st)
-        | otherwise = pure . PushMove $ \_ cb -> writeCallbacks cbHandle cbVerbose cb
+        | otherwise = pure . PushMove $ \_ cb _ -> writeCallbacks cbHandle cbVerbose cb
     closeBackend PDBBackend{..} = do
         hClose pdbHandle
         withFile metaFile WriteMode $ \h -> writePDBMeta h meta
@@ -67,8 +67,9 @@ openPDBOutput OutputSettings{..} dump simplePDB intermediate cbHandle cbVerbose 
     pdbError = "The PDB format can't handle this number of different beads, binders or chains."
 
 -- |Append a step to the output file
-pushPDBStep :: (Show score) => PDBBackend -> Dump -> Callbacks -> Int -> score -> IO ()
+pushPDBStep :: (Show score) => PDBBackend -> Dump -> Callbacks -> StepCounter -> score -> IO ()
 pushPDBStep PDBBackend{..} dump' callbacks step score = do
+    modifyIORef frameCounter (+1)
     frame <- readIORef frameCounter
     let frameHeader = StepHeader { headerSeqNum = frame
                                  , headerStep = step
@@ -76,7 +77,6 @@ pushPDBStep PDBBackend{..} dump' callbacks step score = do
                                  }
     liftIO $ writePDB pdbHandle frameHeader meta dump >> hPutStrLn pdbHandle "END"
     liftIO $ writeCallbacks cbHandle cbVerbose callbacks
-    modifyIORef frameCounter (+1)
   where
     dump = removeLamins dump'
     removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }

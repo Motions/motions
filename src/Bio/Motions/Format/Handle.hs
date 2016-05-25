@@ -48,7 +48,7 @@ instance OutputBackend BinaryBackend where
     getNextPush state@BinaryBackend{..} = do
         cur <- readIORef framesSinceLastKF
         return $ if cur == framesPerKF then
-                      PushDump $ \d c _ _ -> appendKeyframe state d c
+                      PushDump $ \dump callbacks counter _ -> appendKeyframe state dump callbacks counter
                       else
                       PushMove $ appendDelta state
 
@@ -66,7 +66,7 @@ openBinaryOutput framesPerKF OutputSettings{..} dump = do
     handle <- openOutput
     framesSinceLastKF <- newIORef 0
     let st = BinaryBackend{..}
-    appendKeyframe st dump ([], [])
+    appendKeyframe st dump ([], []) 0
     return st
   where
     openOutput = withCString path $ \cPath ->
@@ -95,12 +95,12 @@ genericAppend stream f msg =
     --TODO toStrict is slow
   where bytes = BL.toStrict . messagePut $ msg
 
-appendKeyframe :: BinaryBackend -> Dump -> Callbacks -> IO ()
-appendKeyframe BinaryBackend{..} dump c = do
+appendKeyframe :: BinaryBackend -> Dump -> Callbacks -> StepCounter -> IO ()
+appendKeyframe BinaryBackend{..} dump callbacks counter = do
     writeIORef framesSinceLastKF 1
-    genericAppend handle protoAppendKeyframe $ getKeyframe dump c
+    genericAppend handle protoAppendKeyframe $ getKeyframe dump callbacks counter
 
-appendDelta :: BinaryBackend -> Move -> Callbacks -> IO ()
-appendDelta BinaryBackend{..} m c = do
+appendDelta :: BinaryBackend -> Move -> Callbacks -> StepCounter -> IO ()
+appendDelta BinaryBackend{..} move callbacks counter = do
     modifyIORef framesSinceLastKF (+1)
-    genericAppend handle protoAppendDelta $ serialiseMove m c
+    genericAppend handle protoAppendDelta $ serialiseMove move callbacks counter

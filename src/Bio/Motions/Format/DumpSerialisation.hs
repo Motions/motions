@@ -31,11 +31,12 @@ import Bio.Motions.Types
 import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Serialisation
 
-serialiseMove :: Move -> Callbacks -> Delta
-serialiseMove Move{..} cbs = Delta
+serialiseMove :: Move -> Callbacks -> StepCounter -> Delta
+serialiseMove Move{..} cbs counter = Delta
     { from = Just $ makePoint moveFrom
     , disp = Just $ makePoint moveDiff
     , callbacks = S.fromList $ serialiseCallbacks cbs
+    , step_counter = Just counter
     }
 
 getHeader :: String -> String -> [String] -> Dump -> ProtoHeader.Header
@@ -46,11 +47,12 @@ getHeader simulationName simulationDescription chainNames Dump{..} = ProtoHeader
     , chains = S.fromList $ zipWith headerSerialiseChain chainNames dumpChains
     }
 
-getKeyframe :: Dump -> Callbacks -> ProtoKeyframe.Keyframe
-getKeyframe Dump{..} cbs = ProtoKeyframe.Keyframe
+getKeyframe :: Dump -> Callbacks -> StepCounter -> ProtoKeyframe.Keyframe
+getKeyframe Dump{..} cbs counter = ProtoKeyframe.Keyframe
     { binders = S.fromList $ serialiseBinders dumpBinders
     , chains = S.fromList $ map keyframeSerialiseChain dumpChains
     , callbacks = S.fromList $ serialiseCallbacks cbs
+    , step_counter = Just counter
     }
 
 headerSerialiseChain :: String -> [DumpBeadInfo] -> ChainDescription
