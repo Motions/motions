@@ -33,7 +33,7 @@ data SimulationState repr score = SimulationState
     , score :: !score
     , preCallbackResults :: ![CallbackResult 'Pre]
     , postCallbackResults :: ![CallbackResult 'Post]
-    , stepCounter :: !Int
+    , stepCounter :: !StepCounter
     }
 
 -- |Describes how the simulation should run.
@@ -86,6 +86,7 @@ step = runMaybeT $ do
 stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, OutputBackend backend)
     => backend -> SimT repr score m ()
 stepAndWrite backend = do
+    modify $ \s -> s { stepCounter = stepCounter s + 1 }
     step >>= \case
       Nothing -> pure ()
       Just move -> do
@@ -93,8 +94,7 @@ stepAndWrite backend = do
           SimulationState{..} <- get
           liftIO (getNextPush backend) >>= \case
             PushDump act -> getDump >>= liftIO . (\dump -> act dump cb stepCounter score)
-            PushMove act -> liftIO $ act move cb
-    modify $ \s -> s { stepCounter = stepCounter s + 1 }
+            PushMove act -> liftIO $ act move cb stepCounter
   where
     getDump = gets repr >>= lift . makeDump
 {-# INLINE stepAndWrite #-}

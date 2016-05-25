@@ -37,7 +37,7 @@ type ReadError = String
 
 data FrameHeader =
     StepHeader { headerSeqNum :: Int
-               , headerStep :: Int
+               , headerStep :: StepCounter
                , headerTitle :: String
                }
   | LaminHeader
