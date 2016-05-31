@@ -63,11 +63,14 @@ updateExtraLibDirs localBuildInfo = do
         }
     }
 
+protoDescriptionFile :: String
+protoDescriptionFile =
+    "https://raw.githubusercontent.com/Motions/Format/a3b4d8277fcf264b25c8e2a786c5df613f598d6e/message.proto"
+
 downloadProtoDescription :: Verbosity -> IO ()
 downloadProtoDescription verbosity =
     rawSystemExit verbosity "env"
-        ["curl", "https://raw.githubusercontent.com/Motions/Format/master/message.proto",
-        "-o", "src/message.proto"]
+        ["curl", protoDescriptionFile, "-o", "src/message.proto"]
 
 compileProtos :: Verbosity -> IO ()
 compileProtos verbosity = do
