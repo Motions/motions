@@ -64,6 +64,7 @@ data GenerateSettings = GenerateSettings
     , cellRadius :: Int
     , resolution :: Int
     , initAttempts :: Int
+    , binderTypesNames :: [String]
     } deriving Generic
 
 data ChromosomeInfo = ChromosomeInfo
@@ -130,6 +131,7 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("metaFile", "meta-file")
             , ("chromosomeName", "name")
             , ("chromosomeLength", "length")
+            , ("binderTypesNames", "binder-types-names")
             ]
 
 instance FromJSON GenerateSettings where
@@ -171,8 +173,8 @@ load :: MonadIO m =>
    -- ^The initialisation settings.
    -> Int
    -- ^Square of the maximum chain segment length.
-   -> m (Dump, [String])
-   -- ^The resulting dump and the chains' names.
+   -> m (Dump, [String], [String])
+   -- ^The resulting dump, chains' names and binder types names
 load InitialisationSettings{..} maxChainDistSquared =
     case (generateSettings, loadStateSettings) of
       (Nothing, Nothing) ->
@@ -182,19 +184,22 @@ load InitialisationSettings{..} maxChainDistSquared =
       (_, Just settings) -> loadFromFile settings
       (Just settings, _) -> generate settings
   where
-    loadFromFile :: MonadIO m => LoadStateSettings -> m (Dump, [String])
+    loadFromFile :: MonadIO m => LoadStateSettings -> m (Dump, [String], [String])
     loadFromFile LoadStateSettings{..} = liftIO $ do
         meta <- eitherFail "Meta file read error: " $ withFile metaFile ReadMode readPDBMeta
         pdbHandles <- mapM (`openFile` ReadMode) pdbFiles
         dump <- eitherFail "PDB read error: " $ readPDB pdbHandles meta (Just maxChainDistSquared)
         mapM_ hClose pdbHandles
-        pure (dump, getChainNames meta)
+        pure (dump, getChainNames meta, getBinderTypesNames meta)
 
-    generate :: MonadIO m => GenerateSettings -> m (Dump, [String])
+    generate :: MonadIO m => GenerateSettings -> m (Dump, [String], [String])
     generate GenerateSettings{..} = do
         let chromosomeInfosAsPairs = [(a, b) | ChromosomeInfo a b <- chromosomeInfos]
         energyVectors <- liftIO $ parseBEDs resolution chromosomeInfosAsPairs bedFiles
         let evLength = U.length . getEnergyVector . head . head $ energyVectors
+        -- Both bindersCount and binderTypesNames lists do not include lamin type
+        when ((length bindersCounts) /= (length binderTypesNames)) $ fail $
+            "Wrong number of binder names (have you remembered not to specify \"Lamin\" type?)"
         when (evLength /= length bindersCounts + 1)
           $ error "The number of different binder types must be the same as the number of chain \
                    \ features (BED files) minus one (the lamin feature)."
@@ -202,7 +207,7 @@ load InitialisationSettings{..} maxChainDistSquared =
           $ initialise initAttempts cellRadius maxChainDistSquared bindersCounts energyVectors
         case maybeDump of
           Nothing -> error "Failed to initialise."
-          Just dump -> pure (dump, map fst chromosomeInfosAsPairs)
+          Just dump -> pure (dump, map fst chromosomeInfosAsPairs, "Lamin":binderTypesNames)
 
     eitherFail :: String -> IO (Either String a) -> IO a
     eitherFail errorPrefix m = m >>= either (fail . (errorPrefix ++)) pure
@@ -214,8 +219,15 @@ load InitialisationSettings{..} maxChainDistSquared =
 {-# RULES "simulate @SlowChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'SlowChain'StandardScore'Bin'MWCIO #-}
 
 {-# ANN runSimulation ("HLint: ignore Redundant guard" :: String) #-}
-runSimulation :: Settings -> Dump -> [String] -> IO Dump
-runSimulation Settings{..} dump chainNames = dispatchScore dump
+runSimulation ::
+    Settings
+    -> Dump
+    -> [String]
+    -- ^Chain names
+    -> [String]
+    -- ^Names of binder types
+    -> IO Dump
+runSimulation Settings{..} dump chainNames binderNames = dispatchScore dump
   where
     dispatchScore dump
         | "StandardScore" <- scoreName = dispatchRepr (Proxy :: Proxy StandardScore) dump
@@ -251,8 +263,8 @@ runSimulation Settings{..} dump chainNames = dispatchScore dump
 
     dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
     dispatchBackend scoreProxy reprProxy random dump
-        | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump chainNames
-        | otherwise = run $ openPDBOutput outSettings dump chainNames simplePDB writeIntermediatePDB
+        | binaryOutput = run $ openBinaryOutput framesPerKF outSettings binderNames dump chainNames
+        | otherwise = run $ openPDBOutput outSettings dump chainNames binderNames simplePDB writeIntermediatePDB
                                 callbacksHandle verboseCallbacks
         where
             callbacksHandle = stdout    --TODO this should be a path or something, and the handle
@@ -276,8 +288,8 @@ run settings@Settings{..} = do
     when (simplePDB runSettings) $
         putStrLn "Warning: when using \"simple-pdb-output: True\" with 3 or more different binder types \
                   \ it won't be possible to use the resulting output as initial state later."
-    (dump, chainNames) <- load initialisationSettings maxChainDistSquared
-    _ <- runSimulation settings dump chainNames
+    (dump, chainNames, binderTypesNames) <- load initialisationSettings maxChainDistSquared
+    _ <- runSimulation settings dump chainNames binderTypesNames
     -- TODO: do something with the dump?
     pure ()
 

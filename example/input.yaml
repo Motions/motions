@@ -36,6 +36,7 @@ frames-per-keyframe: 1000
 enabled-callbacks:
     - Standard Score
 
+
 # The used internal representation.
 # representation: IOChain
 
@@ -79,6 +80,12 @@ generate:
     # the order of this list.
     chromosome-infos:
       - {name: "chr1", length: 100}
+
+    # Names of binder types in order that matches "bed-files" field. The first type
+    # will always be called "Lamin" and this name should be ommited in this list.
+    binder-types-names:
+      - "RegularBinder"
+
 
     # Numbers of binders of each type excluding lamins. Each type corresponds to a BED file provided above
     # starting the second (if exists). The first file corresponds to the lamin type.

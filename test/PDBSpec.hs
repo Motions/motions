@@ -81,6 +81,7 @@ testWrite = do
               , (1, 'B')
               ]
     chainName = []
+    binderTypesNames = []
     dump = Dump
         { dumpBinders =
             [ BinderInfo (V3 0 0 0) bi0
@@ -211,6 +212,8 @@ testRead = do
                      , ChainIdMap ch1 ch1s
                      , ChainNameMap ch0 "Watson"
                      , ChainNameMap ch1 "Crick"
+                     , BinderTypesNamesMap 0 "Lamin"
+                     , BinderTypesNamesMap 1 "Regular"
                      ]
 
     expectedMeta = RevPDBMeta
@@ -226,6 +229,7 @@ testRead = do
         , revChainName = [ ("Watson", ch0)
                          , ("Crick", ch1)
                          ]
+        , revBinderTypesNames = [("Lamin", 0), ("Regular", 1)]
         }
 
     expectedDump :: Dump
