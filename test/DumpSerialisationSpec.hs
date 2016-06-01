@@ -53,7 +53,7 @@ move = Move
 
 spec :: Spec
 spec = context "when serialising and deserialising dumps and moves" $ do
-    let h = getHeader "a" "b" ["x", "y", "z"] dump
+    let h = getHeader "a" "b" [] ["x", "y", "z"] dump
         kf = getKeyframe dump ([], []) 0
     let Just dumpAgain = deserialiseDump h kf
 

@@ -36,6 +36,10 @@ frames-per-keyframe: 1000
 enabled-callbacks:
     - Standard Score
 
+binder-types-names:
+    - "Lamin"
+    - "RegularBinder"
+
 # The used internal representation.
 # representation: IOChain
 

@@ -72,6 +72,7 @@ data LoadStateSettings = LoadStateSettings
 data InitialisationSettings = InitialisationSettings
     { generateSettings :: Maybe GenerateSettings
     , loadStateSettings :: Maybe LoadStateSettings
+    , binderTypesNames :: [String]
     } deriving Generic
 
 data RunSettings' = RunSettings'
@@ -118,6 +119,7 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("initAttempts", "initialisation-attempts")
             , ("pdbFiles", "pdb-files")
             , ("metaFile", "meta-file")
+            , ("binderTypesNames", "binder-types-names")
             ]
 
 instance FromJSON GenerateSettings where
@@ -198,7 +200,7 @@ runSimulation Settings{..} = dispatchScore
 
     dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
     dispatchBackend scoreProxy reprProxy random dump
-        | binaryOutput = run $ openBinaryOutput framesPerKF outSettings dump
+        | binaryOutput = run $ openBinaryOutput framesPerKF outSettings (binderTypesNames initialisationSettings)  dump
         | otherwise = run $ openPDBOutput outSettings dump simplePDB writeIntermediatePDB
                                 callbacksHandle verboseCallbacks
         where
