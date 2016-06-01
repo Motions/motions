@@ -55,6 +55,8 @@ openPDBOutput ::
     -- ^Current state of the simulation
     -> [String]
     -- ^Names of the chains (in order of their numbers)
+    -> [String]
+    -- ^Names of the binder types (in order of their numbers)
     -> Bool
     -- ^Use simple PDB names?
     -> Bool
@@ -65,7 +67,8 @@ openPDBOutput ::
     -- ^Verbose output?
     -> IO PDBBackend
     -- ^Opened PDB backend
-openPDBOutput OutputSettings{..} dump chainNames simplePDB intermediate cbHandle cbVerbose = do
+openPDBOutput OutputSettings{..} dump chainNames binderTypesNames simplePDB
+      intermediate cbHandle cbVerbose = do
     let pdbFile = outputPrefix ++ ".pdb"
         laminFile = outputPrefix ++ "-lamin.pdb"
         metaFile = pdbFile ++ ".meta"
@@ -74,9 +77,11 @@ openPDBOutput OutputSettings{..} dump chainNames simplePDB intermediate cbHandle
         chIds = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
     when (length chainNames /= length chIds)
         $ error "Fatal error: the number of chain names differs from the number of chains"
+    when (length binderTypesNames /= length bts)
+        $ error "Fatal error: the number of binder type names differs from the number of binder types"
     let chs = zip chIds chainNames
         mkMeta = if simplePDB then mkSimplePDBMeta else mkPDBMeta
-        meta = fromMaybe (error pdbError) $ mkMeta evs bts chs
+        meta = fromMaybe (error pdbError) $ mkMeta evs (zip bts binderTypesNames) chs
     pdbHandle <- openFile pdbFile WriteMode
     withFile laminFile WriteMode $ \h -> pushPDBLamins h meta dump
     frameCounter <- newIORef 0

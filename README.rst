@@ -182,12 +182,17 @@ Each line in a ".meta" file is one of the following:
 
 4. A chain name entry which maps a natural number to a chain name, for example::
 
-       NM 0 chrom
+       NMCH 0 chrom
+
+5. A binder type name entry which maps a natural number to a binder name, for example::
+
+       NMBT 1 ctcf
 
 The resulting mapping must be a bijection if you want to use a ".meta" file as input.
 The chain identifiers must be consecutive natural numbers starting from 0.
-Every chain must have its name, i. e. the number of NM mappings has to be the same as the number
-of CH mappings.
+Every chain must have its name, i. e. the number of NMCH mappings has to be the same as the number
+of CH mappings. Similarly every binder type must have its name i. e. the number of NMBT mappings has to
+be the same as the number of BT mappings.
 
 Example PDB files together with a suitable ".meta" file are provided in the "example" directory.
 
