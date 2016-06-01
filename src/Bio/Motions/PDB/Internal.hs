@@ -57,6 +57,8 @@ data PDBMeta = PDBMeta
     --   @chainID@ field of a PDB @ATOM@ entry.
     , chainName :: M.Map ChainId String
     -- ^ Maps chain numbers to their full names
+    , binderTypesNames :: M.Map Int String
+    -- ^ Maps binder numbers to their full names
     }
 
 data RevPDBMeta = RevPDBMeta
@@ -64,6 +66,7 @@ data RevPDBMeta = RevPDBMeta
     , revBinderRes :: M.Map String BinderType
     , revChainId :: M.Map Char ChainId
     , revChainName :: M.Map String ChainId
+    , revBinderTypesNames :: M.Map String Int
     }
     deriving (Eq, Show)
 
@@ -85,12 +88,15 @@ data PDBMetaEntry = EnergyVectorMap EnergyVector String
                   | BinderTypeMap BinderType String
                   | ChainIdMap ChainId Char
                   | ChainNameMap ChainId String
+                  | BinderTypesNamesMap Int String
+    deriving (Eq, Show)
 
 printPDBMetaEntry :: PDBMetaEntry -> String
 printPDBMetaEntry (EnergyVectorMap ev str) = "EV " ++ (show . toList) ev ++ " " ++ str
 printPDBMetaEntry (BinderTypeMap bt str) = "BT " ++ (show . getBinderType) bt ++ " " ++ str
 printPDBMetaEntry (ChainIdMap ch c) = "CH " ++ show ch ++ " " ++ [c]
 printPDBMetaEntry (ChainNameMap ch name) = "NM " ++ show ch ++ " " ++ name
+printPDBMetaEntry (BinderTypesNamesMap number name) = "BN " ++ show number ++ " " ++ name
 
 parsePDBMetaData :: BS.ByteString -> Either ReadError [PDBMetaEntry]
 parsePDBMetaData = parseOrError metaEntries
@@ -99,27 +105,32 @@ parsePDBMetaData = parseOrError metaEntries
     metaEntries = sepEndBy metaEntry endOfLine <* eof
 
     metaEntry :: Parser PDBMetaEntry
-    metaEntry = energyVecMap <|> binderTypeMap <|> chainIdMap <|> chainNameMap
+    metaEntry = energyVecMap <|> binderTypeMap <|> chainIdMap <|> chainNameMap <|> binderTypesMap
 
     energyVecMap :: Parser PDBMetaEntry
-    energyVecMap = EnergyVectorMap <$> (string "EV" *> spaces *> energyVector <* spaces)
+    energyVecMap = EnergyVectorMap <$> (try (string "EV") *> spaces *> energyVector <* spaces)
                                    <*> energyVectorString
                                    <?> "Energy vector mapping"
 
     binderTypeMap :: Parser PDBMetaEntry
-    binderTypeMap = BinderTypeMap <$> (string "BT" *> spaces *> binderType <* spaces)
+    binderTypeMap = BinderTypeMap <$> (try (string "BT") *> spaces *> binderType <* spaces)
                                   <*> binderTypeString
                                   <?> "Binder type mapping"
 
     chainIdMap :: Parser PDBMetaEntry
-    chainIdMap = ChainIdMap <$> (string "CH" *> spaces *> int <* spaces)
+    chainIdMap = ChainIdMap <$> (try (string "CH") *> spaces *> int <* spaces)
                             <*> oneOf pdbChars
                             <?> "Chain id mapping"
 
+    binderTypesMap :: Parser PDBMetaEntry
+    binderTypesMap = BinderTypesNamesMap <$> (try (string "BN") *> spaces *> int <* spaces)
+                                         <*> word
+                                         <?> "Chain name mapping"
+
     chainNameMap :: Parser PDBMetaEntry
-    chainNameMap = ChainNameMap <$> (string "NM" *> spaces *> int <* spaces)
-                                <*> word
-                                <?> "Chain name mapping"
+    chainNameMap = ChainNameMap <$> (try (string "NM") *> spaces *> int <* spaces)
+                                 <*> word
+                                 <?> "Binder types names mapping"
 
     binderTypeString :: Parser String
     binderTypeString = replicateM 3 (oneOf pdbChars)
@@ -135,9 +146,10 @@ toPDBMetaData PDBMeta{..} = map (uncurry EnergyVectorMap) (toList beadRes)
                          ++ map (uncurry BinderTypeMap) (toList binderRes)
                          ++ map (uncurry ChainIdMap) (toList chainId)
                          ++ map (uncurry ChainNameMap) (toList chainName)
+                         ++ map (uncurry BinderTypesNamesMap) (toList binderTypesNames)
 
 toRevPDBMeta :: [PDBMetaEntry] -> Either ReadError RevPDBMeta
-toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty) >=> \meta -> validate meta >> pure meta
+toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty M.empty) >=> \meta -> validate meta >> pure meta
   where
     step meta (EnergyVectorMap ev str)
       | M.member str (revBeadRes meta) = throwError $ "Duplicate energy vector strings: " ++ str
@@ -151,14 +163,19 @@ toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty) >=> \meta
     step meta (ChainNameMap ch name)
       | M.member name (revChainName meta) = throwError $ "Duplicate chain names: " ++ name
       | otherwise = pure meta { revChainName = M.insert name ch $ revChainName meta }
+    step meta (BinderTypesNamesMap binder name)
+      | M.member name (revBinderTypesNames meta) = throwError $ "Duplicate binder names: " ++ name
+      | otherwise = pure meta { revBinderTypesNames = M.insert name binder $ revBinderTypesNames meta}
 
     validate RevPDBMeta{..} = do
         let evs = map getEnergyVector . M.elems $ revBeadRes
             bts = map getBinderType . M.elems $ revBinderRes
             chs = M.elems revChainId
+            brs = M.elems revBinderTypesNames
         onDuplicates evs $ \ev -> throwError $ "Duplicate energy vectors: " ++ show ev
         onDuplicates bts $ \bt -> throwError $ "Duplicate binder types: " ++ show bt
         onDuplicates chs $ \ch -> throwError $ "Duplicate chain ids: " ++ show ch
+        onDuplicates brs $ \br -> throwError $ "Duplicate binder numbers: " ++ show br
         when (null bts || minimum bts /= 0)
             $ throwError "Mapping for binder type '0' (lamin type) is required but not provided"
         unless (and . zipWith (==) [0..] . sort $ bts)
@@ -168,6 +185,8 @@ toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty) >=> \meta
                            ++ " (all lengths should be equal to " ++ show (maximum bts + 1) ++ ")"
         unless (sort chs == sort (M.elems revChainName))
             $ throwError "Every chain needs to have a name."
+        unless (brs == bts) $
+            throwError "Binder type names should describe a consecutive binder numbers starting from 0"
 
 toPDBData :: FrameHeader -> PDBMeta -> Dump -> [PDBEntry]
 toPDBData header meta dump@Dump{..} =

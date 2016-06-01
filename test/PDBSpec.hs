@@ -9,12 +9,14 @@ import Bio.Motions.PDB.Meta
 import Bio.Motions.Types
 
 import qualified Data.Map as M
+import qualified Data.ByteString.Char8 as BS
 import Control.Monad
 import Data.List
 import Data.Maybe
 import Data.Either
 import Linear
 import Test.Hspec
+import Debug.Trace
 
 testWrite :: Spec
 testWrite = do
@@ -81,6 +83,7 @@ testWrite = do
               , (1, 'B')
               ]
     chainName = []
+    binderTypesNames = []
     dump = Dump
         { dumpBinders =
             [ BinderInfo (V3 0 0 0) bi0
@@ -189,6 +192,9 @@ testRead = do
             mergeDumps [dump1, dump2] `shouldSatisfy` isLeft
         it "detects crossings of chains from different dumps" $
             mergeDumps [dump1, dump3] `shouldSatisfy` isLeft
+    context "when parsing PdbMeta entries" $
+        it "returns correct PdbMeta entries" $
+          parsePDBMetaData printedPdbMetaEntries `shouldBe` Right pdbMetaEntries
   where
     pdbEntries :: [PDBEntry]
     pdbEntries = [ PDBAtom 0 "C" ev0s ch0s 1 (V3 0 0 0)
@@ -211,7 +217,11 @@ testRead = do
                      , ChainIdMap ch1 ch1s
                      , ChainNameMap ch0 "Watson"
                      , ChainNameMap ch1 "Crick"
+                     , BinderTypesNamesMap 0 "Lamin"
+                     , BinderTypesNamesMap 1 "Regular"
                      ]
+    printedPdbMetaEntries :: BS.ByteString
+    printedPdbMetaEntries =  BS.pack $ unlines $ map printPDBMetaEntry pdbMetaEntries
 
     expectedMeta = RevPDBMeta
         { revBeadRes = [ (ev0s, ev0)
@@ -226,6 +236,7 @@ testRead = do
         , revChainName = [ ("Watson", ch0)
                          , ("Crick", ch1)
                          ]
+        , revBinderTypesNames = [("Lamin", 0), ("Regular", 1)]
         }
 
     expectedDump :: Dump
