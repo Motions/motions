@@ -65,7 +65,7 @@ updateExtraLibDirs localBuildInfo = do
 
 protoDescriptionFile :: String
 protoDescriptionFile =
-    "https://raw.githubusercontent.com/Motions/Format/a3b4d8277fcf264b25c8e2a786c5df613f598d6e/message.proto"
+    "https://raw.githubusercontent.com/Motions/Format/627f467b65595a1ff24a2c5b99b921d2f69aa2ed/message.proto"
 
 downloadProtoDescription :: Verbosity -> IO ()
 downloadProtoDescription verbosity =

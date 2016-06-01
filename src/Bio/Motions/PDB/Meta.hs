@@ -11,6 +11,7 @@ module Bio.Motions.PDB.Meta ( PDBMeta
                             , writePDBMeta
                             , readPDBMeta
                             , getChainNames
+                            , getBinderTypesNames
                             , mapChains
                             ) where
 
@@ -34,14 +35,20 @@ readPDBMeta h = (toRevPDBMeta =<<) <$> readPDBMetaData h
 getChainNames :: RevPDBMeta -> [String]
 getChainNames = map fst . sortOn snd . M.toList . revChainName
 
+-- |Exttracts BinderTypesNames form RevPdbMeta
+getBinderTypesNames :: RevPDBMeta -> [String]
+getBinderTypesNames = map fst . sortOn snd . M.toList . revBinderTypesNames
+
 -- |Creates a 'PDBMeta' structure containing data needed to convert to the PDB format.
 mkPDBMeta ::
     [EnergyVector] -- ^The set of energy vectors used through the simulation.
  -> [BinderType] -- ^The set of binder types used through the simulation.
+ -> [String] -- ^Names of the binder types
  -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta -- ^The resulting structure if the given sets weren't too large.
-mkPDBMeta evs bts chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts
+mkPDBMeta evs bts bns chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts
                                 <*> mapChains (fst <$> chs) <*> pure (M.fromList chs)
+                                <*> pure (M.fromList $ zip [0..] bns)
 
 -- |Creates a 'PDBMeta' structure that describes a PDB file in which all binders, except lamins,
 -- have one type. The @resName@ field of an @ATOM@ PDB record in such a file is compatible with
@@ -49,10 +56,12 @@ mkPDBMeta evs bts chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts
 mkSimplePDBMeta ::
     [EnergyVector] -- ^The set of energy vectors used through the simulation.
  -> [BinderType] -- ^The set of binder types used through the simulation.
+ -> [String] -- ^Names of the binder types
  -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta
-mkSimplePDBMeta evs bts chs = PDBMeta simpleBeadResMap simpleBinderResMap
+mkSimplePDBMeta evs bts bns chs = PDBMeta simpleBeadResMap simpleBinderResMap
                                 <$> mapChains (fst <$> chs) <*> pure (M.fromList chs)
+                                <*> pure (M.fromList $ zip [0..] bns)
   where
     simpleBeadResMap = M.fromList . (zip <*> map simpleBeadRes) $ evs
     simpleBinderResMap = M.fromList . (zip <*> map simpleBinderRes) $ bts
