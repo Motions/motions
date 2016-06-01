@@ -53,11 +53,13 @@ openBinaryOutput ::
        Int
     -- ^Number of frames per keyframe
     -> OutputSettings
+    -> [String]
+    -- ^Binder types names
     ->  Dump
     -> [String]
     -- ^Full names of the chains
     -> IO BinaryBackend
-openBinaryOutput framesPerKF OutputSettings{..} dump chainNames = do
+openBinaryOutput framesPerKF OutputSettings{..} binderTypesNames dump chainNames = do
     handle <- openOutput
     framesSinceLastKF <- newIORef 0
     let st = BinaryBackend{..}
@@ -67,7 +69,7 @@ openBinaryOutput framesPerKF OutputSettings{..} dump chainNames = do
     openOutput = withCString path $ \cPath ->
         unsafeUseAsCStringLen bytes $ \(ptr, len) ->
             protoOpenNew cPath (fromIntegral framesPerKF) (castPtr ptr) (fromIntegral len)
-    header = getHeader simulationName simulationDescription chainNames dump
+    header = getHeader simulationName simulationDescription binderTypesNames chainNames dump
     bytes = BL.toStrict . messagePut $ header
     path = outputPrefix ++ ".bin"
 
