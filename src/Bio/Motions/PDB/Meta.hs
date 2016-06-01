@@ -11,6 +11,7 @@ module Bio.Motions.PDB.Meta ( PDBMeta
                             , writePDBMeta
                             , readPDBMeta
                             , getChainNames
+                            , getBinderTypesNames
                             , mapChains
                             ) where
 
@@ -30,32 +31,38 @@ writePDBMeta h = writePDBMetaData h . toPDBMetaData
 readPDBMeta :: Handle -> IO (Either ReadError RevPDBMeta)
 readPDBMeta h = (toRevPDBMeta =<<) <$> readPDBMetaData h
 
--- |Extracts ChainNames form RevPDBMeta
+-- |Extracts ChainNames from RevPDBMeta
 getChainNames :: RevPDBMeta -> [String]
 getChainNames = map fst . sortOn snd . M.toList . revChainName
+
+-- |Extracts BinderTypesNames from RevPdbMeta
+getBinderTypesNames :: RevPDBMeta -> [String]
+getBinderTypesNames = map fst . sortOn snd . M.toList . revBinderTypeName
 
 -- |Creates a 'PDBMeta' structure containing data needed to convert to the PDB format.
 mkPDBMeta ::
     [EnergyVector] -- ^The set of energy vectors used through the simulation.
- -> [BinderType] -- ^The set of binder types used through the simulation.
+ -> [(BinderType, String)] -- ^The set of binder types and their names used through the simulation.
  -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta -- ^The resulting structure if the given sets weren't too large.
-mkPDBMeta evs bts chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts
+mkPDBMeta evs bts chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes (map fst bts)
                                 <*> mapChains (fst <$> chs) <*> pure (M.fromList chs)
+                                <*> pure (M.fromList bts)
 
 -- |Creates a 'PDBMeta' structure that describes a PDB file in which all binders, except lamins,
 -- have one type. The @resName@ field of an @ATOM@ PDB record in such a file is compatible with
 -- the prototype simulation's output.
 mkSimplePDBMeta ::
     [EnergyVector] -- ^The set of energy vectors used through the simulation.
- -> [BinderType] -- ^The set of binder types used through the simulation.
+ -> [(BinderType, String)] -- ^The set of binder types used through the simulation.
  -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta
 mkSimplePDBMeta evs bts chs = PDBMeta simpleBeadResMap simpleBinderResMap
-                                <$> mapChains (fst <$> chs) <*> pure (M.fromList chs)
+                              <$> mapChains (fst <$> chs) <*> pure (M.fromList chs)
+                              <*> pure (M.fromList bts)
   where
     simpleBeadResMap = M.fromList . (zip <*> map simpleBeadRes) $ evs
-    simpleBinderResMap = M.fromList . (zip <*> map simpleBinderRes) $ bts
+    simpleBinderResMap = M.fromList . (zip <*> map simpleBinderRes) $ map fst bts
 
     simpleBeadRes ev | doesNotBind ev = "UNB"
                      | bindsWithLamins ev = "LAM"

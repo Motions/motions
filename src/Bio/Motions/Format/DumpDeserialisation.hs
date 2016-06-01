@@ -45,6 +45,9 @@ deserialiseDump header keyframe = do
 getChainNames :: ProtoHeader.Header -> Maybe [String]
 getChainNames = mapM readChainName . toList . ProtoHeader.chains
 
+getBinderTypesNames :: ProtoHeader.Header -> [String]
+getBinderTypesNames = map uToString . toList . ProtoHeader.binder_types_names
+
 readBinder :: ProtoBinder.Binder -> Maybe BinderInfo
 readBinder ProtoBinder.Binder{..} = do
     binderType' <- BinderType . fromIntegral <$> binder_type

@@ -39,13 +39,26 @@ serialiseMove Move{..} cbs counter = Delta
     , step_counter = Just counter
     }
 
-getHeader :: String -> String -> [String] -> Dump -> ProtoHeader.Header
-getHeader simulationName simulationDescription chainNames Dump{..} = ProtoHeader.Header
-    { simulation_name = Just $ uFromString simulationName
-    , simulation_description = Just $ uFromString simulationDescription
-    , binders_types_count = Just $ fromIntegral $ countBinderTypes dumpChains
-    , chains = S.fromList $ zipWith headerSerialiseChain chainNames dumpChains
-    }
+getHeader ::
+    String
+    -- ^Simulation name
+    -> String
+    -- ^Simulation description
+    -> [String]
+    -- ^Binder types names
+    -> [String]
+    -- ^Chain names
+    -> Dump
+    -- ^Simulation state
+    -> ProtoHeader.Header
+getHeader simulationName simulationDescription binderTypesNames chainNames Dump{..} =
+    ProtoHeader.Header
+      { simulation_name = Just $ uFromString simulationName
+      , simulation_description = Just $ uFromString simulationDescription
+      , binders_types_count = Just $ fromIntegral $ countBinderTypes dumpChains
+      , chains = S.fromList $ zipWith headerSerialiseChain chainNames dumpChains
+      , binder_types_names = S.fromList $ map uFromString binderTypesNames
+      }
 
 getKeyframe :: Dump -> Callbacks -> StepCounter -> ProtoKeyframe.Keyframe
 getKeyframe Dump{..} cbs counter = ProtoKeyframe.Keyframe
