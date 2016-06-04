@@ -9,85 +9,72 @@ Portability : unportable
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Engine where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Dict
 import Bio.Motions.Output
+import Bio.Motions.Input
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.Random
 
 import Control.Monad.State.Strict
-import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import Data.List
 
-data SimulationState repr score = SimulationState
+data SimulationState repr score dict = SimulationState
     { repr :: !repr
     , score :: !score
-    , preCallbackResults :: ![CallbackResult 'Pre]
-    , postCallbackResults :: ![CallbackResult 'Post]
+    , dict :: !dict
     , stepCounter :: !StepCounter
     }
 
 -- |Describes how the simulation should run.
-data RunSettings repr score backend = RunSettings
+data RunSettings repr score backend dict (postCbs :: [*]) producer = RunSettings
     { numSteps :: Int
     -- ^ Number of simulation steps.
     , freezePredicate :: FreezePredicate
     -- ^ A predicate determining whether a bead is frozen
-    , allPreCallbacks :: [CallbackType 'Pre]
-    -- ^ List of all available pre-callbacks' types
-    , allPostCallbacks :: [CallbackType 'Post]
-    -- ^ List of all available post-callbacks' types
     , requestedCallbacks :: [String]
     -- ^ List of requested callback names
     , outputBackend :: backend
     -- ^ Output backend
+    , producer :: producer
     }
 
-type SimT repr score = StateT (SimulationState repr score)
-type RandomRepr m repr = (Generates (Double ': ReprRandomTypes m repr) m, Representation m repr)
+type SimT repr score dict = StateT (SimulationState repr score dict)
 
-step :: (RandomRepr m repr, Score score) => SimT repr score m (Maybe Move)
-step = runMaybeT $ do
+step :: (RandomRepr m repr, Score score, MoveProducer m repr producer, CallbackDict m repr score dict) =>
+        producer -> SimT repr score dict m (Maybe Move)
+step producer = do
     st@SimulationState{..} <- get
-    move <- lift2 (generateMove repr) >>= maybe mzero pure
-    score' <- lift2 $ updateCallback repr score move
-
-    let delta = fromIntegral $ score' - score
-    unless (delta >= 0) $ do
-        r <- lift2 $ getRandomR (0, 1)
-        guard $ r < exp (delta * factor)
-
-    put <=< lift2 $ do
-        preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
-        repr' <- performMove move repr
-        postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
-        pure $ st { repr = repr'
-                  , score = score'
-                  , preCallbackResults = preCallbackResults'
-                  , postCallbackResults = postCallbackResults'
-                  }
-    pure move
-  where
-    factor :: Double
-    factor = 2
-
-    lift2 = lift . lift
+    move' <- lift $ getMove producer repr score
+    forM move' $ \(move, score') -> do
+        put <=< lift $ do
+            preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
+            repr' <- performMove move repr
+            postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
+            pure $ st { repr = repr'
+                      , score = score'
+                      , preCallbackResults = preCallbackResults'
+                      , postCallbackResults = postCallbackResults'
+                      }
+        pure move
 {-# INLINE step #-}
 
-stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, OutputBackend backend)
-    => backend -> SimT repr score m ()
-stepAndWrite backend = do
+stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m,
+                 OutputBackend backend, MoveProducer m repr producer,
+                 CallbackDict m repr score dict)
+                   => producer -> backend -> SimT repr score dict m ()
+stepAndWrite producer backend = do
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
-    step >>= \case
+    step producer >>= \case
       Nothing -> pure ()
       Just move -> do
           cb <- (,) <$> gets preCallbackResults <*> gets postCallbackResults
@@ -112,13 +99,12 @@ filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
     m = M.fromList [(callbackName p, x) | x@(CallbackType p) <- allCbs]
     (found, notFound) = partition (`M.member` m) req
 
-simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend)
-    => RunSettings repr score backend -> Dump -> m Dump
-simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
+simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend, MoveProducer m repr producer)
+         => RunSettings repr score backend producer -> Dump -> m Dump
+simulate (RunSettings{..} :: RunSettings repr score backend producer) dump = do
     st <- initState
-
     SimulationState{..} <- flip execStateT st $
-         replicateM_ numSteps $ stepAndWrite outputBackend
+        replicateM_ numSteps $ stepAndWrite producer outputBackend
 
     finalDump <- makeDump repr
     liftIO $ pushLastFrame outputBackend finalDump stepCounter score

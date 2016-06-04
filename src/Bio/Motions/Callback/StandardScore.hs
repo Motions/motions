@@ -48,11 +48,11 @@ instance Monoid StandardScore where
 instance Callback 'Pre StandardScore where
     callbackName _ = "Standard Score"
 
-    runCallback repr = do
+    runCallback _ repr = do
         numChains <- getNumberOfChains repr
         fold <$> traverse (chainScore repr) [0..numChains - 1]
 
-    updateCallback repr prev (MoveFromTo moveFrom moveTo) = do
+    updateCallback _ repr prev (MoveFromTo moveFrom moveTo) = do
         Just fromAtom <- getAtomAt moveFrom repr
         atFrom <- energyToMany repr fromAtom . neighbours $ fromAtom ^. position
         atTo <- energyToMany repr fromAtom . delete moveFrom $ neighbours moveTo
@@ -60,14 +60,14 @@ instance Callback 'Pre StandardScore where
     {-# INLINEABLE updateCallback #-}
 
 -- |Returns the score between an object and the atom placed on the specified position.
-energyTo :: (Functor m, ReadRepresentation m repr, HaveEnergyBetween obj Atom) =>
+energyTo :: (Functor m, CallbackRepresentation m repr, HaveEnergyBetween obj Atom) =>
     repr -> obj -> Vec3 -> m StandardScore
 energyTo repr obj pos = StandardScore #. energyBetween obj <$> getAtomAt pos repr
 {-# INLINE energyTo #-}
 
 -- |Returns the total score between an object (e.g. an atom) and the atoms placed on the
 -- specified positions.
-energyToMany :: (Applicative m, ReadRepresentation m repr,
+energyToMany :: (Applicative m, CallbackRepresentation m repr,
     HaveEnergyBetween obj Atom, Traversable t) =>
     repr -> obj -> t Vec3 -> m StandardScore
 energyToMany repr obj poss = fold <$> traverse (energyTo repr obj) poss
@@ -79,7 +79,7 @@ neighbours x = (x ^+^) <$> ([id, negated] <*> basis)
 {-# INLINE neighbours #-}
 
 -- |Returns the total score for beads belonging to a particular chain.
-chainScore :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m StandardScore
+chainScore :: (Monad m, CallbackRepresentation m repr) => repr -> Int -> m StandardScore
 chainScore repr idx = getChain repr idx $ ofoldlM combine mempty
   where
     combine acc beadInfo = mappend acc <$>

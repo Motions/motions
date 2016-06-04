@@ -22,6 +22,8 @@ data OutputSettings = OutputSettings
     -- then a backend would write to /foo/bar/asdf.something
     , simulationName :: String
     , simulationDescription :: String
+    , chainNames :: [String]
+    -- ^Names of the chains (in order of their numbers)
     }
 
 -- |A backend for writing frames to disk.
