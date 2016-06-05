@@ -10,12 +10,14 @@ Portability : unportable
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Engine where
 
 import Bio.Motions.Types
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Dict
 import Bio.Motions.Output
 import Bio.Motions.Input
 import Bio.Motions.Representation.Common
@@ -26,24 +28,19 @@ import Control.Monad.State.Strict
 import qualified Data.Map.Strict as M
 import Data.List
 
-data SimulationState repr score = SimulationState
+data SimulationState repr score dict = SimulationState
     { repr :: !repr
     , score :: !score
-    , preCallbackResults :: ![CallbackResult 'Pre]
-    , postCallbackResults :: ![CallbackResult 'Post]
+    , dict :: !dict
     , stepCounter :: !StepCounter
     }
 
 -- |Describes how the simulation should run.
-data RunSettings repr score backend producer = RunSettings
+data RunSettings repr score backend dict (postCbs :: [*]) producer = RunSettings
     { numSteps :: Int
     -- ^ Number of simulation steps.
     , freezePredicate :: FreezePredicate
     -- ^ A predicate determining whether a bead is frozen
-    , allPreCallbacks :: [CallbackType 'Pre]
-    -- ^ List of all available pre-callbacks' types
-    , allPostCallbacks :: [CallbackType 'Post]
-    -- ^ List of all available post-callbacks' types
     , requestedCallbacks :: [String]
     -- ^ List of requested callback names
     , outputBackend :: backend
@@ -51,10 +48,10 @@ data RunSettings repr score backend producer = RunSettings
     , producer :: producer
     }
 
-type SimT repr score = StateT (SimulationState repr score)
+type SimT repr score dict = StateT (SimulationState repr score dict)
 
-step :: (RandomRepr m repr, Score score, MoveProducer m repr producer, MonadIO m) =>
-        producer -> SimT repr score m (Maybe Move)
+step :: (RandomRepr m repr, Score score, MoveProducer m repr producer, CallbackDict m repr score dict) =>
+        producer -> SimT repr score dict m (Maybe Move)
 step producer = do
     st@SimulationState{..} <- get
     move' <- lift $ getMove producer repr score
@@ -72,8 +69,9 @@ step producer = do
 {-# INLINE step #-}
 
 stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m,
-                 OutputBackend backend, MoveProducer m repr producer)
-                   => producer -> backend -> SimT repr score m ()
+                 OutputBackend backend, MoveProducer m repr producer,
+                 CallbackDict m repr score dict)
+                   => producer -> backend -> SimT repr score dict m ()
 stepAndWrite producer backend = do
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
     step producer >>= \case

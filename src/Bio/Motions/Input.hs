@@ -13,6 +13,7 @@ Portability : unportable
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Bio.Motions.Input
      where
 
@@ -24,6 +25,7 @@ import Control.Monad
 import Control.Monad.Trans.Maybe
 import Control.Monad.State.Strict
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Dict.Trivial
 import GHC.Generics
 
 
@@ -45,9 +47,9 @@ data MoveGenerator = MoveGenerator
 type RandomRepr m repr = (Generates (Double ': ReprRandomTypes m repr) m, Representation m repr)
 
 instance (MonadIO m, RandomRepr m repr) => MoveProducer m repr MoveGenerator where
-    getMove _ repr score = runMaybeT $ do
+    getMove _ repr (score :: score) = runMaybeT $ do
         move <- lift (generateMove repr) >>= maybe mzero pure
-        score' <- lift $ updateCallback repr score move
+        score' <- lift $ updateCallback (TrivialDict :: TrivialDict score) repr score move
 
         let delta = fromIntegral $ score' - score
         unless (delta >= 0) $ do

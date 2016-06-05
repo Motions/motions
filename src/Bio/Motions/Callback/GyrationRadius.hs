@@ -39,11 +39,11 @@ instance Show GyrationRadius where
 instance Callback 'Pre GyrationRadius where
     callbackName _ = "Gyration Radius"
 
-    runCallback repr = GyrationRadius <$> do
+    runCallback _ repr = GyrationRadius <$> do
         chainsCount <- getNumberOfChains repr
         forM [0..chainsCount - 1] $ gyrationRadius repr
 
-    updateCallback repr (GyrationRadius prev) m@Move{..} = GyrationRadius <$> do
+    updateCallback _ repr (GyrationRadius prev) m@Move{..} = GyrationRadius <$> do
         atom <- getAtomAt moveFrom repr
         case atom of
             Just (Bead b) -> do

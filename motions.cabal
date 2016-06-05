@@ -30,6 +30,9 @@ library
                        Bio.Motions.Utils.Random,
                        Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,
+                       Bio.Motions.Callback.Dict,
+                       Bio.Motions.Callback.Dict.IO,
+                       Bio.Motions.Callback.Dict.Trivial,
                        Bio.Motions.Callback.Serialisation,
                        Bio.Motions.Callback.Discover,
                        Bio.Motions.Callback.GyrationRadius,
@@ -85,7 +88,8 @@ library
                        mwc-random >=0.13 && <0.14,
                        primitive >=0.6 && <0.7,
                        deepseq >=1.4 && <1.5,
-                       unordered-containers >=0.2 && <0.3
+                       unordered-containers >=0.2 && <0.3,
+                       hashtables >=1.2 && <1.3
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall

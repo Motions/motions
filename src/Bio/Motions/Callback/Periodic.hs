@@ -54,14 +54,14 @@ instance (Callback mode cb, KnownNat (CallbackPeriod cb), CmpNat 0 (CallbackPeri
         name -> name
     {-# INLINEABLE callbackName #-}
 
-    runCallback = fmap PeriodicValue . runCallback
+    runCallback cache = fmap PeriodicValue . runCallback cache
     {-# INLINE runCallback #-}
 
     -- |Updates the value of the callback only once in 'CallbackPeriod cb' steps.
-    updateCallback repr (PeriodicWait 1) _ = runCallback repr
-    updateCallback _ (PeriodicWait n) _ = pure . PeriodicWait $ n - 1
-    updateCallback repr (PeriodicValue cb) move
-        | period == 1 = PeriodicValue <$> updateCallback repr cb move
+    updateCallback cache repr (PeriodicWait 1) _ = runCallback cache repr
+    updateCallback _ _ (PeriodicWait n) _ = pure . PeriodicWait $ n - 1
+    updateCallback cache repr (PeriodicValue cb) move
+        | period == 1 = PeriodicValue <$> updateCallback cache repr cb move
         | otherwise = pure $ PeriodicWait period
         where period = fromInteger $ natVal (Proxy :: Proxy (CallbackPeriod cb))
     {-# INLINEABLE updateCallback #-}
