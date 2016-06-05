@@ -48,11 +48,11 @@ instance Monoid StandardScore where
 instance Callback 'Pre StandardScore where
     callbackName _ = "Standard Score"
 
-    runCallback repr = do
+    runCallback _ repr = do
         numChains <- getNumberOfChains repr
         fold <$> traverse (chainScore repr) [0..numChains - 1]
 
-    updateCallback repr prev (MoveFromTo moveFrom moveTo) = do
+    updateCallback _ repr prev (MoveFromTo moveFrom moveTo) = do
         Just fromAtom <- getAtomAt moveFrom repr
         atFrom <- energyToMany repr fromAtom . neighbours $ fromAtom ^. position
         atTo <- energyToMany repr fromAtom . delete moveFrom $ neighbours moveTo

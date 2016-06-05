@@ -8,6 +8,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Bio.Motions.PDB.Backend where
 
 import Bio.Motions.Common
@@ -21,6 +22,7 @@ import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
+import Bio.Motions.Callback.Dict.Trivial
 
 import Control.Lens
 import System.IO
@@ -141,9 +143,9 @@ withPDBInput s f = bracket (openPDBInput s) close (\(r, d)-> f r d (getChainName
   where close (PDBReader{..}, _) = mapM_ hClose handles
 
 instance (MonadIO m, ReadRepresentation m repr) => MoveProducer m repr PDBReader where
-    getMove PDBReader{..} repr score = do
+    getMove PDBReader{..} repr (score :: score) = do
         dump <- makeDump repr
         dump' <- liftIO $ readPDB handles revMeta >>= either (fail . ("PDB read error: " ++)) pure
         let move = either (error "diff error") id $ diffDumps dump dump'
-        score' <- updateCallback repr score move
+        score' <- updateCallback (TrivialDict :: TrivialDict score) repr score move
         return $ Just (move, score')
