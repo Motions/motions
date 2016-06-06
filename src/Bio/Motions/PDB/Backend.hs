@@ -69,11 +69,14 @@ openPDBOutput OutputSettings{..} dump chainNames simplePDB intermediate cbHandle
     let pdbFile = outputPrefix ++ ".pdb"
         laminFile = outputPrefix ++ "-lamin.pdb"
         metaFile = pdbFile ++ ".meta"
-    let evs = nub . map dumpBeadEV . concat . dumpChains $ dump
+        evs = nub . map dumpBeadEV . concat . dumpChains $ dump
         bts = nub . map (^. binderType) . dumpBinders $ dump
-        chs = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
+        chIds = nub . map (^. beadChain) . concat . dumpIndexedChains $ dump
+    when (length chainNames /= length chIds)
+        $ error "Fatal error: the number of chain names differs from the number of chains"
+    let chs = zip chIds chainNames
         mkMeta = if simplePDB then mkSimplePDBMeta else mkPDBMeta
-        meta = fromMaybe (error pdbError) $ mkMeta evs bts chs chainNames
+        meta = fromMaybe (error pdbError) $ mkMeta evs bts chs
     pdbHandle <- openFile pdbFile WriteMode
     withFile laminFile WriteMode $ \h -> pushPDBLamins h meta dump
     frameCounter <- newIORef 0
