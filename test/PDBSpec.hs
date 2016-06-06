@@ -281,7 +281,7 @@ testRead = do
     (ev0, ev1, evshort, evlong) = ([0,0], [0,1], [], [0,0,0])
     (ev0s, ev1s, evshorts, evlongs) = ("AAA", "AAB", "AAC", "AAD")
 
-    (ch0, ch1) = (1, 2)
+    (ch0, ch1) = (0, 1)
     (ch0s, ch1s) = ('a', 'b')
 
     shouldFailParsingMeta x = toRevPDBMeta x `shouldSatisfy` isLeft

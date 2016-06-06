@@ -155,11 +155,9 @@ toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty) >=> \meta
         let evs = map getEnergyVector . M.elems $ revBeadRes
             bts = map getBinderType . M.elems $ revBinderRes
             chs = M.elems revChainId
-            names = M.elems revChainName
         onDuplicates evs $ \ev -> throwError $ "Duplicate energy vectors: " ++ show ev
         onDuplicates bts $ \bt -> throwError $ "Duplicate binder types: " ++ show bt
         onDuplicates chs $ \ch -> throwError $ "Duplicate chain ids: " ++ show ch
-        onDuplicates names $ \name -> throwError $ "Duplicate chain names: " ++ show name
         when (null bts || minimum bts /= 0)
             $ throwError "Mapping for binder type '0' (lamin type) is required but not provided"
         unless (and . zipWith (==) [0..] . sort $ bts)
@@ -167,6 +165,8 @@ toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty) >=> \meta
         unless (all ((== maximum bts + 1) . length . toList) evs)
             $ throwError $ "Lengths of energy vectors do not correspond to binder types"
                            ++ " (all lengths should be equal to " ++ show (maximum bts + 1) ++ ")"
+        unless (sort chs == sort (M.elems revChainName))
+            $ throwError "Every chain needs to have a name."
 
 toPDBData :: FrameHeader -> PDBMeta -> Dump -> [PDBEntry]
 toPDBData header meta dump@Dump{..} =
@@ -222,8 +222,8 @@ fromPDBData meta es = do
     (chainIds, dumpChains) <- unzip . sortWith fst <$> extractChains connects beadMap
     onDuplicates chainIds $ \ch ->
         throwError $ "Two chains (not connected) with the same chain id: " ++ show ch
-    unless (and $ zipWith (==) chainIds [1..]) $
-        throwError "Chain numbers are not consecutive natural numbers starting from 1"
+    unless (and $ zipWith (==) chainIds [0..]) $
+        throwError "Chain numbers are not consecutive natural numbers starting from 0"
     pure Dump{..}
   where
     binderEntries = [e | e@PDBAtom{..} <- es, name `elem` ["L", "O"]]
