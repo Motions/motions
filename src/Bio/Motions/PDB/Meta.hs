@@ -38,11 +38,10 @@ getChainNames = map fst . sortOn snd . M.toList . revChainName
 mkPDBMeta ::
     [EnergyVector] -- ^The set of energy vectors used through the simulation.
  -> [BinderType] -- ^The set of binder types used through the simulation.
- -> [ChainId] -- ^The set of chain identifiers used through the simulation.
- -> [String] -- ^The names of the chains in order that matches 'ChainId's.
+ -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta -- ^The resulting structure if the given sets weren't too large.
-mkPDBMeta evs bts chs names = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts <*> mapChains chs
-                                <*> mapNames chs names
+mkPDBMeta evs bts chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts
+                                <*> mapChains (fst <$> chs) <*> pure (mapNames chs)
 
 -- |Creates a 'PDBMeta' structure that describes a PDB file in which all binders, except lamins,
 -- have one type. The @resName@ field of an @ATOM@ PDB record in such a file is compatible with
@@ -50,11 +49,10 @@ mkPDBMeta evs bts chs names = PDBMeta <$> mapEnergyVectors evs <*> mapBinderType
 mkSimplePDBMeta ::
     [EnergyVector] -- ^The set of energy vectors used through the simulation.
  -> [BinderType] -- ^The set of binder types used through the simulation.
- -> [ChainId] -- ^The set of chain identifiers used through the simulation.
- -> [String] -- ^The names of the chains in order that matches to 'ChainId's
+ -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta
-mkSimplePDBMeta evs bts chs names = PDBMeta simpleBeadResMap simpleBinderResMap <$> mapChains chs
-                                <*> mapNames chs names
+mkSimplePDBMeta evs bts chs = PDBMeta simpleBeadResMap simpleBinderResMap
+                                <$> mapChains (fst <$> chs) <*> pure (mapNames chs)
   where
     simpleBeadResMap = M.fromList . (zip <*> map simpleBeadRes) $ evs
     simpleBinderResMap = M.fromList . (zip <*> map simpleBinderRes) $ bts
@@ -91,8 +89,6 @@ mapChains :: [ChainId] -> Maybe (M.Map ChainId Char)
 mapChains chs = guard (length chs <= length pdbChars) >> pure mapping
   where mapping = M.fromList $ zip chs pdbChars
 
--- |Creates an bijective  mapping from a set of 'ChainId's to their corresponding names.
--- Both sets must have the same size
-mapNames :: [ChainId] -> [String] ->  Maybe (M.Map ChainId String)
-mapNames chs names = guard (length chs == length names) >> pure mapping
-  where mapping = M.fromList $ zip chs names
+-- |Creates an bijective mapping from a set of 'ChainId's to their corresponding names.
+mapNames :: [(ChainId, String)] ->  M.Map ChainId String
+mapNames = M.fromList

@@ -178,9 +178,16 @@ Each line in a ".meta" file is one of the following:
 
 3. A chain identifier entry which maps a natural number to a single character, for example::
 
-       CH 0 a
+       CH 1 a
+
+4. A chain name entry which maps a natural number to a chain name, for example::
+
+       NM 1 chrom
 
 The resulting mapping must be a bijection if you want to use a ".meta" file as input.
+The chain identifiers must be consecutive natural numbers starting from 1.
+Every chain must have its name, i. e. the number of NM mappings has to be the same as the number
+of CH mappings.
 
 Example PDB files together with a suitable ".meta" file are provided in the "example" directory.
 
