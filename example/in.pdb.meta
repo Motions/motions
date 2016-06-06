@@ -4,4 +4,5 @@ EV [1,0] aaa
 EV [2,0] aac
 BT 0 Baa
 BT 1 Bab
-CH 0 a
+CH 1 a
+NM 1 chrom
