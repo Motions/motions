@@ -193,6 +193,8 @@ load InitialisationSettings{..} maxChainDist =
 -- See the "Specialise" module.
 {-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
 {-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
+{-# RULES "simulate @SlowChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'SlowChain'StandardScore'PDB'MWCIO #-}
+{-# RULES "simulate @SlowChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'SlowChain'StandardScore'Bin'MWCIO #-}
 
 runSimulation :: Settings -> Dump -> [String] -> IO Dump
 runSimulation Settings{..} dump chainNames = dispatchScore dump

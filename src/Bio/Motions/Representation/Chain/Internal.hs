@@ -101,6 +101,7 @@ instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
 
 instance Monad m => Representation m PureChainRepresentation where
     type ReprRandomTypes m PureChainRepresentation = '[Int, Bool]
+    type ReprExposedConstraint m PureChainRepresentation = ()
 
     loadDump = loadDump'
     makeDump = makeDump'
@@ -124,6 +125,7 @@ instance Monad m => Representation m PureChainRepresentation where
 
 instance MonadIO m => Representation m IOChainRepresentation where
     type ReprRandomTypes m IOChainRepresentation = '[Int, Bool]
+    type ReprExposedConstraint m IOChainRepresentation = ()
 
     loadDump = loadDump'
     makeDump = makeDump'
