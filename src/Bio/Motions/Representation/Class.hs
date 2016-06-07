@@ -9,6 +9,8 @@ Portability : unportable
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Bio.Motions.Representation.Class where
 
 import Bio.Motions.Types
@@ -17,15 +19,24 @@ import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.Random
 
 import Data.MonoTraversable
+import GHC.Exts
 
 
 -- |Stores the simulation state and performs basic operations on it
 --
 -- 'm' denotes a 'Monad' (or 'Applicative') in which the
 -- simulation takes place
-class ReadRepresentation m repr => Representation m repr where
+class (ReprExposedConstraint m repr, ReadRepresentation m repr) => Representation m repr where
     -- |Types that the representation wants to be able to sample randomly in 'generateMove'.
     type ReprRandomTypes m repr :: [*]
+
+    -- |An additional constraint which is retrievable given the dictionary for this Representation.
+    -- Note that this cannot be achieved by specifying the constraint only in the instance context,
+    -- but it is necessary to specify them in the class context.
+    --
+    -- Used to specialise the 'Bio.Motions.Chain.Slow.SlowChainRepresentation' instances in the
+    -- "Main" module.
+    type ReprExposedConstraint m repr :: Constraint
 
     -- |Loads the state from a 'Dump'
     loadDump :: Dump -> FreezePredicate -> m repr

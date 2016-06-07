@@ -12,9 +12,11 @@ import Bio.Motions.Engine
 import Bio.Motions.Format.Handle
 import Bio.Motions.PDB.Backend
 import Bio.Motions.Representation.Chain
+import Bio.Motions.Representation.Chain.Slow
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.Random
 import GHC.Exts
+import GHC.TypeLits
 
 {- We want to force the GHC to specialise the 'simulate' function for common sets of parameters,
  - vastly improving performance. However, it seems that SPECIALISE pragmas alone are not sufficient,
@@ -32,3 +34,13 @@ simulate'IOChain'StandardScore'Bin'MWCIO :: RunSettings IOChainRepresentation St
                                             -> Dump -> MWCIO Dump
 simulate'IOChain'StandardScore'Bin'MWCIO = inline simulate
 {-# NOINLINE simulate'IOChain'StandardScore'Bin'MWCIO #-}
+
+simulate'SlowChain'StandardScore'PDB'MWCIO :: (KnownNat r, KnownNat d)
+    => RunSettings (SlowChainRepresentation r d) StandardScore PDBBackend -> Dump -> MWCIO Dump
+simulate'SlowChain'StandardScore'PDB'MWCIO = inline simulate
+{-# NOINLINE simulate'SlowChain'StandardScore'PDB'MWCIO #-}
+
+simulate'SlowChain'StandardScore'Bin'MWCIO :: (KnownNat r, KnownNat d)
+    => RunSettings (SlowChainRepresentation r d) StandardScore BinaryBackend -> Dump -> MWCIO Dump
+simulate'SlowChain'StandardScore'Bin'MWCIO = inline simulate
+{-# NOINLINE simulate'SlowChain'StandardScore'Bin'MWCIO #-}

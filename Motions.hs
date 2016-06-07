@@ -210,6 +210,8 @@ load InitialisationSettings{..} maxChainDistSquared =
 -- See the "Specialise" module.
 {-# RULES "simulate @IOChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'PDB'MWCIO #-}
 {-# RULES "simulate @IOChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'IOChain'StandardScore'Bin'MWCIO #-}
+{-# RULES "simulate @SlowChain @StandardScore @PDB @MWCIO/SPEC" E.simulate = simulate'SlowChain'StandardScore'PDB'MWCIO #-}
+{-# RULES "simulate @SlowChain @StandardScore @Bin @MWCIO/SPEC" E.simulate = simulate'SlowChain'StandardScore'Bin'MWCIO #-}
 
 {-# ANN runSimulation ("HLint: ignore Redundant guard" :: String) #-}
 runSimulation :: Settings -> Dump -> [String] -> IO Dump
