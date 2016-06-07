@@ -55,6 +55,7 @@ instance MonadIO m => ReadRepresentation m (SlowChainRepresentation r d) where
 
 instance (KnownNat r, KnownNat d, MonadIO m) => Representation m (SlowChainRepresentation r d) where
     type ReprRandomTypes m (SlowChainRepresentation r d) = ReprRandomTypes m IOChainRepresentation
+    type ReprExposedConstraint m (SlowChainRepresentation r d) = (KnownNat r, KnownNat d)
 
     loadDump d p = loadDump d p >>= \ioRepr -> pure SlowChainRepresentation{..}
       where
