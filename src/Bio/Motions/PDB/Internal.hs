@@ -121,13 +121,13 @@ parsePDBMetaData = parseOrError metaEntries
                                 <?> "Chain name mapping"
 
     binderTypeString :: Parser String
-    binderTypeString = sequence $ char 'B' : replicate 2 (oneOf pdbChars)
+    binderTypeString = replicateM 3 (oneOf pdbChars)
 
     binderType :: Parser BinderType
     binderType = BinderType <$> int
 
     energyVectorString :: Parser String
-    energyVectorString = sequence $ oneOf (pdbChars \\ ['B']) : replicate 2 (oneOf pdbChars)
+    energyVectorString = replicateM 3 (oneOf pdbChars)
 
 toPDBMetaData :: PDBMeta -> [PDBMetaEntry]
 toPDBMetaData PDBMeta{..} = map (uncurry EnergyVectorMap) (toList beadRes)
