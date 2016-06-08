@@ -14,35 +14,43 @@ module Bio.Motions.PDB.Write ( writePDB
 import Bio.Motions.PDB.Internal
 import Bio.Motions.Representation.Dump
 
-import qualified Bio.PDB.EventParser.PDBEvents as PE
-import qualified Bio.PDB.EventParser.PDBEventPrinter as PP
-import qualified Data.ByteString.Char8 as BS
 import System.IO
 import Linear
+import Data.ByteString.Builder as BB
+import Data.ByteString.Builder.Extra
+import qualified Data.ByteString.Lazy as BL
+import Data.Monoid
+import Bio.Motions.Types
 
 writePDB :: Handle -> FrameHeader -> PDBMeta -> Dump -> IO ()
 writePDB h f m = writePDBData h . toPDBData f m
 
 writePDBData :: Handle -> [PDBEntry] -> IO ()
-writePDBData handle = mapM_ $ PP.print handle . toEvent
+writePDBData handle =
+    BL.hPut handle . toLazyByteStringWith (untrimmedStrategy smallChunkSize defaultChunkSize) BL.empty .
+        mconcat . map (\x -> toBuilder x <> BB.char8 '\n')
+{-# INLINE writePDBData #-}
 
-toEvent :: PDBEntry -> PE.PDBEvent
-toEvent PDBHeader{..}  = PE.HEADER (BS.pack classification) "" ""
-toEvent PDBTitle{..}   = PE.TITLE 0 $ BS.pack title
-toEvent PDBAtom{..} = PE.ATOM
-    { no = serial
-    , atomtype = BS.pack name
-    , restype = BS.pack resName
-    , chain = chainID
-    , resid = resSeq
-    , resins = ' '
-    , altloc = ' '
-    , coords = case coords of V3 x y z -> PE.Vector3 x y z
-    , occupancy = 0
-    , bfactor = 0
-    , segid = ""
-    , elt = ""
-    , charge = ""
-    , hetatm = False
-    }
-toEvent PDBConnect{..} = PE.CONECT [fstSerial, sndSerial]
+toBuilder :: PDBEntry -> Builder
+toBuilder PDBHeader{..}  = string8 "HEADER" <> string8 classification
+toBuilder PDBTitle{..}   = string8 "TITLE" <> intDec 0 <> string8 title
+toBuilder PDBAtom{..} = 
+      intDec serial
+    <> string8 name
+    <> string8 resName
+    <> BB.char8 chainID
+    <> intDec resSeq
+    <> BB.char8 ' '
+    <> BB.char8 ' '
+    <> pos
+    <> intDec 0
+    <> intDec 0
+    <> string8 ""
+    <> string8 ""
+    <> string8 ""
+  where
+      pos = case coords of V3 x y z -> intDec x <> intDec y <> intDec z
+      {-# INLINE pos #-}
+
+toBuilder PDBConnect{..} = string8 "CONECT" <> intDec fstSerial <> intDec sndSerial
+{-# INLINE toBuilder #-}
