@@ -74,7 +74,7 @@ fromEvent PE.ATOM{..} = Right PDBAtom
     , resName = BS.unpack restype
     , chainID = chain
     , resSeq = resid
-    , coords = case coords of PE.Vector3 x y z -> V3 x y z
+    , coords = case coords of PE.Vector3 x y z -> round <$> V3 x y z
     }
 fromEvent (PE.CONECT [fstSerial, sndSerial]) = Right PDBConnect{..}
 fromEvent a = Left $ "Error/unknown entry: " ++ show a
