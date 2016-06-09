@@ -8,6 +8,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.PDB.Internal where
 
@@ -25,13 +26,13 @@ import Control.Arrow
 import GHC.Exts
 import Linear
 import Text.Parsec
-import Text.Parsec.ByteString
+import Text.Parsec.Text
 import Data.List
 import Data.Function
 import qualified Data.Map.Strict as M
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Set as S
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.Text as T
 
 type Serial = Int
 type ReadError = String
@@ -44,55 +45,58 @@ data FrameHeader =
   | LaminHeader
 
 data PDBMeta = PDBMeta
-    { beadRes :: M.Map EnergyVector String
+    { beadRes :: M.Map EnergyVector T.Text
     -- ^ Maps EnergyVectors to strings later used in the @resName@ field of a PDB @ATOM@ entry.
     --   The resulting strings are of length 3, contain only the characters defined in 'pdbChars'
     --   and do not start with a @B@.
-    , binderRes :: M.Map BinderType String
+    , binderRes :: M.Map BinderType T.Text
     -- ^ Maps BinderTypes to strings later used in the @resName@ field of a PDB @ATOM@ entry.
     --   The resulting strings are of length 3, contain only the characters defined in 'pdbChars'
     --   and start with a @B@.
     , chainId :: M.Map ChainId Char
     -- ^ Maps chain numbers to characters (only those defined in 'pdbChars') later used in the
     --   @chainID@ field of a PDB @ATOM@ entry.
-    , chainName :: M.Map ChainId String
+    , chainName :: M.Map ChainId T.Text
     -- ^ Maps chain numbers to their full names
     }
 
 data RevPDBMeta = RevPDBMeta
-    { revBeadRes :: M.Map String EnergyVector
-    , revBinderRes :: M.Map String BinderType
+    { revBeadRes :: M.Map T.Text EnergyVector
+    , revBinderRes :: M.Map T.Text BinderType
     , revChainId :: M.Map Char ChainId
-    , revChainName :: M.Map String ChainId
+    , revChainName :: M.Map T.Text ChainId
     }
     deriving (Eq, Show)
 
-data PDBEntry = PDBHeader  { classification :: String }
-              | PDBTitle   { title :: String }
-              | PDBAtom    { serial :: Serial    -- ^ Atom serial number
-                           , name :: String      -- ^ Atom name
-                           , resName :: String   -- ^ Residue name
-                           , chainID :: Char     -- ^ Chain identifier
-                           , resSeq :: Int       -- ^ Residue sequence number
-                           , coords :: V3 Double -- ^ Coordinates (X, Y, Z) in Angstroms
+data PDBEntry = PDBHeader  { classification :: !T.Text }
+              | PDBTitle   { title :: !T.Text }
+              | PDBAtom    { serial :: !Serial  -- ^ Atom serial number
+                           , name :: !T.Text    -- ^ Atom name
+                           , resName :: !T.Text -- ^ Residue name
+                           , chainID :: !Char   -- ^ Chain identifier
+                           , resSeq :: !Int     -- ^ Residue sequence number
+                           , coords :: !Vec3    -- ^ Coordinates (X, Y, Z) in Angstroms
                            } -- The other ATOM fields (occupancy, tempFactor etc.) are always 0 or empty.
-              | PDBConnect { fstSerial :: Serial
-                           , sndSerial :: Serial
+              | PDBConnect { fstSerial :: !Serial
+                           , sndSerial :: !Serial
                            }
     deriving Show
 
-data PDBMetaEntry = EnergyVectorMap EnergyVector String
-                  | BinderTypeMap BinderType String
+data PDBMetaEntry = EnergyVectorMap EnergyVector T.Text
+                  | BinderTypeMap BinderType T.Text
                   | ChainIdMap ChainId Char
-                  | ChainNameMap ChainId String
+                  | ChainNameMap ChainId T.Text
 
-printPDBMetaEntry :: PDBMetaEntry -> String
-printPDBMetaEntry (EnergyVectorMap ev str) = "EV " ++ (show . toList) ev ++ " " ++ str
-printPDBMetaEntry (BinderTypeMap bt str) = "BT " ++ (show . getBinderType) bt ++ " " ++ str
-printPDBMetaEntry (ChainIdMap ch c) = "CH " ++ show ch ++ " " ++ [c]
-printPDBMetaEntry (ChainNameMap ch name) = "NM " ++ show ch ++ " " ++ name
+printPDBMetaEntry :: PDBMetaEntry -> T.Text
+printPDBMetaEntry (EnergyVectorMap ev str) = T.concat ["EV ", showT . toList $ ev, " ", str]
+printPDBMetaEntry (BinderTypeMap bt str) = T.concat ["BT ", showT . getBinderType $ bt, " ", str]
+printPDBMetaEntry (ChainIdMap ch c) = T.concat ["CH ", showT ch, " ", T.singleton c]
+printPDBMetaEntry (ChainNameMap ch name) = T.concat ["NM ", showT ch, " ", name]
 
-parsePDBMetaData :: BS.ByteString -> Either ReadError [PDBMetaEntry]
+showT :: Show a => a -> T.Text
+showT = T.pack . show
+
+parsePDBMetaData :: T.Text -> Either ReadError [PDBMetaEntry]
 parsePDBMetaData = parseOrError metaEntries
   where
     metaEntries :: Parser [PDBMetaEntry]
@@ -118,17 +122,17 @@ parsePDBMetaData = parseOrError metaEntries
 
     chainNameMap :: Parser PDBMetaEntry
     chainNameMap = ChainNameMap <$> (string "NM" *> spaces *> int <* spaces)
-                                <*> word
+                                <*> fmap T.pack word
                                 <?> "Chain name mapping"
 
-    binderTypeString :: Parser String
-    binderTypeString = replicateM 3 (oneOf pdbChars)
+    binderTypeString :: Parser T.Text
+    binderTypeString = T.pack <$> replicateM 3 (oneOf pdbChars)
 
     binderType :: Parser BinderType
     binderType = BinderType <$> int
 
-    energyVectorString :: Parser String
-    energyVectorString = replicateM 3 (oneOf pdbChars)
+    energyVectorString :: Parser T.Text
+    energyVectorString = T.pack <$> replicateM 3 (oneOf pdbChars)
 
 toPDBMetaData :: PDBMeta -> [PDBMetaEntry]
 toPDBMetaData PDBMeta{..} = map (uncurry EnergyVectorMap) (toList beadRes)
@@ -140,16 +144,16 @@ toRevPDBMeta :: [PDBMetaEntry] -> Either ReadError RevPDBMeta
 toRevPDBMeta = foldM step (RevPDBMeta M.empty M.empty M.empty M.empty) >=> \meta -> validate meta >> pure meta
   where
     step meta (EnergyVectorMap ev str)
-      | M.member str (revBeadRes meta) = throwError $ "Duplicate energy vector strings: " ++ str
+      | M.member str (revBeadRes meta) = throwError $ "Duplicate energy vector strings: " ++ show str
       | otherwise = pure meta { revBeadRes = M.insert str ev $ revBeadRes meta }
     step meta (BinderTypeMap bt str)
-      | M.member str (revBinderRes meta) = throwError $ "Duplicate binder type strings: " ++ str
+      | M.member str (revBinderRes meta) = throwError $ "Duplicate binder type strings: " ++ show str
       | otherwise = pure meta { revBinderRes = M.insert str bt $ revBinderRes meta }
     step meta (ChainIdMap ch c)
       | M.member c (revChainId meta) = throwError $ "Duplicate chain id chars: " ++ [c]
       | otherwise = pure meta { revChainId = M.insert c ch $ revChainId meta }
     step meta (ChainNameMap ch name)
-      | M.member name (revChainName meta) = throwError $ "Duplicate chain names: " ++ name
+      | M.member name (revChainName meta) = throwError $ "Duplicate chain names: " ++ show name
       | otherwise = pure meta { revChainName = M.insert name ch $ revChainName meta }
 
     validate RevPDBMeta{..} = do
@@ -181,8 +185,8 @@ toPDBData header meta dump@Dump{..} =
 
 toHeaderData :: FrameHeader -> Dump -> [PDBEntry]
 toHeaderData StepHeader{..} Dump{..} =
-    [ PDBHeader $ show headerSeqNum ++ " " ++ show atomCount ++ " step " ++ show headerStep
-    , PDBTitle headerTitle ]
+    [ PDBHeader . T.pack $ show headerSeqNum ++ " " ++ show atomCount ++ " step " ++ show headerStep
+    , PDBTitle . T.pack $ headerTitle ]
   where atomCount = length dumpBinders + sum (map length dumpChains)
 toHeaderData LaminHeader _ = [PDBHeader "LAMINA"]
 
@@ -209,8 +213,9 @@ toBeadData PDBMeta{..} serial resSeq bead =
             , coords = toCoordData $ bead ^. position
             }
 
-toCoordData :: Vec3 -> V3 Double
-toCoordData = (* 3) . fmap fromIntegral
+toCoordData :: Vec3 -> Vec3
+toCoordData = (* 3)
+{-# INLINE toCoordData #-}
 
 toConnectData :: Serial -> PDBEntry
 toConnectData i = PDBConnect i (i + 1)
@@ -245,7 +250,7 @@ fromBinderData RevPDBMeta{..} PDBAtom{..} = BinderInfo pos <$> bt
   where
     pos = fromCoordData coords
     bt = findOrError err resName revBinderRes
-    err = "Unknown binder residue name: " ++ resName
+    err = "Unknown binder residue name: " ++ show resName
 fromBinderData _ _ = error "fromBinderData called with non-atom entry"
 
 fromBeadData :: RevPDBMeta -> PDBEntry -> Either ReadError (ChainId, DumpBeadInfo)
@@ -254,7 +259,7 @@ fromBeadData RevPDBMeta{..} PDBAtom{..} = (,) <$> ch <*> (DumpBeadInfo pos <$> e
     pos = fromCoordData coords
     ev = findOrError resErr resName revBeadRes
     ch = findOrError chErr chainID revChainId
-    resErr = "Unknown bead residue name: " ++ resName
+    resErr = "Unknown bead residue name: " ++ show resName
     chErr = "Unknown chainID: " ++ show chainID
 fromBeadData _ _ = error "fromBeadData called with non-atom entry"
 
@@ -268,8 +273,9 @@ fromConnectsData = foldM step (M.empty, M.empty)
     step _ _ = error "fromConnectsData called with non-atom entry"
     err k a m = "Atom " ++ show k ++ " is connected to both " ++ show a ++ " and " ++ show (M.lookup k m)
 
-fromCoordData :: V3 Double -> Vec3
-fromCoordData = fmap round . (/ 3)
+fromCoordData :: Vec3 -> Vec3
+fromCoordData = fmap (`div` 3)
+{-# INLINE fromCoordData #-}
 
 -- |Extracts all chains tagged with their IDs from a set of beads.
 extractChains ::
@@ -361,7 +367,7 @@ mergeDumps dumps = checkPositions >> checkChains >> pure mergedDump
 parseOrError :: Stream s Identity t => Parsec s () a -> s -> Either ReadError a
 parseOrError p = left show . parse p ""
 
-{-# ANN pdbChars "HLint: ignore Use String" #-}
+{-# ANN pdbChars ("HLint: ignore Use String" :: String) #-}
 -- |Characters used in string/character fields of PDB entries.
 pdbChars :: [Char]
 pdbChars = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']

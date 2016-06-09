@@ -5,6 +5,7 @@ License:    : Apache
 Stability   : experimental
 Portability : unportable
  -}
+{-# LANGUAGE OverloadedStrings #-}
 module Bio.Motions.PDB.Meta ( PDBMeta
                             , mkPDBMeta
                             , mkSimplePDBMeta
@@ -18,11 +19,13 @@ import Bio.Motions.Types
 import Bio.Motions.Common
 import Bio.Motions.PDB.Internal
 
-import qualified Data.ByteString.Char8 as BS
 import qualified Data.Map as M
+import qualified Data.Text as T
+import Data.Text.IO
 import Data.List as L
 import Control.Monad
-import System.IO
+import Control.Arrow
+import System.IO (Handle)
 
 writePDBMeta :: Handle -> PDBMeta -> IO ()
 writePDBMeta h = writePDBMetaData h . toPDBMetaData
@@ -32,7 +35,7 @@ readPDBMeta h = (toRevPDBMeta =<<) <$> readPDBMetaData h
 
 -- |Extracts ChainNames form RevPDBMeta
 getChainNames :: RevPDBMeta -> [String]
-getChainNames = map fst . sortOn snd . M.toList . revChainName
+getChainNames = map (T.unpack . fst) . sortOn snd . M.toList . revChainName
 
 -- |Creates a 'PDBMeta' structure containing data needed to convert to the PDB format.
 mkPDBMeta ::
@@ -41,7 +44,7 @@ mkPDBMeta ::
  -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta -- ^The resulting structure if the given sets weren't too large.
 mkPDBMeta evs bts chs = PDBMeta <$> mapEnergyVectors evs <*> mapBinderTypes bts
-                                <*> mapChains (fst <$> chs) <*> pure (M.fromList chs)
+                                <*> mapChains (fst <$> chs) <*> pure (mapNames chs)
 
 -- |Creates a 'PDBMeta' structure that describes a PDB file in which all binders, except lamins,
 -- have one type. The @resName@ field of an @ATOM@ PDB record in such a file is compatible with
@@ -52,7 +55,7 @@ mkSimplePDBMeta ::
  -> [(ChainId, String)] -- ^The set of chain identifiers and their names used through the simulation.
  -> Maybe PDBMeta
 mkSimplePDBMeta evs bts chs = PDBMeta simpleBeadResMap simpleBinderResMap
-                                <$> mapChains (fst <$> chs) <*> pure (M.fromList chs)
+                                <$> mapChains (fst <$> chs) <*> pure (mapNames chs)
   where
     simpleBeadResMap = M.fromList . (zip <*> map simpleBeadRes) $ evs
     simpleBinderResMap = M.fromList . (zip <*> map simpleBinderRes) $ bts
@@ -67,20 +70,20 @@ writePDBMetaData :: Handle -> [PDBMetaEntry] -> IO ()
 writePDBMetaData h = mapM_ $ hPutStrLn h . printPDBMetaEntry
 
 readPDBMetaData :: Handle -> IO (Either ReadError [PDBMetaEntry])
-readPDBMetaData h = parsePDBMetaData <$> BS.hGetContents h
+readPDBMetaData h = parsePDBMetaData <$> hGetContents h
 
--- |Creates an injective mapping from a set of 'EnergyVector's to 'String's of length 3 made of characters
+-- |Creates an injective mapping from a set of 'EnergyVector's to 'Text's of length 3 made of characters
 -- defined in 'pdbChars' and not starting with a @B@. The set must be at most as large as the counterdomain.
-mapEnergyVectors :: [EnergyVector] -> Maybe (M.Map EnergyVector String)
+mapEnergyVectors :: [EnergyVector] -> Maybe (M.Map EnergyVector T.Text)
 mapEnergyVectors evs = guard (length evs <= length vals) >> pure mapping
-  where vals = [[a, b, c] | [a, b, c] <- replicateM 3 pdbChars, a /= 'B']
+  where vals = [T.pack [a, b, c] | [a, b, c] <- replicateM 3 pdbChars, a /= 'B']
         mapping = M.fromList $ zip evs vals
 
--- |Creates an injective mapping from a set of 'BinderType's to 'String's of length 3 made of characters
+-- |Creates an injective mapping from a set of 'BinderType's to 'Text's of length 3 made of characters
 -- defined in 'pdbChars' and starting with a @B@. The set must be at most as large as the counterdomain.
-mapBinderTypes :: [BinderType] -> Maybe (M.Map BinderType String)
+mapBinderTypes :: [BinderType] -> Maybe (M.Map BinderType T.Text)
 mapBinderTypes bts = guard (length bts <= length vals) >> pure mapping
-  where vals = [['B', a, b] | [a, b] <- replicateM 2 pdbChars]
+  where vals = [T.pack ['B', a, b] | [a, b] <- replicateM 2 pdbChars]
         mapping = M.fromList $ zip bts vals
 
 -- |Creates an injective mapping from a set of 'ChainId's to characters defined in 'pdbChars'.
@@ -88,3 +91,7 @@ mapBinderTypes bts = guard (length bts <= length vals) >> pure mapping
 mapChains :: [ChainId] -> Maybe (M.Map ChainId Char)
 mapChains chs = guard (length chs <= length pdbChars) >> pure mapping
   where mapping = M.fromList $ zip chs pdbChars
+
+-- |Creates a bijective mapping from a set of 'ChainId's to chain names.
+mapNames :: [(ChainId, String)] -> M.Map ChainId T.Text
+mapNames = M.fromList . map (second T.pack)
