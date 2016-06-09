@@ -67,17 +67,17 @@ data RevPDBMeta = RevPDBMeta
     }
     deriving (Eq, Show)
 
-data PDBEntry = PDBHeader  { classification :: String }
-              | PDBTitle   { title :: String }
-              | PDBAtom    { serial :: Serial    -- ^ Atom serial number
-                           , name :: String      -- ^ Atom name
-                           , resName :: String   -- ^ Residue name
-                           , chainID :: Char     -- ^ Chain identifier
-                           , resSeq :: Int       -- ^ Residue sequence number
-                           , coords :: V3 Double -- ^ Coordinates (X, Y, Z) in Angstroms
+data PDBEntry = PDBHeader  { classification :: !String }
+              | PDBTitle   { title :: !String }
+              | PDBAtom    { serial :: !Serial    -- ^ Atom serial number
+                           , name :: !String      -- ^ Atom name
+                           , resName :: !String   -- ^ Residue name
+                           , chainID :: !Char     -- ^ Chain identifier
+                           , resSeq :: !Int       -- ^ Residue sequence number
+                           , coords :: !Vec3      -- ^ Coordinates (X, Y, Z) in Angstroms
                            } -- The other ATOM fields (occupancy, tempFactor etc.) are always 0 or empty.
-              | PDBConnect { fstSerial :: Serial
-                           , sndSerial :: Serial
+              | PDBConnect { fstSerial :: !Serial
+                           , sndSerial :: !Serial
                            }
     deriving Show
 
@@ -209,8 +209,9 @@ toBeadData PDBMeta{..} serial resSeq bead =
             , coords = toCoordData $ bead ^. position
             }
 
-toCoordData :: Vec3 -> V3 Double
-toCoordData = (* 3) . fmap fromIntegral
+toCoordData :: Vec3 -> Vec3
+toCoordData = (* 3)
+{-# INLINE toCoordData #-}
 
 toConnectData :: Serial -> PDBEntry
 toConnectData i = PDBConnect i (i + 1)
@@ -268,8 +269,9 @@ fromConnectsData = foldM step (M.empty, M.empty)
     step _ _ = error "fromConnectsData called with non-atom entry"
     err k a m = "Atom " ++ show k ++ " is connected to both " ++ show a ++ " and " ++ show (M.lookup k m)
 
-fromCoordData :: V3 Double -> Vec3
-fromCoordData = fmap round . (/ 3)
+fromCoordData :: Vec3 -> Vec3
+fromCoordData = fmap (`div` 3)
+{-# INLINE fromCoordData #-}
 
 -- |Extracts all chains tagged with their IDs from a set of beads.
 extractChains ::
