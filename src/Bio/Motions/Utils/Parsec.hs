@@ -11,7 +11,7 @@ module Bio.Motions.Utils.Parsec where
 import Bio.Motions.Types
 
 import Text.Parsec
-import Text.Parsec.ByteString
+import Text.Parsec.Text
 import GHC.Exts
 
 word :: Stream s m Char => ParsecT s u m String
