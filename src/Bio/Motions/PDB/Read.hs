@@ -61,20 +61,20 @@ parseFrame frame = do
 
 parseHeader :: BS.ByteString -> Either ReadError PDBEntry
 parseHeader = parseOrError header
-  where header = PDBHeader <$> (string "HEADER" *> spaces *> many anyChar)
+  where header = PDBHeader <$> fmap BS.pack (string "HEADER" *> spaces *> many anyChar)
 
 parseTitle :: BS.ByteString -> Either ReadError PDBEntry
 parseTitle = parseOrError title
-  where title = PDBTitle <$> (string "TITLE" *> spaces *> many (noneOf [' ']) <* spaces <* eof)
+  where title = PDBTitle <$> fmap BS.pack (string "TITLE" *> spaces *> many (noneOf [' ']) <* spaces <* eof)
 
 fromEvent :: PE.PDBEvent -> Either ReadError PDBEntry
 fromEvent PE.ATOM{..} = Right PDBAtom
     { serial = no
-    , name = BS.unpack atomtype
-    , resName = BS.unpack restype
+    , name = atomtype
+    , resName = restype
     , chainID = chain
     , resSeq = resid
-    , coords = case coords of PE.Vector3 x y z -> V3 x y z
+    , coords = case coords of PE.Vector3 x y z -> round <$> V3 x y z
     }
 fromEvent (PE.CONECT [fstSerial, sndSerial]) = Right PDBConnect{..}
 fromEvent a = Left $ "Error/unknown entry: " ++ show a
