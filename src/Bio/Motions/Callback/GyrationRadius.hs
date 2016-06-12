@@ -53,14 +53,14 @@ instance Callback 'Pre GyrationRadius where
             _ -> return prev
 
 -- |Computes the gyration radius of the given chain
-gyrationRadius :: (Monad m, ReadRepresentation m repr) => repr -> Int -> m Double
+gyrationRadius :: (Monad m, CallbackRepresentation m repr) => repr -> Int -> m Double
 gyrationRadius repr chainIndex = do
     sumOfDistances <- getChain repr chainIndex $ return . sumOfDistances
     chainLength <- getChain repr chainIndex $ return . fromIntegral . olength
     return $ sumOfDistances / countPairs chainLength
 
 -- |Computes the change of gyration radius in the moved chain
-gyrationRadiusChange :: (Monad m, ReadRepresentation m repr) =>
+gyrationRadiusChange :: (Monad m, CallbackRepresentation m repr) =>
   Move
   -- ^The move to be made
   -> repr
