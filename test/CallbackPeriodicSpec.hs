@@ -15,7 +15,7 @@ import SimpleCallback
 -- |Make sure that the 'Periodic' callback transformer does not call any representation-related
 -- function directly
 data EmptyRepresentation
-instance ReadRepresentation m EmptyRepresentation where
+instance CallbackRepresentation m EmptyRepresentation where
     getBinders = undefined
     getNumberOfChains = undefined
     getChain = undefined
