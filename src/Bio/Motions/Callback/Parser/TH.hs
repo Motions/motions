@@ -60,7 +60,7 @@ class IsTHCallback (name :: TL.Symbol) where
     type THCallbackArity name :: Nat
 
     -- |Runs the callback for an appropriate 'Vec' of atoms
-    runTHCallback :: (Monad m, ReadRepresentation m repr)
+    runTHCallback :: (Monad m, CallbackRepresentation m repr)
         => repr -> Vec (THCallbackArity name) Atom -> m (THCallback name)
 
 type role THCallback nominal
@@ -329,10 +329,10 @@ instance Lift (Node n) where
 -- |A helper class used to iterate over fixed-width vectors
 -- of nodes.
 class ForEachKNodes (n :: Nat) where
-    forEachKNodes :: (Monoid r, ReadRepresentation m repr, Monad m)
+    forEachKNodes :: (Monoid r, CallbackRepresentation m repr, Monad m)
         => repr -> (Vec n Atom -> m r) -> m r
 
-    forEachKNodesContaining :: (Monoid r, ReadRepresentation m repr, Monad m)
+    forEachKNodesContaining :: (Monoid r, CallbackRepresentation m repr, Monad m)
         => Atom -> repr -> (Vec ('Succ n) Atom -> m r) -> m r
 
 -- |The base case.
@@ -361,7 +361,7 @@ instance ForEachKNodes n => ForEachKNodes ('Succ n) where
 
 -- |Performs a monadic action over all nodes (i.e. beads and atoms)
 -- and gathers the results monoidally.
-forEachNode :: forall m r repr. (Monoid r, ReadRepresentation m repr, Monad m)
+forEachNode :: forall m r repr. (Monoid r, CallbackRepresentation m repr, Monad m)
     => repr -> (Atom -> m r) -> m r
 forEachNode repr f = do
     numChains <- getNumberOfChains repr
