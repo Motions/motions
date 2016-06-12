@@ -12,11 +12,11 @@ description: "Example description"
 output-prefix: example-out
 
 # The number of simulation steps, i. e. how many atom moves will be attempted.
-steps: 1000
+steps: 10000
 
 # Whether to write intermediate simulation steps to the main PDB file. If True every accepted move will
 # generate a frame in the PDB file. If False only the last frame will be written.
-write-intermediate-frames: False
+write-intermediate-frames: True
 
 # Whether to print the log to the standard output after every accepted frame: the current step,
 # accepted frame number, score and callback results.
@@ -104,12 +104,29 @@ generate:
     # Try a higher value if the initialisation fails too often.
     initialisation-attempts: 10000
 
-# Description for loading the initial state from PDB and ".meta" files.
+# Configuration for loading the initial state (and optionally more frames) from an existing input file
 # load:
-#     # The list of PDB files containing the atoms.
-#     pdb-files:
-#         - in.pdb
-#         - in.pdb.lamin
+#     # List of input files. When reading from the binary format, this has to be exactly one file.
+#     # For PDB, multiple input files will be merged.  # TODO nierówne liczby klatek
+#     input-files:
+#         - example/in.pdb
+#         - example/in.pdb.lamin
 #
-#     # The ".meta" file.
-#     meta-file: in.pdb.meta
+#      # The ".meta" file. Used only for PDB.
+#     meta-file: example/in.pdb.meta
+#
+#     # Whether the input is in the binary format
+#     binary-input: false
+#
+#     # How many frames of the input should be skipped before reading the state
+#     skip-frames: 0
+#
+#     # Move source. In order to perform a normal MCMC simulation starting from the state specified
+#     # in above input files, use "generate". This will randomly generate moves as usual.
+#     # The other option here is "input". In this case, no moves will be randomly generated.
+#     # Instead the remainder (after skipping `skip-frames` frames) of the input file(s) will be read
+#     # and those moves will be provided to the simulation engine. This allows format conversion
+#     # and computing additional callbacks.
+#     # The process ends after `steps` moves have been read or after reaching end of file, whichever
+#     # is first.
+#     move-source: "generate"
