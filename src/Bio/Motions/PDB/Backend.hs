@@ -6,14 +6,20 @@ Stability   : experimental
 Portability : unportable
 -}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Bio.Motions.PDB.Backend where
 
 import Bio.Motions.Common
 import Bio.Motions.Output
+import Bio.Motions.Input
 import Bio.Motions.Types
 import Bio.Motions.PDB.Write
+import Bio.Motions.PDB.Read
+import Bio.Motions.PDB.Internal(RevPDBMeta)
 import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Dump
+import Bio.Motions.Representation.Class
 import Bio.Motions.Callback.Class
 
 import Control.Lens
@@ -22,6 +28,7 @@ import Data.IORef
 import Control.Monad.State
 import Data.List
 import Data.Maybe
+import Control.Exception(bracket)
 
 data PDBBackend = PDBBackend
     { pdbHandle :: Handle
@@ -54,8 +61,6 @@ openPDBOutput ::
     -> Dump
     -- ^Current state of the simulation
     -> [String]
-    -- ^Names of the chains (in order of their numbers)
-    -> [String]
     -- ^Names of the binder types (in order of their numbers)
     -> Bool
     -- ^Use simple PDB names?
@@ -67,7 +72,7 @@ openPDBOutput ::
     -- ^Verbose output?
     -> IO PDBBackend
     -- ^Opened PDB backend
-openPDBOutput OutputSettings{..} dump chainNames binderTypesNames simplePDB
+openPDBOutput OutputSettings{..} dump binderTypesNames simplePDB
       intermediate cbHandle cbVerbose = do
     let pdbFile = outputPrefix ++ ".pdb"
         laminFile = outputPrefix ++ "-lamin.pdb"
@@ -124,3 +129,42 @@ writeCallbacks handle verbose (preCbs, postCbs) = do
     --TODO?
     resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
     separator = if verbose then "\n" else " "
+
+data PDBReader = PDBReader
+    { handles :: [Handle]
+    , revMeta :: RevPDBMeta
+    , maxChainDistSquared :: Int
+    }
+
+openPDBInput :: InputSettings -> Int -> IO PDBReader
+openPDBInput InputSettings{..} maxChainDistSquared = do
+    handles <- mapM (`openFile` ReadMode) inputFiles
+    let mf = fromMaybe (error "Specify an input meta file") metaFile
+    revMeta <- eitherFail "Meta file read error: " $ withFile mf ReadMode readPDBMeta
+    return PDBReader{..}
+
+withPDBInput :: InputSettings -> Int -> (PDBReader -> [String]-> IO a) -> IO a
+withPDBInput s dist f = bracket (openPDBInput s dist) close (\r -> f r (getChainNames . revMeta $ r))
+  where close PDBReader{..} = mapM_ hClose handles
+
+instance (MonadIO m, ReadRepresentation m repr) => MoveProducer m repr PDBReader where
+    getMove PDBReader{..} repr score = do
+        eof <- liftIO $ or <$> mapM hIsEOF handles
+        if eof then return Stop
+               else do
+                   dump <- makeDump repr
+                   dump' <- liftIO $ eitherFail "PDB read error: " $
+                                readPDB handles revMeta $ Just maxChainDistSquared
+                   let move = either (error "diff error") id $ diffDumps dump dump'
+                   score' <- updateCallback repr score move
+                   return $ MakeMove move score'
+
+skipPDBInput :: PDBReader -> Int -> IO Dump
+skipPDBInput PDBReader{..} 0 = 
+    eitherFail "PDB read error: " $ readPDB handles revMeta $ Just maxChainDistSquared
+skipPDBInput reader@PDBReader{..} n =  do
+    _ <- eitherFail "PDB read error: " $ readPDB handles revMeta $ Just maxChainDistSquared
+    skipPDBInput reader (n - 1)
+
+eitherFail :: String -> IO (Either String a) -> IO a
+eitherFail errorPrefix m = m >>= either (fail . (errorPrefix ++)) pure

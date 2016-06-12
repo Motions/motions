@@ -49,6 +49,7 @@ library
                        Bio.Motions.BED,
                        Bio.Motions.Engine,
                        Bio.Motions.Output,
+                       Bio.Motions.Input,
                        Bio.Motions.Format.ProtoStream,
                        Bio.Motions.Format.Handle,
                        Bio.Motions.StateInitialisation
