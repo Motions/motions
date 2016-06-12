@@ -8,6 +8,7 @@ Portability : unportable
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -fno-warn-type-defaults #-}
 module Bio.Motions.PDB.Read ( readPDB
                             ) where
@@ -24,7 +25,9 @@ import qualified Data.ByteString.Char8 as BS
 import System.IO
 import Linear
 
--- |Reads a dump from PDB files, taking the first frame from each file and merging them.
+import qualified Debug.Trace as DT
+
+-- |Reads a dump from PDB files, taking the next frame from each file and merging them.
 readPDB ::
      [Handle]
   -- ^A list of handles to the PDB files.
@@ -34,24 +37,30 @@ readPDB ::
   -- ^Square of the maximum chain segment length or Nothing if unbounded. Used for error checking.
   -> IO (Either ReadError Dump)
   -- ^The resulting dump or error.
-readPDB hs meta maxd = (sequence >=> toDump) <$> mapM readPDBData hs
+readPDB hs meta maxd = DT.trace "readPDB" $ (sequence >=> toDump) <$> mapM readPDBData hs
   where
     toDump :: [[PDBEntry]] -> Either ReadError Dump
-    toDump = mapM (fromPDBData meta maxd) >=> mergeDumps
+    toDump = mapM (fromPDBData meta maxd) >=> mergeDumps 
 
--- |Reads the first frame in a PDB file.
+-- |Reads the next frame in a PDB file.
 readPDBData :: Handle -> IO (Either ReadError [PDBEntry])
-readPDBData h = parseFrame . fst . BS.breakSubstring "END" <$> BS.hGetContents h
+readPDBData h = DT.trace "readdata" $ parseFrame <$> rdloop []
+  where
+    rdloop acc = BS.hGetLine h >>= \case
+                        {-"END" -> return $ DT.trace (show $ reverse acc) $ reverse acc-}
+                        "END" -> return $ reverse acc
+                        "" -> rdloop acc  -- ignore empty line
+                        x -> rdloop (x:acc)
 
-parseFrame :: BS.ByteString -> Either ReadError [PDBEntry]
-parseFrame frame = do
-    let headerLine : rest = BS.lines frame
+parseFrame :: [BS.ByteString] -> Either ReadError [PDBEntry]
+parseFrame [] = Left "unexpected end of file"
+parseFrame (headerLine:rest) = do
     header <- parseHeader headerLine
     (title, rest') <- flip catchError (const $ pure ([], rest)) $ do
         let titleLine : rest' = rest
         title <- parseTitle titleLine
         pure ([title], rest')
-    execStateT (parseRecords $ BS.unlines rest') $ title ++ [header]
+    fmap reverse . execStateT (parseRecords $ BS.unlines rest') $ title ++ [header]
   where
     parseRecords :: BS.ByteString -> StateT [PDBEntry] (Either ReadError) ()
     parseRecords str = PP.parsePDBRecords "" str onEvent ()
