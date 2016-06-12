@@ -40,7 +40,7 @@ data SlowChainRepresentation (r :: Nat) (d :: Nat) = SlowChainRepresentation
     , maxSegLenSquared :: !Int
     }
 
-instance MonadIO m => ReadRepresentation m (SlowChainRepresentation r d) where
+instance MonadIO m => CallbackRepresentation m (SlowChainRepresentation r d) where
     getBinders repr = getBinders $ ioRepr repr
     {-# INLINE getBinders #-}
 
@@ -54,7 +54,6 @@ instance MonadIO m => ReadRepresentation m (SlowChainRepresentation r d) where
     {-# INLINE getAtomAt #-}
 
 instance (KnownNat r, KnownNat d, MonadIO m) => Representation m (SlowChainRepresentation r d) where
-    type ReprRandomTypes m (SlowChainRepresentation r d) = ReprRandomTypes m IOChainRepresentation
     type ReprExposedConstraint m (SlowChainRepresentation r d) = (KnownNat r, KnownNat d)
 
     loadDump d p = loadDump d p >>= \ioRepr -> pure SlowChainRepresentation{..}
@@ -63,14 +62,16 @@ instance (KnownNat r, KnownNat d, MonadIO m) => Representation m (SlowChainRepre
         maxMoveRadSquared = fromInteger $ natVal' (proxy# :: Proxy# r)
         maxSegLenSquared = fromInteger $ natVal' (proxy# :: Proxy# d)
 
+    performMove m repr = performMove m (ioRepr repr) >>= \ioRepr' -> pure repr { ioRepr = ioRepr' }
+    {-# INLINE performMove #-}
+
+instance (KnownNat r, KnownNat d, MonadIO m) => ReadRepresentation m (SlowChainRepresentation r d) where
+    type ReprRandomTypes m (SlowChainRepresentation r d) = ReprRandomTypes m IOChainRepresentation
     makeDump = makeDump . ioRepr
 
     generateMove repr@SlowChainRepresentation{..} =
         generateMove' ioRepr legalMoves' Nothing (Just $ slowIllegalBeadMove repr)
     {-# INLINE generateMove #-}
-
-    performMove m repr = performMove m (ioRepr repr) >>= \ioRepr' -> pure repr { ioRepr = ioRepr' }
-    {-# INLINE performMove #-}
 
 slowIllegalBeadMove :: forall r d m f. (Wrapper m f, MonadIO m, KnownNat d)
     => SlowChainRepresentation r d -> Move -> BeadInfo' f -> m Bool

@@ -12,7 +12,7 @@ license-file:        LICENSE
 -- copyright:
 category:            Bioinformatics
 build-type:          Custom
-extra-source-files:  src/motions.proto
+extra-source-files:  src/message.proto
 cabal-version:       >=1.10
 
 library
@@ -49,6 +49,7 @@ library
                        Bio.Motions.BED,
                        Bio.Motions.Engine,
                        Bio.Motions.Output,
+                       Bio.Motions.Input,
                        Bio.Motions.Format.ProtoStream,
                        Bio.Motions.Format.Handle,
                        Bio.Motions.StateInitialisation
