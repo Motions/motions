@@ -86,7 +86,7 @@ retrieveLocated = relocate
 {-# INLINE[2] retrieveLocated #-}
 {-# RULES "retrieveLocated/pure" retrieveLocated = pure #-}
 
-instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
+instance Wrapper m f => CallbackRepresentation m (ChainRepresentation f) where
     getBinders ChainRepresentation{..} f = mapM retrieveLocated binders >>= f
     {-# INLINE getBinders #-}
 
@@ -99,14 +99,16 @@ instance Wrapper m f => ReadRepresentation m (ChainRepresentation f) where
     getAtomAt pos ChainRepresentation{..} = pure $ Located pos . (^. located) <$> M.lookup pos space
     {-# INLINE getAtomAt #-}
 
-instance Monad m => Representation m PureChainRepresentation where
+instance Monad m => ReadRepresentation m PureChainRepresentation where
     type ReprRandomTypes m PureChainRepresentation = '[Int, Bool]
-    type ReprExposedConstraint m PureChainRepresentation = ()
 
-    loadDump = loadDump'
     makeDump = makeDump'
     generateMove = sqrt2GenerateMove
     {-# INLINEABLE generateMove #-}
+
+instance Monad m => Representation m PureChainRepresentation where
+    type ReprExposedConstraint m PureChainRepresentation = ()
+    loadDump = loadDump'
 
     performMove (MoveFromTo from to) repr
         | Binder binderSig <- atom = pure $
@@ -123,14 +125,16 @@ instance Monad m => Representation m PureChainRepresentation where
         space' = M.insert to (atom & position .~ to) . M.delete from $ space repr
     {-# INLINEABLE performMove #-}
 
-instance MonadIO m => Representation m IOChainRepresentation where
+instance MonadIO m => ReadRepresentation m IOChainRepresentation where
     type ReprRandomTypes m IOChainRepresentation = '[Int, Bool]
-    type ReprExposedConstraint m IOChainRepresentation = ()
 
-    loadDump = loadDump'
     makeDump = makeDump'
     generateMove = sqrt2GenerateMove
     {-# INLINEABLE generateMove #-}
+
+instance MonadIO m => Representation m IOChainRepresentation where
+    type ReprExposedConstraint m IOChainRepresentation = ()
+    loadDump = loadDump'
 
     performMove (MoveFromTo from to) repr = do
         liftIO $ writeIORef (atom ^. wrappedPosition) to
