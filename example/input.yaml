@@ -12,11 +12,11 @@ description: "Example description"
 output-prefix: example-out
 
 # The number of simulation steps, i. e. how many atom moves will be attempted.
-steps: 1000
+steps: 50000
 
 # Whether to write intermediate simulation steps to the main PDB file. If True every accepted move will
 # generate a frame in the PDB file. If False only the last frame will be written.
-write-intermediate-frames: False
+write-intermediate-frames: True
 
 # Whether to print the log to the standard output after every accepted frame: the current step,
 # accepted frame number, score and callback results.
@@ -73,36 +73,47 @@ enabled-callbacks:
 
 # Description for random initial state generation. Comment out this section if you want
 # to load the initial state from PDB files.
-generate:
-    # The description of different chain features, each feature corresponding to a BED file.
-    bed-files:
-        - feat0.bed
-        - feat1.bed
-
-    # Names and lengths of chromosomes. The numbers of the chromosomes are defined by
-    # the order of this list.
-    chromosome-infos:
-      - {name: "chr1", length: 100}
-
-    # Names of binder types in order that matches "bed-files" field. The first type
-    # will always be called "Lamin" and this name should be ommited in this list.
-    binder-types-names:
-      - "RegularBinder"
-
-    # Numbers of binders of each type excluding lamins. Each type corresponds to a BED file provided above
-    # starting the second (if exists). The first file corresponds to the lamin type.
-    binders-counts:
-        - 1000
-
-    # The radius of the cell in which the simulation takes place.
-    cell-radius: 10
-
-    # The resolution used to convert BED files to chains.
-    resolution: 10
+#generate:
+#    # The description of different chain features, each feature corresponding to a BED file.
+#    bed-files:
+#        - feat0.bed
+#        - feat1.bed
+#
+#    # Names and lengths of chromosomes. The numbers of the chromosomes are defined by
+#    # the order of this list.
+#    chromosome-infos:
+#      - {name: "chr1", length: 100}
+#
+#    # Names of binder types in order that matches "bed-files" field. The first type
+#    # will always be called "Lamin" and this name should be ommited in this list.
+#    binder-types-names:
+#      - "RegularBinder"
+#
+#    # Numbers of binders of each type excluding lamins. Each type corresponds to a BED file provided above
+#    # starting the second (if exists). The first file corresponds to the lamin type.
+#    binders-counts:
+#        - 1000
+#
+#    # The radius of the cell in which the simulation takes place.
+#    cell-radius: 10
+#
+#    # The resolution used to convert BED files to chains.
+#    resolution: 10
+# Description for loading the initial state from PDB and ".meta" files.
+load:
+    # The list of PDB files containing the atoms.
+    input-files:
+        - example/in.pdb
+        - example/in.pdb.lamin
 
     # Used internally to limit the number of failed attempts when generating a random initial state.
     # Try a higher value if the initialisation fails too often.
     initialisation-attempts: 10000
+     # The ".meta" file.
+    meta-file: example/in.pdb.meta
+    move-source: "input"
+    binary-input: false
+    skip-frames: 0
 
 # Description for loading the initial state from PDB and ".meta" files.
 # load:
