@@ -32,21 +32,21 @@ class OutputBackend a where
     getNextPush :: a -> IO PushOutputFrame
     -- |Gives the backend a 'Dump' of the last frame. This is useful in cases
     -- where it needs special handling, eg. PDB without intermediate frames.
-    pushLastFrame :: (Show score) => a -> Dump -> StepCounter -> score -> IO ()
+    pushLastFrame :: (Show score) => a -> Dump -> StepCounter -> FrameCounter -> score -> IO ()
     -- |Close the file(s) and do all neccessary cleanup.
     closeBackend :: a -> IO ()
 
 -- |Tells the engine what kind of frame representation this backend is expecting now.
 -- This is useful because generating a 'Dump' is potentially slow, so we avoid it whenever possible.
 data PushOutputFrame =
-      PushDump (forall score. (Show score) => Dump -> Callbacks -> StepCounter -> score -> IO ())
+      PushDump (forall score. (Show score) => Dump -> Callbacks -> StepCounter -> FrameCounter -> score -> IO ())
       -- ^PDB needs the current score
-      | PushMove (Move -> Callbacks -> StepCounter -> IO ())
+    | PushMove (Move -> Callbacks -> StepCounter -> FrameCounter -> IO ())
 
 -- |A backend that evaluates all moves, but does no IO. Used for benchmarks.
 data NullBackend
 
 instance OutputBackend NullBackend where
-    getNextPush _ = return $ PushMove $ \m c i -> (void . evaluate . force) (m, c, i)
-    pushLastFrame _ dump _ _ = void . evaluate . force $ dump
+    getNextPush _ = pure $ PushMove $ \m c s f -> (void . evaluate . force) (m, c, s, f)
+    pushLastFrame _ dump _ _ _ = void . evaluate . force $ dump
     closeBackend _ = pure ()
