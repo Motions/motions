@@ -40,13 +40,13 @@ data BinaryBackend = BinaryBackend
 instance OutputBackend BinaryBackend where
     getNextPush state@BinaryBackend{..} = do
         cur <- readIORef framesSinceLastKF
-        return $ if cur == framesPerKF then
-                      PushDump $ \dump callbacks counter _ -> appendKeyframe state dump callbacks counter
-                      else
-                      PushMove $ appendDelta state
+        pure $ if cur == framesPerKF then
+                   PushDump $ \dump callbacks step _ _ -> appendKeyframe state dump callbacks step
+               else
+                   PushMove $ \move callbacks step _ -> appendDelta state move callbacks step
 
     closeBackend BinaryBackend{..} = protoClose handle
-    pushLastFrame _ _ _ _ = pure ()
+    pushLastFrame _ _ _ _ _ = pure ()
 
 -- |Create a 'BinaryBackend'
 openBinaryOutput ::
@@ -89,11 +89,11 @@ genericAppend stream f msg =
   where bytes = BL.toStrict . messagePut $ msg
 
 appendKeyframe :: BinaryBackend -> Dump -> Callbacks -> StepCounter -> IO ()
-appendKeyframe BinaryBackend{..} dump callbacks counter = do
+appendKeyframe BinaryBackend{..} dump callbacks step = do
     writeIORef framesSinceLastKF 1
-    genericAppend handle protoAppendKeyframe $ getKeyframe dump callbacks counter
+    genericAppend handle protoAppendKeyframe $ getKeyframe dump callbacks step
 
 appendDelta :: BinaryBackend -> Move -> Callbacks -> StepCounter -> IO ()
-appendDelta BinaryBackend{..} move callbacks counter = do
+appendDelta BinaryBackend{..} move callbacks step = do
     modifyIORef framesSinceLastKF (+1)
-    genericAppend handle protoAppendDelta $ serialiseMove move callbacks counter
+    genericAppend handle protoAppendDelta $ serialiseMove move callbacks step

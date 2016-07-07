@@ -37,7 +37,7 @@ type Serial = Int
 type ReadError = String
 
 data FrameHeader =
-    StepHeader { headerSeqNum :: Int
+    StepHeader { headerSeqNum :: FrameCounter
                , headerStep :: StepCounter
                , headerTitle :: String
                }

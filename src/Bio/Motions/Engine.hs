@@ -27,6 +27,7 @@ import Control.Monad.State.Strict
 import Control.Monad.Trans.Maybe
 import qualified Data.Map.Strict as M
 import Data.List
+import System.IO
 
 data SimulationState repr score = SimulationState
     { repr :: !repr
@@ -34,6 +35,7 @@ data SimulationState repr score = SimulationState
     , preCallbackResults :: ![CallbackResult 'Pre]
     , postCallbackResults :: ![CallbackResult 'Post]
     , stepCounter :: !StepCounter
+    , frameCounter :: !FrameCounter
     }
 
 -- |Describes how the simulation should run.
@@ -50,6 +52,10 @@ data RunSettings repr score backend = RunSettings
     -- ^ List of requested callback names
     , outputBackend :: backend
     -- ^ Output backend
+    , verboseCallbacks :: Bool
+    -- ^ Whether callbacks should have their names written in the output
+    , loggingHandle :: Maybe Handle
+    -- ^ Where the run log should be written
     }
 
 type SimT repr score = StateT (SimulationState repr score)
@@ -83,18 +89,25 @@ step = runMaybeT $ do
     lift2 = lift . lift
 {-# INLINE step #-}
 
-stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, OutputBackend backend)
-    => backend -> SimT repr score m ()
-stepAndWrite backend = do
+-- |Perform a step and output the results.
+stepAndWrite :: (MonadRandom m, RandomRepr m repr, Score score, MonadIO m, OutputBackend backend) =>
+       backend
+    -- ^The output backend.
+   -> (SimulationState repr score -> IO ())
+    -- ^A logging function.
+   -> SimT repr score m ()
+stepAndWrite backend log = do
     modify $ \s -> s { stepCounter = stepCounter s + 1 }
     step >>= \case
       Nothing -> pure ()
       Just move -> do
+          modify $ \s -> s { frameCounter = frameCounter s + 1 }
           cb <- (,) <$> gets preCallbackResults <*> gets postCallbackResults
-          SimulationState{..} <- get
+          st@SimulationState{..} <- get
           liftIO (getNextPush backend) >>= \case
-            PushDump act -> getDump >>= liftIO . (\dump -> act dump cb stepCounter score)
-            PushMove act -> liftIO $ act move cb stepCounter
+            PushDump act -> getDump >>= liftIO . (\dump -> act dump cb stepCounter frameCounter score)
+            PushMove act -> liftIO $ act move cb stepCounter frameCounter
+          liftIO $ log st
   where
     getDump = gets repr >>= lift . makeDump
 {-# INLINE stepAndWrite #-}
@@ -117,11 +130,13 @@ simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend)
 simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
     st <- initState
 
-    SimulationState{..} <- flip execStateT st $
-         replicateM_ numSteps $ stepAndWrite outputBackend
+    st'@SimulationState{..} <- flip execStateT st $
+        replicateM_ numSteps $ stepAndWrite outputBackend log
 
     finalDump <- makeDump repr
-    liftIO $ pushLastFrame outputBackend finalDump stepCounter score
+    liftIO $ do
+        pushLastFrame outputBackend finalDump stepCounter frameCounter score
+        log st'
     pure finalDump
   where
     initState = do
@@ -136,6 +151,22 @@ simulate (RunSettings{..} :: RunSettings repr score backend) dump = do
         postCallbackResults <- getCallbackResults repr enabledPostCallbacks
 
         let stepCounter = 0
+            frameCounter = 0
         pure SimulationState{..}
     {-# INLINE initState #-}
+
+    log st = forM_ loggingHandle $ \h -> writeLog h verboseCallbacks st
+    {-# INLINE log #-}
 {-# INLINEABLE[0] simulate #-}
+
+-- |Output log: step and frame counters, score, and callback results
+writeLog :: (MonadIO m, Show score) => Handle -> Bool -> SimulationState repr score -> m ()
+writeLog handle verbose SimulationState{..} = liftIO . hPutStrLn handle $ logStr
+  where
+    logStr = unwords $ [stepStr, frameStr, scoreStr] ++ preCbsStr ++ postCbsStr
+    stepStr = "iter: " ++ show stepCounter
+    frameStr = "frame: " ++ show frameCounter
+    scoreStr = "energy: " ++ show score
+    preCbsStr = callbackStr <$> preCallbackResults
+    postCbsStr = callbackStr <$> postCallbackResults
+    callbackStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
