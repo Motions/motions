@@ -34,6 +34,9 @@ import Control.DeepSeq
 -- |Counter type for counting all attempted steps.
 type StepCounter = Int64
 
+-- |Counter type for counting successful steps.
+type FrameCounter = Int64
+
 -- |An alias used for representing energy.
 type Energy = Int
 

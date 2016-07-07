@@ -88,6 +88,7 @@ data RunSettings' = RunSettings'
     , simulationDescription :: String
     , numSteps :: Int
     , writeIntermediatePDB :: Bool
+    , enableLogging :: Bool
     , verboseCallbacks :: Bool
     , simplePDB :: Bool
     , binaryOutput :: Bool
@@ -114,6 +115,7 @@ genericParseJSON' = genericParseJSON $ defaultOptions { fieldLabelModifier = lab
             , ("outputPrefix", "output-prefix")
             , ("numSteps", "steps")
             , ("writeIntermediatePDB", "write-intermediate-frames")
+            , ("enableLogging", "enable-logging")
             , ("verboseCallbacks", "verbose-callbacks")
             , ("simplePDB", "simple-pdb-output")
             , ("binaryOutput", "binary-output")
@@ -166,6 +168,7 @@ mkRunSettings RunSettings'{..} outputBackend = E.RunSettings{..}
     freezePredicate = case freezePredicateString of
         Just str -> either (fail . show) id $ P.parse freezePredicateParser "<input>" str
         Nothing -> freezeNothing
+    loggingHandle = if enableLogging then Just stdout else Nothing
 
 -- |Loads the initial state.
 load :: MonadIO m =>
@@ -198,7 +201,7 @@ load InitialisationSettings{..} maxChainDistSquared =
         energyVectors <- liftIO $ parseBEDs resolution chromosomeInfosAsPairs bedFiles
         let evLength = U.length . getEnergyVector . head . head $ energyVectors
         -- Both bindersCount and binderTypesNames lists do not include lamin type
-        when ((length bindersCounts) /= (length binderTypesNames)) $ error
+        when (length bindersCounts /= length binderTypesNames) $ error
             "Wrong number of binder names (have you remembered not to specify \"Lamin\" type?)"
         when (evLength /= length bindersCounts + 1)
           $ error "The number of different binder types must be the same as the number of chain \
@@ -264,11 +267,9 @@ runSimulation Settings{..} dump chainNames binderTypesNames = dispatchScore dump
     dispatchBackend :: _ => _ score -> _ repr -> (forall a. m a -> IO a) -> Dump -> IO Dump
     dispatchBackend scoreProxy reprProxy random dump
         | binaryOutput = run $ openBinaryOutput framesPerKF outSettings binderTypesNames dump chainNames
-        | otherwise = run $ openPDBOutput outSettings dump chainNames binderTypesNames simplePDB writeIntermediatePDB
-                                callbacksHandle verboseCallbacks
+        | otherwise = run $ openPDBOutput outSettings dump chainNames binderTypesNames
+                                          simplePDB writeIntermediatePDB
         where
-            callbacksHandle = stdout    --TODO this should be a path or something, and the handle
-                                        -- would then be managed(open/close) by the backend
             RunSettings'{..} = runSettings
             outSettings = OutputSettings{..}
 

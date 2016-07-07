@@ -18,7 +18,11 @@ steps: 1000
 # generate a frame in the PDB file. If False only the last frame will be written.
 write-intermediate-frames: False
 
-# Whether to print callback names (prints only the results if False).
+# Whether to print the log to the standard output after every accepted frame: the current step,
+# accepted frame number, score and callback results.
+enable-logging: True
+
+# Whether to print callback names in the log (prints only the results if False).
 verbose-callbacks: True
 
 # Generates different ("simple") mapping for energy vectors and binder types.

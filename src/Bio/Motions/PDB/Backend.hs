@@ -14,40 +14,32 @@ import Bio.Motions.Types
 import Bio.Motions.PDB.Write
 import Bio.Motions.PDB.Meta
 import Bio.Motions.Representation.Dump
-import Bio.Motions.Callback.Class
 
 import Control.Lens
-import System.IO
-import Data.IORef
 import Control.Monad.State
 import Data.List
 import Data.Maybe
+import System.IO
 
 data PDBBackend = PDBBackend
     { pdbHandle :: Handle
-    , frameCounter :: IORef Int
-    -- ^Number of frames written
     , meta :: PDBMeta
     , metaFile :: FilePath
     -- ^Path to metadata file
     , intermediate :: Bool
     -- ^Whether to write intermediate frames
-    , cbHandle :: Handle
-    -- ^Callback output handle
-    , cbVerbose :: Bool
-    -- ^Verbose callbacks
     }
 
 instance OutputBackend PDBBackend where
     getNextPush st@PDBBackend{..}
-        | intermediate = pure $ PushDump (pushPDBStep st)
-        | otherwise = pure . PushMove $ \_ cb _ -> writeCallbacks cbHandle cbVerbose cb
+        | intermediate = pure $ PushDump $ \dump _ step frame score -> pushPDBStep st dump step frame score
+        | otherwise = pure . PushMove $ \_ _ _ _ -> pure ()
     closeBackend PDBBackend{..} = do
         hClose pdbHandle
         withFile metaFile WriteMode $ \h -> writePDBMeta h meta
-    pushLastFrame backend dump step score
+    pushLastFrame backend dump step frame score
         | intermediate backend = pure ()
-        | otherwise = pushPDBStep backend dump ([], []) step score
+        | otherwise = pushPDBStep backend dump step frame score
 
 openPDBOutput ::
     OutputSettings
@@ -61,14 +53,9 @@ openPDBOutput ::
     -- ^Use simple PDB names?
     -> Bool
     -- ^Output intermediate steps?
-    -> Handle
-    -- ^Name of the output file
-    -> Bool
-    -- ^Verbose output?
     -> IO PDBBackend
     -- ^Opened PDB backend
-openPDBOutput OutputSettings{..} dump chainNames binderTypesNames simplePDB
-      intermediate cbHandle cbVerbose = do
+openPDBOutput OutputSettings{..} dump chainNames binderTypesNames simplePDB intermediate = do
     let pdbFile = outputPrefix ++ ".pdb"
         laminFile = outputPrefix ++ "-lamin.pdb"
         metaFile = pdbFile ++ ".meta"
@@ -84,22 +71,18 @@ openPDBOutput OutputSettings{..} dump chainNames binderTypesNames simplePDB
         meta = fromMaybe (error pdbError) $ mkMeta evs (zip bts binderTypesNames) chs
     pdbHandle <- openFile pdbFile WriteMode
     withFile laminFile WriteMode $ \h -> pushPDBLamins h meta dump
-    frameCounter <- newIORef 0
     return PDBBackend{..}
   where
     pdbError = "The PDB format can't handle this number of different beads, binders or chains."
 
 -- |Append a step to the output file
-pushPDBStep :: (Show score) => PDBBackend -> Dump -> Callbacks -> StepCounter -> score -> IO ()
-pushPDBStep PDBBackend{..} dump' callbacks step score = do
-    modifyIORef frameCounter (+1)
-    frame <- readIORef frameCounter
+pushPDBStep :: (Show score) => PDBBackend -> Dump -> StepCounter -> FrameCounter -> score -> IO ()
+pushPDBStep PDBBackend{..} dump' step frame score = do
     let frameHeader = StepHeader { headerSeqNum = frame
                                  , headerStep = step
                                  , headerTitle = "chromosome;bonds=" ++ show score
                                  }
     liftIO $ writePDB pdbHandle frameHeader meta dump >> hPutStrLn pdbHandle "END"
-    liftIO $ writeCallbacks cbHandle cbVerbose callbacks
   where
     dump = removeLamins dump'
     removeLamins d = d { dumpBinders = filter notLamin $ dumpBinders d }
@@ -113,14 +96,3 @@ pushPDBLamins handle pdbMeta dump' = do
   where
     filterLamins d = Dump { dumpBinders = filter isLamin $ dumpBinders d, dumpChains = [] }
     isLamin b = b ^. binderType == laminType
-
--- |Output callbacks in text form
-writeCallbacks :: MonadIO m => Handle -> Bool -> Callbacks -> m ()
-writeCallbacks handle verbose (preCbs, postCbs) = do
-    let preStr = resultStr <$> preCbs
-        postStr = resultStr <$> postCbs
-    liftIO . hPutStrLn handle . intercalate separator $ preStr ++ postStr
-  where
-    --TODO?
-    resultStr (CallbackResult cb) = (if verbose then getCallbackName cb ++ ": " else "") ++ show cb
-    separator = if verbose then "\n" else " "
