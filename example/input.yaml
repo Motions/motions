@@ -108,6 +108,7 @@ generate:
 # load:
 #     # List of input files. When reading from the binary format, this has to be exactly one file.
 #     # For PDB, multiple input files will be merged.
+      # TODO first file headers
 #     input-files:
 #         - example/in.pdb
 #         - example/in.pdb.lamin

@@ -31,19 +31,25 @@ data OutputSettings = OutputSettings
 -- |A backend for writing frames to disk.
 -- Opening the output may have different arguments depending on the backend,
 -- so it is not included here.
-class OutputBackend a where
+class OutputBackend backend where
     -- |See 'PushOutputFrame'
-    getNextPush :: a -> IO PushOutputFrame
+    getNextPush :: backend -> IO (PushOutputFrame backend)
     -- |Gives the backend a 'Dump' of the last frame. This is useful in cases
     -- where it needs special handling, eg. PDB without intermediate frames.
-    pushLastFrame :: (Show score) => a -> Dump -> StepCounter -> FrameCounter -> score -> IO ()
+    pushLastFrame :: (Show score) => Dump -> StepCounter -> FrameCounter -> score -> backend -> IO ()
     -- |Close the file(s) and do all neccessary cleanup.
-    closeBackend :: a -> IO ()
+    closeBackend :: backend -> IO ()
 
 -- |Tells the engine what kind of frame representation this backend is expecting now.
 -- This is useful because generating a 'Dump' is potentially slow, so we avoid it whenever possible.
-data PushOutputFrame =
-      PushDump (forall score. (Show score) => Dump -> Callbacks -> StepCounter -> FrameCounter -> score -> IO ())
+data PushOutputFrame backend =
+      PushDump (forall score. (Show score) =>
+                    Dump
+                 -> Callbacks
+                 -> StepCounter
+                 -> FrameCounter
+                 -> score
+                 -> IO ())
       -- ^PDB needs the current score
     | PushMove (Move -> Callbacks -> StepCounter -> FrameCounter -> IO ())
 
@@ -52,5 +58,5 @@ data NullBackend
 
 instance OutputBackend NullBackend where
     getNextPush _ = pure $ PushMove $ \m c s f -> (void . evaluate . force) (m, c, s, f)
-    pushLastFrame _ dump _ _ _ = void . evaluate . force $ dump
+    pushLastFrame dump _ _ _ _ = void . evaluate . force $ dump
     closeBackend _ = pure ()

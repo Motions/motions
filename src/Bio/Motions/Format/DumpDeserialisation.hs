@@ -27,20 +27,22 @@ import Bio.Motions.Format.Proto.Header.ChainDescription
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Types
 
-deserialiseMove :: Delta -> Maybe Move
+deserialiseMove :: Delta -> Maybe (Move, StepCounter)
 deserialiseMove Delta{..} = do
     moveFrom <- from >>= readPosition
     moveDiff <- disp >>= readPosition
-    return Move{..}
+    stepCounter <- step_counter
+    return (Move{..}, stepCounter)
 
-deserialiseDump :: ProtoHeader.Header -> ProtoKeyframe.Keyframe -> Maybe Dump
+deserialiseDump :: ProtoHeader.Header -> ProtoKeyframe.Keyframe -> Maybe (Dump, StepCounter)
 deserialiseDump header keyframe = do
     binderTypesCount <- fromIntegral <$> ProtoHeader.binders_types_count header
     dumpBinders <- mapM readBinder $ toList $ ProtoKeyframe.binders keyframe
     let chainPositions = toList $ ProtoKeyframe.chains keyframe
     let chainDescriptions = toList $ ProtoHeader.chains header
     dumpChains <- zipWithM (readChainBeads binderTypesCount) chainDescriptions chainPositions
-    return Dump{..}
+    stepCounter <- ProtoKeyframe.step_counter keyframe
+    return (Dump{..}, stepCounter)
 
 getChainNames :: ProtoHeader.Header -> Maybe [String]
 getChainNames = mapM readChainName . toList . ProtoHeader.chains
