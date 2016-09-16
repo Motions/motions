@@ -10,6 +10,7 @@ module Bio.Motions.Utils.Parsec where
 
 import Bio.Motions.Types
 
+import Data.Int
 import Text.Parsec
 import Text.Parsec.ByteString
 import GHC.Exts
@@ -25,3 +26,6 @@ listOf p = char '[' *> p `sepBy1` (spaces *> char ',') <* char ']'
 
 int :: Stream s m Char => ParsecT s u m Int
 int = read <$> many1 digit <?> "non-negative integer"
+
+int64 :: Stream s m Char => ParsecT s u m Int64
+int64 = read <$> many1 digit <?> "non-negative integer64"

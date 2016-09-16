@@ -26,6 +26,7 @@ import GHC.Exts
 import Linear
 import Text.Parsec
 import Text.Parsec.ByteString
+import Data.Maybe
 import Data.List
 import Data.Function
 import qualified Data.Map.Strict as M
@@ -234,7 +235,7 @@ toCoordData = (* 3)
 toConnectData :: Serial -> PDBEntry
 toConnectData i = PDBConnect i (i + 1)
 
--- |Converts a list of PDB entries to a dump.
+-- |Converts a list of PDB entries to a dump and an optional step counter.
 fromPDBData ::
       RevPDBMeta
    -- ^The mappings used to convert from the PDB format.
@@ -242,8 +243,8 @@ fromPDBData ::
    -- ^Square of the maximum chain segment length or Nothing if unbounded.
    -> [PDBEntry]
    -- ^The list of PDB entries.
-   -> Either ReadError Dump
-   -- ^The resulting dump or error if the input was invalid.
+   -> Either ReadError (Dump, Maybe StepCounter)
+   -- ^The resulting dump and step counter, or error if the input was invalid.
 fromPDBData meta maxd es = do
     dumpBinders <- mapM (fromBinderData meta) binderEntries
     connects <- fromConnectsData connectEntries
@@ -253,11 +254,17 @@ fromPDBData meta maxd es = do
         throwError $ "Two chains (not connected) with the same chain id: " ++ show ch
     unless (and $ zipWith (==) chainIds [0..]) $
         throwError "Chain numbers are not consecutive natural numbers starting from 0"
-    pure Dump{..}
+    pure (Dump{..}, headerEntry >>= headerToStep)
   where
+    headerEntry = listToMaybe [e | e@PDBHeader{..} <- es]
     binderEntries = [e | e@PDBAtom{..} <- es, name `elem` ["L", "O"]]
     beadEntries = [e | e@PDBAtom{..} <- es, name == "C"]
     connectEntries = [e | e@PDBConnect{} <- es]
+
+headerToStep :: PDBEntry -> Maybe StepCounter
+headerToStep (PDBHeader str) = parseOrNothing parser str
+  where parser = int *> spaces *> int *> spaces *> string "step" *> spaces *> int64
+headerToStep _ = error "headerToStep called with non-header entry"
 
 fromBinderData :: RevPDBMeta -> PDBEntry -> Either ReadError BinderInfo
 fromBinderData RevPDBMeta{..} PDBAtom{..} = BinderInfo pos <$> bt
@@ -377,6 +384,9 @@ mergeDumps dumps = checkPositions >> checkChains >> pure mergedDump
     beadSpace = foldr (\b -> HM.insert (b ^. position) (asAtom b)) HM.empty allBeads
     allBeads = concat . dumpIndexedChains $ mergedDump
     maxQd = foldr (max . uncurry qd) 0 connectedPositions
+
+parseOrNothing :: Stream s Identity t => Parsec s () a -> s -> Maybe a
+parseOrNothing p = either (const Nothing) Just . parse p ""
 
 parseOrError :: Stream s Identity t => Parsec s () a -> s -> Either ReadError a
 parseOrError p = left show . parse p ""

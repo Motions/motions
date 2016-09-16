@@ -123,15 +123,17 @@ testRead = do
         it "extracts the chain names correctly" $
             getChainNames expectedMeta `shouldBe` ["Watson", "Crick"]
     context "when reading correct frame data" $ do
-        let eitherErrDump = fromPDBData expectedMeta maxd pdbEntries
+        let eitherErrResult = fromPDBData expectedMeta maxd pdbEntries
         it "reads the data without errors" $
-            eitherErrDump `shouldSatisfy` isRight
-        when (isRight eitherErrDump) $ do
-            let Right dump = eitherErrDump
+            eitherErrResult `shouldSatisfy` isRight
+        when (isRight eitherErrResult) $ do
+            let Right (dump, step) = eitherErrResult
             it "creates the correct binders" $
                 dumpBinders dump `shouldMatchList` dumpBinders expectedDump
             it "creates the correct chains" $
                 dumpChains dump `shouldBe` dumpChains expectedDump
+            it "creates the correct step" $
+                step `shouldBe` expectedStep
     context "when reading incorrect meta data" $ do
         it "detects duplicate energy vector strings" $
             shouldFailParsingMeta metaDupEvStrs
@@ -196,7 +198,8 @@ testRead = do
           parsePDBMetaData printedPdbMetaEntries `shouldBe` Right pdbMetaEntries
   where
     pdbEntries :: [PDBEntry]
-    pdbEntries = [ PDBAtom 0 "C" ev0s ch0s 1 (V3 0 0 0)
+    pdbEntries = [ PDBHeader "0 123 step 42"
+                 , PDBAtom 0 "C" ev0s ch0s 1 (V3 0 0 0)
                  , PDBAtom 1 "C" ev1s ch0s 2 (V3 0 0 3)
                  , PDBAtom 2 "C" ev0s ch1s 1 (V3 3 0 0)
                  , PDBAtom 3 "C" ev0s ch1s 2 (V3 6 0 0)
@@ -237,6 +240,9 @@ testRead = do
                          ]
         , revBinderTypeName = [("Lamin", bi0), ("Regular", bi1)]
         }
+
+    expectedStep :: Maybe StepCounter
+    expectedStep = Just 42
 
     expectedDump :: Dump
     expectedDump = Dump
