@@ -27,20 +27,20 @@ import Control.Monad.Except
 import Data.List
 import System.IO
 
-data SimulationState repr score = SimulationState
+data SimulationState repr score backend producer = SimulationState
     { repr :: !repr
     , score :: !score
     , preCallbackResults :: ![CallbackResult 'Pre]
     , postCallbackResults :: ![CallbackResult 'Post]
     , stepCounter :: !StepCounter
     , frameCounter :: !FrameCounter
+    , outputBackend :: !backend
+    , moveProducer :: !producer
     }
 
 -- |Describes how the simulation should run.
 data RunSettings repr score backend producer = RunSettings
-    { numSteps :: Int
-    -- ^ Number of simulation steps.
-    , freezePredicate :: FreezePredicate
+    { freezePredicate :: FreezePredicate
     -- ^ A predicate determining whether a bead is frozen
     , allPreCallbacks :: [CallbackType 'Pre]
     -- ^ List of all available pre-callbacks' types
@@ -48,7 +48,7 @@ data RunSettings repr score backend producer = RunSettings
     -- ^ List of all available post-callbacks' types
     , requestedCallbacks :: [String]
     -- ^ List of requested callback names
-    , outputBackend :: backend
+    , backend :: backend
     -- ^ Output backend
     , producer :: producer
     -- ^ Move producer
@@ -58,26 +58,29 @@ data RunSettings repr score backend producer = RunSettings
     -- ^ Where the run log should be written or Nothing if logging is disabled.
     }
 
-type SimT repr score m = ExceptT () (StateT (SimulationState repr score) m)
+type SimT repr score backend producer m =
+    ExceptT () (StateT (SimulationState repr score backend producer) m)
 
 step :: (RandomRepr m repr, Score score, MoveProducer m repr producer) =>
-        producer -> SimT repr score m (Maybe Move)
-step producer = do
+        SimT repr score backend producer m Move
+step = do
     st@SimulationState{..} <- get
-    lift2 (getMove producer repr score) >>= \case
-      Skip -> pure Nothing
-      Stop -> throwError ()
-      MakeMove move score' -> do
-        put <=< lift2 $ do
-            preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
-            repr' <- performMove move repr
-            postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
-            pure $ st { repr = repr'
-                      , score = score'
-                      , preCallbackResults = preCallbackResults'
-                      , postCallbackResults = postCallbackResults'
-                      }
-        pure $ Just move
+    (prodMove, producer') <- lift2 $ flip runStateT moveProducer $ getMove repr score
+    case prodMove of
+        MakeMove move score' stepCounter' -> do
+            put <=< lift2 $ do
+                preCallbackResults' <- mapM (updateCallbackResult repr move) preCallbackResults
+                repr' <- performMove move repr
+                postCallbackResults' <- mapM (updateCallbackResult repr' move) postCallbackResults
+                pure $ st { repr = repr'
+                          , score = score'
+                          , preCallbackResults = preCallbackResults'
+                          , postCallbackResults = postCallbackResults'
+                          , stepCounter = stepCounter'
+                          , moveProducer = producer'
+                          }
+            pure move
+        Stop -> throwError ()
   where
     lift2 = lift . lift
 {-# INLINE step #-}
@@ -85,27 +88,22 @@ step producer = do
 -- |Perform a step and output the results.
 stepAndWrite :: (RandomRepr m repr, Score score, MonadIO m,
                     OutputBackend backend, MoveProducer m repr producer) =>
-      producer
-    -- ^The move producer
-   -> backend
-    -- ^The output backend.
-   -> (SimulationState repr score -> IO ())
+      (SimulationState repr score backend producer -> IO ())
     -- ^A logging function.
-   -> SimT repr score m ()
-stepAndWrite producer backend log = do
-    modify $ \s -> s { stepCounter = stepCounter s + 1 }
-    step producer >>= \case
-      Nothing -> pure ()
-      Just move -> do
-          modify $ \s -> s { frameCounter = frameCounter s + 1 }
-          cb <- (,) <$> gets preCallbackResults <*> gets postCallbackResults
-          st@SimulationState{..} <- get
-          liftIO (getNextPush backend) >>= \case
-            PushDump act -> getDump >>= liftIO . (\dump -> act dump cb stepCounter frameCounter score)
-            PushMove act -> liftIO $ act move cb stepCounter frameCounter
-          liftIO $ log st
-  where
-    getDump = gets repr >>= lift . lift . makeDump
+   -> SimT repr score backend producer m ()
+stepAndWrite log = do
+    move <- step
+    modify $ \s -> s { frameCounter = frameCounter s + 1 }
+    cb <- (,) <$> gets preCallbackResults <*> gets postCallbackResults
+    st@SimulationState{..} <- get
+    outputBackend' <- case getNextPush outputBackend of
+      PushDump act -> do
+          dump <- lift . lift . makeDump $ repr
+          liftIO . flip execStateT outputBackend $ act dump cb stepCounter frameCounter score
+      PushMove act -> liftIO . flip execStateT outputBackend $ act move cb stepCounter frameCounter
+    let st' = st { outputBackend = outputBackend' }
+    put st'
+    liftIO $ log st'
 {-# INLINE stepAndWrite #-}
 
 -- |Parses a list of callback names
@@ -122,19 +120,22 @@ filterCallbacks allCbs req = ((m M.!) <$> found, notFound)
     (found, notFound) = partition (`M.member` m) req
 
 simulate :: (Score score, RandomRepr m repr, MonadIO m, OutputBackend backend, MoveProducer m repr producer)
-         => RunSettings repr score backend producer -> Dump -> m Dump
-simulate (RunSettings{..} :: RunSettings repr score backend producer) dump = do
+         => RunSettings repr score backend producer -> StepCounter -> Dump -> m Dump
+simulate (RunSettings{..} :: RunSettings repr score backend producer) initialStep dump = do
     st <- initState
     SimulationState{..} <- flip execStateT st . runExceptT $ do
         -- push first frame
         cb <- (,) <$> gets preCallbackResults <*> gets postCallbackResults
-        liftIO (getNextPush outputBackend) >>= \case
-            PushDump act -> liftIO $ act dump cb 0 0 (score st)
+        backend <- gets outputBackend
+        stepCounter <- gets stepCounter
+        backend' <- case getNextPush backend of
+            PushDump act -> liftIO  . flip execStateT backend $ act dump cb stepCounter 0 (score st)
             PushMove _ -> error "first frame must always be a dump"
-        replicateM_ numSteps $ stepAndWrite producer outputBackend log
+        modify $ \st -> st { outputBackend = backend' }
+        forever $ stepAndWrite log
 
     finalDump <- makeDump repr
-    liftIO $ pushLastFrame outputBackend finalDump stepCounter frameCounter score
+    liftIO . flip evalStateT outputBackend $ pushLastFrame finalDump stepCounter frameCounter score
     pure finalDump
   where
     initState = do
@@ -148,8 +149,10 @@ simulate (RunSettings{..} :: RunSettings repr score backend producer) dump = do
         preCallbackResults <- getCallbackResults repr enabledPreCallbacks
         postCallbackResults <- getCallbackResults repr enabledPostCallbacks
 
-        let stepCounter = 0
+        let stepCounter = initialStep
             frameCounter = 0
+            outputBackend = backend
+            moveProducer = producer
         pure SimulationState{..}
     {-# INLINE initState #-}
 
@@ -158,7 +161,7 @@ simulate (RunSettings{..} :: RunSettings repr score backend producer) dump = do
 {-# INLINEABLE[0] simulate #-}
 
 -- |Output log: step and frame counters, score, and callback results
-writeLog :: (MonadIO m, Show score) => Handle -> Bool -> SimulationState repr score -> m ()
+writeLog :: (MonadIO m, Show score) => Handle -> Bool -> SimulationState repr score backend producer -> m ()
 writeLog handle verbose SimulationState{..} = liftIO . hPutStrLn handle $ logStr
   where
     logStr = unwords $ [stepStr, frameStr, scoreStr] ++ preCbsStr ++ postCbsStr

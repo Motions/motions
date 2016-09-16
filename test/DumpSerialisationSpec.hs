@@ -53,16 +53,17 @@ move = Move
 
 spec :: Spec
 spec = context "when serialising and deserialising dumps and moves" $ do
-    let h = getHeader "a" "b" [] ["x", "y", "z"] dump
-        kf = getKeyframe dump ([], []) 0
-    let Just dumpAgain = deserialiseDump h kf
+    let step = 42
+        h = getHeader "a" "b" [] ["x", "y", "z"] dump
+        kf = getKeyframe dump ([], []) step
+    let Just dumpStepAgain = deserialiseDump h kf
 
     it "should return the same dump" $
-        dump `shouldBe` dumpAgain
-    let delta = serialiseMove move ([], []) 0
-    let Just moveAgain = deserialiseMove delta
+        (dump, step) `shouldBe` dumpStepAgain
+    let delta = serialiseMove move ([], []) step
+    let Just moveStepAgain = deserialiseMove delta
     it "should return the same move" $
-        move `shouldBe` moveAgain
+        (move, step) `shouldBe` moveStepAgain
     let serialisedCallbacks =
           toList $ callbacks $ serialiseMove move
               ([CallbackResult $ GyrationRadius [10.1, 2.2]
