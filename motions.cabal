@@ -25,6 +25,10 @@ library
                        Bio.Motions.Format.DumpDeserialisation,
                        Bio.Motions.Format.DumpSerialisation,
                        Bio.Motions.Format.Proto.Delta,
+                       Bio.Motions.Format.Backend.Common,
+                       Bio.Motions.Format.Backend.Writer,
+                       Bio.Motions.Format.Backend.Reader,
+                       Bio.Motions.Format.ProtoStream,
                        Bio.Motions.Utils.FreezePredicateParser,
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Utils.Parsec,
@@ -45,13 +49,12 @@ library
                        Bio.Motions.PDB.Write,
                        Bio.Motions.PDB.Read,
                        Bio.Motions.PDB.Internal,
-                       Bio.Motions.PDB.Backend,
+                       Bio.Motions.PDB.Backend.Reader,
+                       Bio.Motions.PDB.Backend.Writer,
                        Bio.Motions.BED,
                        Bio.Motions.Engine,
                        Bio.Motions.Output,
                        Bio.Motions.Input,
-                       Bio.Motions.Format.ProtoStream,
-                       Bio.Motions.Format.Handle,
                        Bio.Motions.StateInitialisation
   other-modules:       Bio.Motions.Format.Proto.Callback,
                        Bio.Motions.Format.Proto.Callback.Type,
@@ -107,6 +110,7 @@ executable motions
                        aeson >=0.11 && <0.12,
                        parsec >=3.1 && <3.2,
                        reflection >=2.1.2 && <2.1.3,
+                       mtl >=2.2 && <2.3,
                        motions
   default-language:    Haskell2010
   ghc-options:         -pgml c++ -Wall

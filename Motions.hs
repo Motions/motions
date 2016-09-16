@@ -30,11 +30,13 @@ import Bio.Motions.Callback.Class
 import Bio.Motions.Callback.Discover
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Callback.GyrationRadius()
-import Bio.Motions.Format.Handle
+import Bio.Motions.Format.Backend.Writer
+import Bio.Motions.Format.Backend.Reader
 import Bio.Motions.StateInitialisation
 import Bio.Motions.Output
 import Bio.Motions.Input
-import Bio.Motions.PDB.Backend
+import Bio.Motions.PDB.Backend.Writer
+import Bio.Motions.PDB.Backend.Reader
 import qualified Bio.Motions.Engine as E
 import Bio.Motions.Utils.FreezePredicateParser
 import Bio.Motions.Utils.Random
@@ -43,7 +45,7 @@ import Text.Parsec as P
 import Control.Exception
 import System.IO
 import Control.Monad.IO.Class
-import Control.Monad
+import Control.Monad.State.Strict
 import qualified Data.Vector.Unboxed as U
 import Options.Applicative as O
 import Data.Proxy
@@ -51,6 +53,7 @@ import Data.Maybe
 import Data.Yaml
 import Data.Aeson.Types as J
 import Data.Reflection
+import Data.Int
 import GHC.Generics
 import Specialise
 
@@ -80,7 +83,7 @@ data RunSettings' = RunSettings'
     { outputPrefix :: FilePath
     , simulationName :: String
     , simulationDescription :: String
-    , numSteps :: Int
+    , numSteps :: Int64
     , writeIntermediatePDB :: Bool
     , enableLogging :: Bool
     , verboseCallbacks :: Bool
@@ -158,7 +161,7 @@ instance FromJSON Settings where
     parseJSON invalid = typeMismatch "Object" invalid
 
 mkRunSettings :: RunSettings' -> backend -> producer -> E.RunSettings repr score backend producer
-mkRunSettings RunSettings'{..} outputBackend producer = E.RunSettings{..}
+mkRunSettings RunSettings'{..} backend producer = E.RunSettings{..}
   where
     allPreCallbacks = $(allCallbacks Pre)
     allPostCallbacks = $(allCallbacks Post)
@@ -241,19 +244,23 @@ runSimulation Settings{..} = dispatchScore
               error "Both \"generate\" and \"load\" methods provided. Choose one."
           (_, Just settings) -> if binaryInput settings
                then withBinaryInput settings $ \prod chainNames binderTypesNames -> do
-                  dump <- seekBinaryKF prod $ skipFrames settings
-                  withProd settings prod chainNames binderTypesNames dump
+                  (dump, prod') <- flip runStateT prod $ seekBinaryKF $ skipFrames settings
+                  withProd settings prod' chainNames binderTypesNames dump
                else withPDBInput settings maxChainDistSquared $ \prod chainNames binderTypesNames -> do
-                  dump <- skipPDBInput prod $ skipFrames settings
-                  withProd settings prod chainNames binderTypesNames dump
+                  (dump, prod') <- flip runStateT prod $ skipPDBInput $ skipFrames settings
+                  withProd settings prod' chainNames binderTypesNames dump
           (Just settings, _) -> do
               (dump, chainNames, binderTypesNames) <- generate settings maxChainDistSquared
-              dispatchOutput scoreProxy reprProxy random chainNames binderTypesNames MoveGenerator dump
+              dispatchOutput scoreProxy reprProxy random chainNames binderTypesNames moveGenerator dump
       where
         InitialisationSettings{..} = initialisationSettings
+
+        moveGenerator :: MoveGenerator
+        moveGenerator = mkMoveGenerator $ numSteps runSettings
+
         withProd :: _ => InputSettings -> prod -> [String] -> [String] -> Dump -> IO Dump
         withProd settings prod names binderTypesNames dump = case moveSource settings of
-            "generate" -> dispatchOutput scoreProxy reprProxy random names binderTypesNames MoveGenerator dump
+            "generate" -> dispatchOutput scoreProxy reprProxy random names binderTypesNames moveGenerator dump
             "input" -> dispatchOutput scoreProxy reprProxy random names binderTypesNames prod dump
             _ -> fail "invalid move-source"
     {-# INLINE dispatchInput #-}

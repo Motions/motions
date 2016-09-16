@@ -9,8 +9,8 @@ module Specialise where
 
 import Bio.Motions.Callback.StandardScore
 import Bio.Motions.Engine
-import Bio.Motions.Format.Handle
-import Bio.Motions.PDB.Backend
+import Bio.Motions.Format.Backend.Writer
+import Bio.Motions.PDB.Backend.Writer
 import Bio.Motions.Input
 import Bio.Motions.Representation.Chain
 import Bio.Motions.Representation.Chain.Slow
@@ -26,22 +26,22 @@ import GHC.TypeLits
  - However, those RULES would also apply to the definition of the specialised function. Therefore,
  - we define the specialisations in a separate module.
  -}
-simulate'IOChain'StandardScore'PDB'MWCIO :: RunSettings IOChainRepresentation StandardScore PDBBackend MoveGenerator
+simulate'IOChain'StandardScore'PDB'MWCIO :: RunSettings IOChainRepresentation StandardScore PDBWriter MoveGenerator
                                             -> Dump -> MWCIO Dump
 simulate'IOChain'StandardScore'PDB'MWCIO = inline simulate
 {-# NOINLINE simulate'IOChain'StandardScore'PDB'MWCIO #-}
 
-simulate'IOChain'StandardScore'Bin'MWCIO :: RunSettings IOChainRepresentation StandardScore BinaryBackend MoveGenerator
+simulate'IOChain'StandardScore'Bin'MWCIO :: RunSettings IOChainRepresentation StandardScore BinaryWriter MoveGenerator
                                             -> Dump -> MWCIO Dump
 simulate'IOChain'StandardScore'Bin'MWCIO = inline simulate
 {-# NOINLINE simulate'IOChain'StandardScore'Bin'MWCIO #-}
 
 simulate'SlowChain'StandardScore'PDB'MWCIO :: (KnownNat r, KnownNat d)
-       => RunSettings (SlowChainRepresentation r d) StandardScore PDBBackend MoveGenerator -> Dump -> MWCIO Dump
+       => RunSettings (SlowChainRepresentation r d) StandardScore PDBWriter MoveGenerator -> Dump -> MWCIO Dump
 simulate'SlowChain'StandardScore'PDB'MWCIO = inline simulate
 {-# NOINLINE simulate'SlowChain'StandardScore'PDB'MWCIO #-}
 
 simulate'SlowChain'StandardScore'Bin'MWCIO :: (KnownNat r, KnownNat d)
-       => RunSettings (SlowChainRepresentation r d) StandardScore BinaryBackend MoveGenerator -> Dump -> MWCIO Dump
+       => RunSettings (SlowChainRepresentation r d) StandardScore BinaryWriter MoveGenerator -> Dump -> MWCIO Dump
 simulate'SlowChain'StandardScore'Bin'MWCIO = inline simulate
 {-# NOINLINE simulate'SlowChain'StandardScore'Bin'MWCIO #-}
