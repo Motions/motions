@@ -17,6 +17,8 @@ Portability : unportable
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Types where
 
@@ -27,6 +29,7 @@ import GHC.Exts
 import Control.Lens.TH
 import Data.Profunctor.Unsafe
 import Data.Int
+import Data.Primitive
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -60,6 +63,45 @@ type ChainId = Int
 
 -- |A 3D vector of Ints
 type Vec3 = V3 Int
+
+instance Prim Vec3 where
+    sizeOf# ~(V3 x _ _) = 3# *# sizeOf# x
+    {-# INLINE sizeOf# #-}
+
+    alignment# ~(V3 x _ _) = alignment# x
+    {-# INLINE alignment# #-}
+
+    indexByteArray# arr idx = V3
+        (indexByteArray# arr (3# *# idx))
+        (indexByteArray# arr (3# *# idx +# 1#))
+        (indexByteArray# arr (3# *# idx +# 2#))
+    {-# INLINE indexByteArray# #-}
+
+    readByteArray# arr idx s =
+        let (# s', x #) = readByteArray# arr (3# *# idx) s in
+        let (# s'', y #) = readByteArray# arr (3# *# idx +# 1#) s' in
+        let (# s''', z #) = readByteArray# arr (3# *# idx +# 2#) s'' in
+        (# s''', V3 x y z #)
+    {-# INLINE readByteArray# #-}
+
+    writeByteArray# arr idx (V3 x y z) s =
+        let s' = writeByteArray# arr (3# *# idx) x s in
+        let s'' = writeByteArray# arr (3# *# idx +# 1#) y s' in
+        let s''' = writeByteArray# arr (3# *# idx +# 2#) z s'' in
+        s'''
+    {-# INLINE writeByteArray# #-}
+
+    setByteArray# = undefined -- TODO
+    
+    indexOffAddr# = undefined -- TODO
+
+    readOffAddr# = undefined -- TODO
+
+    writeOffAddr# = undefined -- TODO
+
+    setOffAddr# = undefined -- TODO
+
+  
 
 -- |Represents the immutable information about a particular bead
 data BeadSignature = BeadSignature

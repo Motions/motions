@@ -23,15 +23,16 @@ import Bio.Motions.Representation.Class
 import Bio.Motions.Representation.Common
 import Bio.Motions.Representation.Dump
 import Bio.Motions.Utils.Random
+import Bio.Motions.Utils.Ref
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import Data.List
-import Data.IORef
 import Data.Maybe
 import Data.MonoTraversable
+import Data.Primitive
 import qualified Data.Sequences as DS
 import qualified Data.HashMap.Strict as M
 import qualified Data.Vector as V
@@ -53,14 +54,14 @@ data ChainRepresentation f = ChainRepresentation
     }
 
 type PureChainRepresentation = ChainRepresentation Identity
-type IOChainRepresentation = ChainRepresentation IORef
+type IOChainRepresentation = ChainRepresentation IOURef
 
 -- |Used to wrap and unwrap 'f'.
 --
 -- See 'relocate'.
 class Monad m => Wrapper m f where
-    unwrap :: f a -> m a
-    wrap :: a -> m (f a)
+    unwrap :: Prim a => f a -> m a
+    wrap :: Prim a => a -> m (f a)
 
 instance Monad m => Wrapper m Identity where
     unwrap = pure . runIdentity
@@ -68,10 +69,10 @@ instance Monad m => Wrapper m Identity where
     wrap = pure . Identity
     {-# INLINE wrap #-}
 
-instance MonadIO m => Wrapper m IORef where
-    unwrap = liftIO . readIORef
+instance MonadIO m => Wrapper m IOURef where
+    unwrap = readIOURef
     {-# INLINE unwrap #-}
-    wrap = liftIO . newIORef
+    wrap = newIOURef
     {-# INLINE wrap #-}
 
 -- |Converts between 'Located f' and 'Located f''.
@@ -137,7 +138,7 @@ instance MonadIO m => Representation m IOChainRepresentation where
     loadDump = loadDump'
 
     performMove (MoveFromTo from to) repr = do
-        liftIO $ writeIORef (atom ^. wrappedPosition) to
+        writeIOURef (atom ^. wrappedPosition) to
         pure repr { space = space' }
       where
         atom = space repr M.! from
