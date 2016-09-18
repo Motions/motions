@@ -31,6 +31,7 @@ import qualified Bio.Motions.Callback.Class as CC
 import Bio.Motions.Types
 import Bio.Motions.Output
 import Bio.Motions.Input
+import Bio.Motions.Utils.Ref
 
 import Foreign.C.String
 import Foreign.C.Types
@@ -40,8 +41,8 @@ import Foreign.ForeignPtr
 import Data.ByteString.Unsafe
 import qualified Data.ByteString.Lazy as BL
 import Text.ProtocolBuffers
-import Data.IORef
 import Data.Maybe
+import Data.IORef
 
 import Control.Monad
 import Control.Exception(bracket)
@@ -54,7 +55,7 @@ data BinaryBackend = BinaryBackend
     { handle :: ProtoHandle
     , framesPerKF :: Int
     -- ^Frames per keyframe
-    , framesSinceLastKF :: IORef Int
+    , framesSinceLastKF :: IOURef Int
     -- ^Frames written/read since last keyframe (including that keyframe)
     , mode :: Mode
     , keyframeIterator :: IORef (Ptr HKeyframeIterator)
@@ -64,7 +65,7 @@ data BinaryBackend = BinaryBackend
 
 instance OutputBackend BinaryBackend where
     getNextPush state@BinaryBackend{..} = do
-        cur <- readIORef framesSinceLastKF
+        cur <- readIOURef framesSinceLastKF
         pure $ if cur == framesPerKF then
                    PushDump $ \dump callbacks step _ _ -> appendKeyframe state dump callbacks step
                else
@@ -87,7 +88,7 @@ openBinaryOutput framesPerKF OutputSettings{..} dump = do
     handle <- openOutput
     -- Hack. We want the first getNextPush to return PushDump, so
     -- we set framesSinceLastKF to what the if statement is expecting.
-    framesSinceLastKF <- newIORef framesPerKF
+    framesSinceLastKF <- newIOURef framesPerKF
     let mode = Appending
     keyframeIterator <- newIORef nullPtr
     deltaIterator <- newIORef nullPtr
@@ -117,12 +118,12 @@ genericAppend stream f msg =
 
 appendKeyframe :: BinaryBackend -> Dump -> CC.Callbacks -> StepCounter -> IO ()
 appendKeyframe BinaryBackend{..} dump callbacks step = do
-    writeIORef framesSinceLastKF 1
+    writeIOURef framesSinceLastKF 1
     genericAppend handle protoAppendKeyframe $ getKeyframe dump callbacks step
 
 appendDelta :: BinaryBackend -> Move -> CC.Callbacks -> StepCounter -> IO ()
 appendDelta BinaryBackend{..} move callbacks step = do
-    modifyIORef framesSinceLastKF (+1)
+    modifyIOURef framesSinceLastKF (+1)
     genericAppend handle protoAppendDelta $ serialiseMove move callbacks step
 
 openBinaryInput :: InputSettings -> IO BinaryBackend
@@ -131,7 +132,7 @@ openBinaryInput InputSettings{..} = do
                 [file] -> withCString file protoOpenExisting
                 _ -> fail "Specify exactly one binary input file"
     framesPerKF <- fromIntegral <$> protoGetFPKF handle
-    framesSinceLastKF <- newIORef 1
+    framesSinceLastKF <- newIOURef 1
     let mode = Reading
     kfIt <- protoIterKeyframes handle
     deltaIterator <- protoIterDeltas kfIt >>= newIORef
@@ -158,7 +159,7 @@ seekBinaryKF BinaryBackend{..} i = do
     unless valid $ fail "out of bounds"
     readIORef deltaIterator >>= protoFreeDeltaIterator
     protoIterDeltas kfi >>= writeIORef deltaIterator
-    writeIORef framesSinceLastKF 1
+    writeIOURef framesSinceLastKF 1
     liftIO $ genericGet (protoGetKeyframe kfi) protoFreeKeyframe $
         fromMaybe (error "invalid keyframe") . deserialiseDump header
 

@@ -29,6 +29,7 @@ library
                        Bio.Motions.Utils.RepetitionGuard,
                        Bio.Motions.Utils.Parsec,
                        Bio.Motions.Utils.Random,
+                       Bio.Motions.Utils.Ref,
                        Bio.Motions.Utils.Geometry,
                        Bio.Motions.Utils.Common,
                        Bio.Motions.Callback.Class,

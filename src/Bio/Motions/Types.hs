@@ -17,6 +17,10 @@ Portability : unportable
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
+
+{-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 module Bio.Motions.Types where
 
@@ -27,6 +31,10 @@ import GHC.Exts
 import Control.Lens.TH
 import Data.Profunctor.Unsafe
 import Data.Int
+import Data.Primitive
+
+import Debug.Trace as DT
+import GHC.Int
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -60,6 +68,48 @@ type ChainId = Int
 
 -- |A 3D vector of Ints
 type Vec3 = V3 Int
+
+instance Prim Vec3 where
+    sizeOf# ~(V3 x _ _) = 3# *# sizeOf# x
+--    sizeOf# ~(V3 x _ _) = let !(I# res) = DT.trace "sizeOf" $ I# (3# *# sizeOf# x) in res
+    {-# INLINE sizeOf# #-}
+
+    alignment# ~(V3 x _ _) = alignment# x
+--    alignment# ~(V3 x _ _) = let !(I# res) =  DT.trace "alignment" $ I# (alignment# x) in res
+    {-# INLINE alignment# #-}
+
+    indexByteArray# arr idx = V3
+--    indexByteArray# arr idx = DT.traceShow ("idx", I# idx) $ V3
+        (indexByteArray# arr (3# *# idx))
+        (indexByteArray# arr (3# *# idx +# 1#))
+        (indexByteArray# arr (3# *# idx +# 2#))
+    {-# INLINE indexByteArray# #-}
+
+    readByteArray# arr idx s =
+        let (# s', x #) = readByteArray# arr (3# *# idx) s in
+        let (# s'', y #) = readByteArray# arr (3# *# idx +# 1#) s' in
+        let (# s''', z #) = readByteArray# arr (3# *# idx +# 2#) s'' in
+        --let !(I# _) = DT.traceShow ("readByteArray", I# idx) $ 3 in
+        (# s''', V3 x y z #)
+    {-# INLINE readByteArray# #-}
+
+    writeByteArray# arr idx v@(V3 x y z) s =
+        let s' = writeByteArray# arr (3# *# idx) x s in
+        let s'' = writeByteArray# arr (3# *# idx +# 1#) y s' in
+        let s''' = writeByteArray# arr (3# *# idx +# 2#) z s'' in
+        --let !(I# _) = DT.traceShow ("writeByteArray", I# idx, v) $ 3 in
+        s'''
+    {-# INLINE writeByteArray# #-}
+
+    setByteArray# = undefined -- TODO
+    
+    indexOffAddr# = undefined -- TODO
+
+    readOffAddr# = undefined -- TODO
+
+    writeOffAddr# = undefined -- TODO
+
+    setOffAddr# = undefined -- TODO
 
 -- |Represents the immutable information about a particular bead
 data BeadSignature = BeadSignature
